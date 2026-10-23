@@ -1,0 +1,17 @@
+{
+  "name": "tieguan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "铁馆 · 健身 AI 教练（Web / PWA / Android 壳共用一套代码）",
+  "scripts": {
+    "www": "node scripts/make-www.js",
+    "sync": "node scripts/make-www.js && cap sync android",
+    "open:android": "cap open android",
+    "add:android": "cap add android"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

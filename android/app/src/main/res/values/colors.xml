@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 Web 端 CSS 变量保持一致（css/app.css :root） -->
+    <color name="colorPrimary">#0E7A63</color>
+    <color name="colorPrimaryDark">#0A5C4B</color>
+    <color name="colorAccent">#E9762F</color>
+
+    <color name="splash_background">#0E7A63</color>
+    <color name="window_background">#F2F5F2</color>
+</resources>

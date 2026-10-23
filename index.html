@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0e7a63" />
+<meta name="description" content="铁馆 · 训练计划、饮食配餐、动作库与每日打卡，数据存在你自己的设备或服务器上。" />
+<title>铁馆 · 健身 AI 教练</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="铁馆" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">铁</span>
+      <div class="brand-text">
+        <strong>铁馆</strong>
+        <span id="topbar-sub">训练 · 饮食 · 打卡</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="streak-chip" id="streak-chip" title="连续打卡天数">—</div>
+      <button class="icon-btn" data-act="open-settings" title="设置">⚙</button>
+    </div>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab" data-tab="today"><i>◎</i><span>今日</span></button>
+    <button class="tab" data-tab="plan"><i>▤</i><span>计划</span></button>
+    <button class="tab" data-tab="coach"><i>✦</i><span>教练</span></button>
+    <button class="tab" data-tab="library"><i>❖</i><span>动作库</span></button>
+    <button class="tab" data-tab="body"><i>◔</i><span>身体</span></button>
+  </nav>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root" class="toast-root"></div>
+
+<script src="js/util.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/foods.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/core/schedule.js"></script>
+<script src="js/repo.js"></script>
+<script src="js/store.js"></script>
+<script src="js/llm.js"></script>
+<script src="js/views/today.js"></script>
+<script src="js/views/plan.js"></script>
+<script src="js/views/coach.js"></script>
+<script src="js/views/library.js"></script>
+<script src="js/views/body.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

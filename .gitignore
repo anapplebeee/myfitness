@@ -1,0 +1,17 @@
+node_modules/
+www/
+data/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks
+keystore.properties
+.DS_Store
+
+# WorkBuddy 工作数据（记忆/笔记，非交付物）
+.workbuddy/
+
+# Capacitor sync 产物（由 `npm run sync` 生成）
+android/app/src/main/assets/
