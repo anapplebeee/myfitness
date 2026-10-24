@@ -39,6 +39,7 @@ function state(overrides: Partial<AppState> = {}): AppState {
     weights: [],
     foods: [],
     bodyGoalGrams: null,
+    goals: [],
     targetKcal: null,
     targetProtein: null,
     weeklyGoal: 3,
@@ -258,4 +259,5 @@ describe('AC-S03 · 冲突副本保留双方', () => {
     expect(copy.createdAt).toBeTruthy();
   });
 });
+
 

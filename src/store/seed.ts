@@ -170,6 +170,7 @@ export function seedState(): AppState {
     sessions: sessions.sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1)),
     weights,
     foods,
+    goals: [],
     bodyGoalGrams: 74000,
     targetKcal: 2350,
     targetProtein: 165,
@@ -181,6 +182,7 @@ export function seedState(): AppState {
     lastBackupKey: null,
   };
 }
+
 
 
 

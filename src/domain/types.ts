@@ -159,6 +159,8 @@ export interface Targets {
   fat: number;
 }
 
+import type { Goal } from './goals';
+
 export interface AppState {
   version: 2;
   createdAt: string;
@@ -168,6 +170,8 @@ export interface AppState {
   weights: WeightEntry[];
   foods: FoodEntry[];
   bodyGoalGrams: number | null;
+  /** 用户设定的目标（体重/力量/频率），可为空数组。 */
+  goals: Goal[];
   targetKcal: number | null;
   targetProtein: number | null;
   weeklyGoal: number;
@@ -184,6 +188,7 @@ export interface AppState {
   /** 最近一次替换前自动备份的存储键。 */
   lastBackupKey: string | null;
 }
+
 
 
 

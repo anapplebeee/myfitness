@@ -80,6 +80,7 @@ function state(overrides: Partial<AppState> = {}): AppState {
     weights: [],
     foods: [],
     bodyGoalGrams: null,
+    goals: [],
     targetKcal: null,
     targetProtein: null,
     weeklyGoal: 3,
@@ -349,3 +350,4 @@ describe('AC-I01 · 导出文件名', () => {
     expect(name).toBe('tieguan-ds_abc-20261024-2005.json');
   });
 });
+

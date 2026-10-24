@@ -2,11 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exerciseName, EXERCISES, MUSCLES } from '../content/exercises';
-import { formatLoad, formatRest, formatDuration } from '../domain/units';
+import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
 import { setSummary } from '../domain/tracking';
+import { diffSessions, previousComparableSession, summarizeSession } from '../domain/goals';
 import type { SetRecord, TrackingMode } from '../domain/types';
 import { setImmersive } from '../composables/useImmersive';
 import { mondayOf } from '../domain/plan';
@@ -212,6 +213,24 @@ const creditOptions = computed(() => {
     now: new Date(),
   });
   return store.openOccurrences(weekStart, weekState.satisfiedOccurrenceIds);
+});
+
+/** 与上次同类训练对比，供结束总结使用。 */
+const comparison = computed(() => {
+  const s = session.value;
+  if (!s) return null;
+  const prev = previousComparableSession(s, [...store.state.sessions]);
+  if (!prev) return null;
+  // 结束前本场可能还未标记 completed，先按当前数据算
+  const cur = summarizeSession({ ...s, endedAt: s.endedAt ?? new Date().toISOString() });
+  const before = summarizeSession(prev);
+  return {
+    prevDate: prev.businessDate,
+    prevTitle: prev.title,
+    current: cur,
+    previous: before,
+    diff: diffSessions(cur, before),
+  };
 });
 
 function confirmFinish(): void {
@@ -459,6 +478,32 @@ const progress = computed(() => {
           <p class="small">
             {{ completedSetCount(session) < plannedSetCount(session) ? '有未录的计划组，未录组不会自动算完成。' : '全部计划组已完成。' }}
           </p>
+
+          <!-- 本次 vs 上次：即时反馈是坚持的关键 -->
+          <div v-if="comparison" class="cmp">
+            <p class="label">对比上次</p>
+            <p class="tiny cmp__sub">{{ shortDate(comparison.prevDate) }} · {{ comparison.prevTitle }}</p>
+            <div class="cmp__grid">
+              <div>
+                <span class="cmp__num">{{ comparison.current.sets }}</span>
+                <span class="tiny">本次组数</span>
+                <span v-if="comparison.diff.setsDelta !== 0" class="cmp__delta" :class="comparison.diff.setsDelta > 0 ? 'up' : 'down'">
+                  {{ comparison.diff.setsDelta > 0 ? '+' : '' }}{{ comparison.diff.setsDelta }}
+                </span>
+              </div>
+              <div>
+                <span class="cmp__num">{{ formatVolume(comparison.current.volumeGrams, unit) }}</span>
+                <span class="tiny">容量</span>
+                <span v-if="comparison.diff.volumeDeltaPct !== null" class="cmp__delta" :class="comparison.diff.volumeDeltaPct > 0 ? 'up' : 'down'">
+                  {{ comparison.diff.volumeDeltaPct > 0 ? '+' : '' }}{{ comparison.diff.volumeDeltaPct }}%
+                </span>
+              </div>
+            </div>
+            <p class="tiny cmp__text">{{ comparison.diff.text }}</p>
+          </div>
+          <div v-else class="cmp cmp--first">
+            <p class="tiny">这是这个训练日的第一次记录，下次就能对比了。</p>
+          </div>
 
           <div class="credit">
             <label class="credit__row">
@@ -765,7 +810,64 @@ const progress = computed(() => {
   flex: 1;
   min-width: 0;
 }
+.cmp {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(17, 20, 17, 0.04);
+}
+
+.cmp--first {
+  background: transparent;
+  padding: 10px 2px;
+  color: var(--text-2);
+}
+
+.cmp__sub {
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.cmp__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cmp__grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cmp__num {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cmp__delta {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.cmp__delta.up {
+  color: #4a7a1f;
+}
+
+.cmp__delta.down {
+  color: var(--clay);
+}
+
+.cmp__text {
+  margin-top: 8px;
+  color: var(--text-2);
+}
 </style>
+
+
+
 
 
 

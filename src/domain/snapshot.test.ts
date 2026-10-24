@@ -81,6 +81,7 @@ function state(overrides: Partial<AppState> = {}): AppState {
     weights: [],
     foods: [],
     bodyGoalGrams: null,
+    goals: [],
     targetKcal: null,
     targetProtein: null,
     weeklyGoal: 3,
@@ -267,5 +268,6 @@ describe('canonical 与哈希稳定性', () => {
     expect(await snapshotHash(round)).toBe(await snapshotHash(snap));
   });
 });
+
 
 

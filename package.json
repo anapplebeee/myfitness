@@ -18,12 +18,17 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
-    "verify": "npm run typecheck && npm run typecheck:e2e && npm run test && npm run build"
+    "verify": "npm run typecheck && npm run typecheck:e2e && npm run test && npm run build",
+    "android:check": "node scripts/check-android.mjs",
+    "android:sync": "npm run build && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "vue": "3.5.13"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@playwright/test": "^1.64.1",
     "@vitejs/plugin-vue": "5.2.1",
     "@vitest/coverage-v8": "^3.0.5",

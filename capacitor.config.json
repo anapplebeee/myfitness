@@ -1,10 +1,11 @@
 {
   "appId": "com.tieguan.fit",
   "appName": "铁馆",
-  "webDir": "www",
+  "webDir": "dist",
   "android": {
-    "backgroundColor": "#f2f5f2",
-    "allowMixedContent": false
+    "backgroundColor": "#F2F0EA",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
   },
   "server": {
     "androidScheme": "https"

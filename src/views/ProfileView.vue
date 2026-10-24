@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { store, derived } from '../store/appStore';
 import { FOODS } from '../content/foods';
 import { EXERCISE_PACKS, packSummary } from '../content/packs';
+import GoalsPanel from '../components/GoalsPanel.vue';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
 import { useToast } from '../composables/useToast';
@@ -107,6 +108,8 @@ const sessionCount = computed(() => store.state.sessions.length);
         </div>
         <Sparkline :points="points" :height="64" tone="lime" />
       </section>
+
+      <GoalsPanel />
 
       <div class="grid-2">
         <div class="card stat-card">
@@ -385,6 +388,7 @@ const sessionCount = computed(() => store.state.sessions.length);
   color: var(--paper);
 }
 </style>
+
 
 
 

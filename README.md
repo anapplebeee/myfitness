@@ -39,6 +39,7 @@ npm run preview      # 预览 dist/（需先 build）
 | [迭代流程](docs/process/development-workflow.md) | 六条硬性规则、检查清单、评审要点 |
 | [变更日志](CHANGELOG.md) | 做了什么、已知限制 |
 | [参与开发](CONTRIBUTING.md) | 环境、三条最易踩的规则、验证门槛 |
+| [Android](docs/19-android.md) | Capacitor 链路、检查脚本、环境前置、仍未做的事 |
 
 ## 实施计划
 
@@ -85,6 +86,7 @@ src/
 [01 openGym调研](docs/01-research-opengym.md)、[06旧缺口分析](docs/06-gap-analysis.md)、[08市场复核](docs/08-market-review.md)、[10产品架构评审](docs/10-product-architecture-review.md)保留为背景，不定义当前范围。原02/03/04/05/07/09已[归档](docs/archive/2026-10-23-pre-baseline/INDEX.md)。
 
 文档完成不等于业务实现完成；正式v1必须通过12号文档全部门禁。
+
 
 
 

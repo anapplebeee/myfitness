@@ -2,6 +2,7 @@ import { computed, reactive, readonly, ref } from 'vue';
 import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
 import { lastExerciseSets } from '../domain/metrics';
+import { validateGoal, type Goal } from '../domain/goals';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
 import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
@@ -104,6 +105,7 @@ export const store = {
         state.customTemplates ??= [];
         state.occurrences ??= [];
         state.weekGoals ??= [];
+        state.goals ??= [];
       } else {
         Object.assign(state, seedState());
         fromSeed = true;
@@ -145,6 +147,39 @@ export const store = {
     state.profile.weeklyTarget = input.weeklyGoal;
     state.onboarded = true;
     schedulePersist();
+  },
+
+  // ---------- 目标 ----------
+
+  /** 新增或替换同类型目标（体重/力量按 exerciseId 唯一，频率唯一）。 */
+  setGoal(goal: Goal): string | null {
+    const err = validateGoal(goal);
+    if (err) return err;
+    const existing = state.goals.findIndex((g) => {
+      if (g.kind !== goal.kind) return false;
+      if (g.kind === 'strength' && goal.kind === 'strength') return g.exerciseId === goal.exerciseId;
+      return true;
+    });
+    if (existing >= 0) state.goals.splice(existing, 1, goal);
+    else state.goals.push(goal);
+    if (goal.kind === 'bodyweight') state.bodyGoalGrams = goal.targetGrams;
+    schedulePersist();
+    return null;
+  },
+
+  removeGoal(kind: Goal['kind'], exerciseId?: string): void {
+    const idx = state.goals.findIndex((g) => {
+      if (g.kind !== kind) return false;
+      if (kind === 'strength' && g.kind === 'strength') return g.exerciseId === exerciseId;
+      return true;
+    });
+    if (idx >= 0) state.goals.splice(idx, 1);
+    if (kind === 'bodyweight') state.bodyGoalGrams = null;
+    schedulePersist();
+  },
+
+  goalsOf(kind: Goal['kind']): Goal[] {
+    return state.goals.filter((g) => g.kind === kind);
   },
 
   updateProfile(patch: Partial<Profile>): void {
@@ -743,6 +778,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 
