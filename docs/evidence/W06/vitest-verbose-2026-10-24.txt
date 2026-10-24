@@ -1,0 +1,123 @@
+
+ RUN  v3.0.5 C:/Users/hqm/backup_D_code_20261003/bk/code/myfitness
+
+ ✓ src/domain/metrics.test.ts > AC-T10 · 有效完成判定 > 只有完成且至少一个工作组才算有效
+ ✓ src/domain/metrics.test.ts > AC-T10 · 有效完成判定 > 只有热身组不算有效训练
+ ✓ src/domain/metrics.test.ts > AC-T10 · 有效完成判定 > 放弃的场次不算有效
+ ✓ src/domain/metrics.test.ts > AC-T10 · 有效完成判定 > 跳过的组不算完成
+ ✓ src/domain/metrics.test.ts > AC-T13 · 容量与组数口径 > 容量只累计已完成工作组
+ ✓ src/domain/metrics.test.ts > AC-T13 · 容量与组数口径 > 计划组数按目标而非实际组数
+ ✓ src/domain/metrics.test.ts > AC-T13 · e1RM 估算 > Epley 公式在 1–10 次内有效
+ ✓ src/domain/metrics.test.ts > AC-T13 · e1RM 估算 > 超出 1–10 次返回 null
+ ✓ src/domain/metrics.test.ts > AC-T13 · e1RM 估算 > 非法重量返回 null
+ ✓ src/domain/metrics.test.ts > AC-T14 · 最佳与上次记录 > 最佳记录取最大重量
+ ✓ src/domain/metrics.test.ts > AC-T14 · 最佳与上次记录 > 无记录返回 null
+ ✓ src/domain/metrics.test.ts > AC-T14 · 最佳与上次记录 > 上次记录取最近一场，可排除当前场次
+ ✓ src/domain/metrics.test.ts > AC-W06 · 训练次数与天数 > 同一天两场训练只算一天
+ ✓ src/domain/units.test.ts > AC-T05 · 重量单位换算 > kg 与克往返一致
+ ✓ src/domain/units.test.ts > AC-T05 · 重量单位换算 > lb 换算按 2.2046 系数
+ ✓ src/domain/units.test.ts > AC-T05 · 重量单位换算 > 格式化保留一位小数且不补零
+ ✓ src/domain/units.test.ts > AC-T05 · 重量单位换算 > 超过 10k 才用 k 简写，以下显示整数
+ ✓ src/domain/units.test.ts > 时长格式 > 一小时以内显示分秒
+ ✓ src/domain/units.test.ts > 时长格式 > 超过一小时显示时分秒
+ ✓ src/domain/units.test.ts > 时长格式 > 负数按 0 处理
+ ✓ src/domain/units.test.ts > AC-W09 · 业务日期与周首 > addDays 跨月正确
+ ✓ src/domain/units.test.ts > AC-W09 · 业务日期与周首 > 跨年正确
+ ✓ src/domain/units.test.ts > AC-W09 · 业务日期与周首 > weekStartOf 返回周一
+ ✓ src/domain/units.test.ts > AC-W09 · 业务日期与周首 > businessDate 使用本地时区日期
+ ✓ src/domain/units.test.ts > AC-W09 · 业务日期与周首 > 中文日期与星期标签
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 合法模板无问题
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 名称为空报错
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 同一天不能有两个训练日
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 训练日为空报错
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 组数越界报错
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 次数上限小于下限报错
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 未知动作报错
+ ✓ src/domain/template.test.ts > AC-T02 · 模板校验 > 休息时间越界报错
+ ✓ src/domain/template.test.ts > 模板编辑不修改原对象 > addExercise 返回新对象，原模板不变
+ ✓ src/domain/template.test.ts > 模板编辑不修改原对象 > updateExercise 只改目标动作
+ ✓ src/domain/template.test.ts > 模板编辑不修改原对象 > removeExercise 按索引删除
+ ✓ src/domain/template.test.ts > 模板编辑不修改原对象 > moveExercise 调整顺序
+ ✓ src/domain/template.test.ts > 模板编辑不修改原对象 > moveExercise 越界不动
+ ✓ src/domain/template.test.ts > 训练日管理 > addDay 增加一天并同步 daysPerWeek
+ ✓ src/domain/template.test.ts > 训练日管理 > removeDay 删除并同步 daysPerWeek
+ ✓ src/domain/template.test.ts > 训练日管理 > updateDay 修改标题与星期
+ ✓ src/domain/template.test.ts > AC-T02 · 模板版本化 > bumpVersion 版本加一并深拷贝
+ ✓ src/domain/template.test.ts > AC-T02 · 模板版本化 > isSameTemplate 忽略版本差异
+ ✓ src/domain/template.test.ts > AC-T02 · 模板版本化 > 内容不同则 isSameTemplate 为 false
+ ✓ src/domain/template.test.ts > blankTemplate 与摘要 > 空白模板可校验（虽有动作数为 0 的问题）
+ ✓ src/domain/template.test.ts > blankTemplate 与摘要 > 摘要显示天数与动作数
+ ✓ src/domain/plan.test.ts > mondayOf > 任意日期归到周一
+ ✓ src/domain/plan.test.ts > AC-T01 · 发生项生成 > 每周每 slot 生成唯一项目，slotId 含模板与训练日
+ ✓ src/domain/plan.test.ts > AC-T01 · 发生项生成 > 不生成早于 today 的安排（历史空白不自动补）
+ ✓ src/domain/plan.test.ts > AC-T01 · 发生项幂等补齐 > 重复调用不新增项目
+ ✓ src/domain/plan.test.ts > ensureWeekGoals > 每个有项目的周生成唯一目标，重复调用不重复
+ ✓ src/domain/plan.test.ts > ensureWeekGoals > 原始计划数等于该周项目数
+ ✓ src/domain/plan.test.ts > AC-W05 · 计划命令与约束 > 豁免从 A 排除并重算 K，原 N 不变
+ ✓ src/domain/plan.test.ts > AC-W05 · 计划命令与约束 > 取消记原因
+ ✓ src/domain/plan.test.ts > AC-W05 · 计划命令与约束 > 恢复后重新计入
+ ✓ src/domain/plan.test.ts > AC-W05 · 计划命令与约束 > 顺延跨周被拒绝
+ ✓ src/domain/plan.test.ts > AC-W05 · 计划命令与约束 > 有未结束会话时禁止改动
+ ✓ src/domain/plan.test.ts > AC-T02 · 换模板只影响未来 > 取消未来项目并建立新项目，原 N 不变，记调整
+ ✓ src/domain/plan.test.ts > AC-T02 · 换模板只影响未来 > 已完成的项不被取消
+ ✓ src/domain/plan.test.ts > changeMinimumTarget > 记录前后值与原因
+ ✓ src/domain/plan.test.ts > changeMinimumTarget > 超过可执行数被拒绝
+ ✓ src/domain/plan.test.ts > openOccurrencesForWeek > 排除已满足与已豁免取消的项目
+ ✓ src/domain/week.test.ts > AC-W01 · W01 周内顺延不改目标 > N4/T4 周三移周六，完成3项 → A4/K4/D3，周末未达标
+ ✓ src/domain/week.test.ts > AC-W01 · W02 豁免后重算目标 > N4/T4 豁免1项完成3项 → A3/K3/D3 achieved/full，显示原4调整3
+ ✓ src/domain/week.test.ts > AC-W01 · W03 低目标达标但未全做 > N4/T3 无豁免完成3项 → achieved，full=false
+ ✓ src/domain/week.test.ts > AC-W01 · W04 全豁免进入休整 > A0/K0 → paused，连续数不增加
+ ✓ src/domain/week.test.ts > AC-W01 · W05 无计划训练 > 同一天两场 → unplanned，次数2/天数1
+ ✓ src/domain/week.test.ts > AC-W01 · W06 重复结束/同步幂等 > 同一会话出现两次 → 次数1，同一项目只满足1次
+ ✓ src/domain/week.test.ts > AC-W01 · W07 已结算周补录 > 补录后满足目标 → 改为 achieved
+ ✓ src/domain/week.test.ts > AC-W01 · W08 删除关键会话 > 删除后 → notAchieved
+ ✓ src/domain/week.test.ts > AC-W01 · W09 跨午夜归开始日 > 周日23:50开始周一结束 → 只计周日所在周
+ ✓ src/domain/week.test.ts > AC-W01 · W10 只有热身组 > 不计有效完成和周目标
+ ✓ src/domain/week.test.ts > AC-W01 · W11 周中已达标 > ongoing 且 targetReached，连续周暂不增加
+ ✓ src/domain/week.test.ts > AC-W01 · W12 同日两项完成一项 > done 并显示漏项，D1
+ ✓ src/domain/week.test.ts > AC-W01 · W13 换模板调整只应用一次 > 原 N 不变，A 按新集合，调整事件不重复
+ ✓ src/domain/week.test.ts > AC-W01 · W14 换时区不改历史 > businessDate 已固化，跨时区重算结果一致
+ ✓ src/domain/week.test.ts > AC-W01 · W15 取消豁免重算 > 恢复 scheduled 后 A/K 重算，展示调整前后
+ ✓ src/domain/week.test.ts > AC-W01 · W16 会话改期跨周 > 解除旧关联后旧周不再计入
+ ✓ src/domain/week.test.ts > 连续周折叠 > achieved 累加，notAchieved 归零，paused/unplanned 跳过
+ ✓ src/domain/week.test.ts > 目标变更校验 > 提高目标不超过当前 A
+ ✓ src/domain/week.test.ts > 目标变更校验 > 降低到 0 只在 A=0 时允许
+ ✓ src/domain/week.test.ts > 目标变更校验 > 不能超过原始计划数
+ ✓ src/domain/week.test.ts > 有活动会话时禁止改计划 > active/paused 会话阻止顺延/取消/豁免
+ ✓ src/domain/week.test.ts > 顺延只能同周 > 跨周顺延抛错
+ ✓ src/domain/week.test.ts > initialWeekGoal > 按该周项目数初始化 N=T
+ ✓ src/domain/amend.test.ts > isFutureDate > 晚于今天算未来
+ ✓ src/domain/amend.test.ts > AC-T18 · 补录与自报完成 > 过去日期可补录
+ ✓ src/domain/amend.test.ts > AC-T18 · 补录与自报完成 > 不能补录未来
+ ✓ src/domain/amend.test.ts > AC-T18 · 补录与自报完成 > 自报完成不生成组记录
+ ✓ src/domain/amend.test.ts > AC-T18 · 补录与自报完成 > 非自报但没选动作报错
+ ✓ src/domain/amend.test.ts > AC-T18 · 补录与自报完成 > 名称为空报错
+ ✓ src/domain/amend.test.ts > AC-T19 · 更正日期与跨周解除关联 > 同日不解除关联
+ ✓ src/domain/amend.test.ts > AC-T19 · 更正日期与跨周解除关联 > 跨周解除关联并保留事实
+ ✓ src/domain/amend.test.ts > AC-T19 · 更正日期与跨周解除关联 > 跨周但没有关联项目时不报解除
+ ✓ src/domain/amend.test.ts > AC-T19 · 更正日期与跨周解除关联 > 不能改到未来
+ ✓ src/domain/amend.test.ts > AC-T19 · 更正日期与跨周解除关联 > 同日改期保留本地时分
+ ✓ src/domain/amend.test.ts > AC-D05 · 墓碑删除与恢复 > 删除后不在 liveSessions 里
+ ✓ src/domain/amend.test.ts > AC-D05 · 墓碑删除与恢复 > 恢复后回到 liveSessions
+ ✓ src/domain/amend.test.ts > AC-D05 · 墓碑删除与恢复 > 墓碑保留原始数据
+ ✓ src/domain/amend.test.ts > AC-T19 · 单组更正 > 更正重量与次数并记编辑时间
+ ✓ src/domain/amend.test.ts > AC-T19 · 单组更正 > 非法次数被拒
+ ✓ src/domain/amend.test.ts > AC-T19 · 单组更正 > 负重量被拒
+ ✓ src/domain/amend.test.ts > AC-T19 · 单组更正 > 已删除的场次不能编辑
+ ✓ src/domain/amend.test.ts > AC-T19 · 单组更正 > 找不到动作或组时返回错误
+ ✓ src/domain/amend.test.ts > AC-T17 · 未录组跳过 > pendingSetCount 统计 planned 组
+ ✓ src/domain/amend.test.ts > AC-T17 · 未录组跳过 > skipRemainingSets 把 planned 变 skipped
+ ✓ src/domain/amend.test.ts > 补录不计算容量 > 自报完成不计容量
+ ✓ src/domain/amend.test.ts > 补录不计算容量 > 逐组记录计容量
+ ✓ src/domain/amend.test.ts > AC-T19 · 负荷趋势 > 按日期升序返回每次最大工作组
+ ✓ src/domain/amend.test.ts > AC-T19 · 负荷趋势 > 排除墓碑场次
+ ✓ src/domain/amend.test.ts > AC-T19 · 渐进建议 > 所有组达上限时建议加配重
+ ✓ src/domain/amend.test.ts > AC-T19 · 渐进建议 > 首次低于下限建议保持
+ ✓ src/domain/amend.test.ts > AC-T19 · 渐进建议 > 连续两次低于下限建议减重
+ ✓ src/domain/amend.test.ts > AC-T19 · 渐进建议 > 没有记录返回 null
+
+ Test Files  6 passed (6)
+      Tests  114 passed (114)
+   Start at  20:31:06
+   Duration  1.58s (transform 942ms, setup 0ms, collect 1.89s, tests 161ms, environment 3ms, prepare 2.73s)
+

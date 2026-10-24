@@ -108,7 +108,7 @@ function goal(n: number, t: number): WeekGoal {
   return { id: `goal_${WEEK}`, weekStart: WEEK, originalPlannedCount: n, minimumTarget: t, adjustments: [] };
 }
 
-describe('W01 周内顺延不改目标', () => {
+describe('AC-W01 · W01 周内顺延不改目标', () => {
   it('N4/T4 周三移周六，完成3项 → A4/K4/D3，周末未达标', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1), occ('o3', 2), occ('o4', 3)];
     const moved = postpone(occurrences[2]!, '2026-10-24', WEEK);
@@ -128,7 +128,7 @@ describe('W01 周内顺延不改目标', () => {
   });
 });
 
-describe('W02 豁免后重算目标', () => {
+describe('AC-W01 · W02 豁免后重算目标', () => {
   it('N4/T4 豁免1项完成3项 → A3/K3/D3 achieved/full，显示原4调整3', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1), occ('o3', 2), occ('o4', 3, 'excused')];
     const sessions = [
@@ -147,7 +147,7 @@ describe('W02 豁免后重算目标', () => {
   });
 });
 
-describe('W03 低目标达标但未全做', () => {
+describe('AC-W01 · W03 低目标达标但未全做', () => {
   it('N4/T3 无豁免完成3项 → achieved，full=false', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1), occ('o3', 2), occ('o4', 3)];
     const sessions = [
@@ -163,7 +163,7 @@ describe('W03 低目标达标但未全做', () => {
   });
 });
 
-describe('W04 全豁免进入休整', () => {
+describe('AC-W01 · W04 全豁免进入休整', () => {
   it('A0/K0 → paused，连续数不增加', () => {
     const occurrences = [occ('o1', 0, 'excused'), occ('o2', 1, 'excused')];
     const r = computeWeek({ weekStart: WEEK, goal: goal(2, 2), occurrences, sessions: [], now: NOW_AFTER });
@@ -174,7 +174,7 @@ describe('W04 全豁免进入休整', () => {
   });
 });
 
-describe('W05 无计划训练', () => {
+describe('AC-W01 · W05 无计划训练', () => {
   it('同一天两场 → unplanned，次数2/天数1', () => {
     const sessions = [session('s1', '2026-10-20'), session('s2', '2026-10-20')];
     const r = computeWeek({ weekStart: WEEK, goal: null, occurrences: [], sessions, now: NOW_AFTER });
@@ -185,7 +185,7 @@ describe('W05 无计划训练', () => {
   });
 });
 
-describe('W06 重复结束/同步幂等', () => {
+describe('AC-W01 · W06 重复结束/同步幂等', () => {
   it('同一会话出现两次 → 次数1，同一项目只满足1次', () => {
     const occurrences = [occ('o1', 0)];
     const s = session('s1', '2026-10-19', { occurrenceId: 'o1', credit: true });
@@ -201,7 +201,7 @@ describe('W06 重复结束/同步幂等', () => {
   });
 });
 
-describe('W07 已结算周补录', () => {
+describe('AC-W01 · W07 已结算周补录', () => {
   it('补录后满足目标 → 改为 achieved', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1)];
     const before = computeWeek({
@@ -227,7 +227,7 @@ describe('W07 已结算周补录', () => {
   });
 });
 
-describe('W08 删除关键会话', () => {
+describe('AC-W01 · W08 删除关键会话', () => {
   it('删除后 → notAchieved', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1)];
     const r = computeWeek({
@@ -242,7 +242,7 @@ describe('W08 删除关键会话', () => {
   });
 });
 
-describe('W09 跨午夜归开始日', () => {
+describe('AC-W01 · W09 跨午夜归开始日', () => {
   it('周日23:50开始周一结束 → 只计周日所在周', () => {
     const s: Session = {
       ...session('s1', '2026-10-25', { occurrenceId: 'o1', credit: true }),
@@ -263,7 +263,7 @@ describe('W09 跨午夜归开始日', () => {
   });
 });
 
-describe('W10 只有热身组', () => {
+describe('AC-W01 · W10 只有热身组', () => {
   it('不计有效完成和周目标', () => {
     const occurrences = [occ('o1', 0)];
     const s = session('s1', '2026-10-19', {
@@ -279,7 +279,7 @@ describe('W10 只有热身组', () => {
   });
 });
 
-describe('W11 周中已达标', () => {
+describe('AC-W01 · W11 周中已达标', () => {
   it('ongoing 且 targetReached，连续周暂不增加', () => {
     const occurrences = [occ('o1', 0), occ('o2', 1)];
     const sessions = [
@@ -293,7 +293,7 @@ describe('W11 周中已达标', () => {
   });
 });
 
-describe('W12 同日两项完成一项', () => {
+describe('AC-W01 · W12 同日两项完成一项', () => {
   it('done 并显示漏项，D1', () => {
     const occurrences = [occ('o1', 0), occ('o2', 0)];
     const sessions = [session('s1', '2026-10-19', { occurrenceId: 'o1', credit: true })];
@@ -308,7 +308,7 @@ describe('W12 同日两项完成一项', () => {
   });
 });
 
-describe('W13 换模板调整只应用一次', () => {
+describe('AC-W01 · W13 换模板调整只应用一次', () => {
   it('原 N 不变，A 按新集合，调整事件不重复', () => {
     const before = [occ('o1', 0), occ('o2', 1), occ('o3', 2), occ('o4', 3)];
     const g = goal(4, 4);
@@ -322,7 +322,7 @@ describe('W13 换模板调整只应用一次', () => {
   });
 });
 
-describe('W14 换时区不改历史', () => {
+describe('AC-W01 · W14 换时区不改历史', () => {
   it('businessDate 已固化，跨时区重算结果一致', () => {
     const occurrences = [occ('o1', 0)];
     const sessions = [session('s1', '2026-10-19', { occurrenceId: 'o1', credit: true })];
@@ -334,7 +334,7 @@ describe('W14 换时区不改历史', () => {
   });
 });
 
-describe('W15 取消豁免重算', () => {
+describe('AC-W01 · W15 取消豁免重算', () => {
   it('恢复 scheduled 后 A/K 重算，展示调整前后', () => {
     const excusedOcc = [occ('o1', 0, 'excused'), occ('o2', 1)];
     const withExcuse = computeWeek({
@@ -360,7 +360,7 @@ describe('W15 取消豁免重算', () => {
   });
 });
 
-describe('W16 会话改期跨周', () => {
+describe('AC-W01 · W16 会话改期跨周', () => {
   it('解除旧关联后旧周不再计入', () => {
     const prevOcc = [occ('o1', 0)];
     const movedSession = session('s1', '2026-10-20');

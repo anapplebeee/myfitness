@@ -126,16 +126,10 @@ export function lastExerciseSets(
   return found.sets.filter(isWorkingSet);
 }
 
-/** 周完成数：唯一有效会话匹配的唯一计划项，按日期落在周内。 */
-export function weekCompletion(sessions: Session[], weekStart: string, weekEndExclusive: string): number {
-  const ids = new Set<string>();
-  for (const s of sessions) {
-    if (!isValidCompleted(s)) continue;
-    if (s.businessDate < weekStart || s.businessDate >= weekEndExclusive) continue;
-    ids.add(s.id);
-  }
-  return ids.size;
-}
+/**
+ * 注意：周完成数只由 domain/week.ts 的 computeWeek 定义（被唯一满足的项目数）。
+ * 这里曾有 weekCompletion 按会话计数，与 09 号口径冲突，已删除以免出现第二个数据源。
+ */
 
 export function streakWeeks(weekEnds: Array<{ start: string; achieved: boolean; hasGoal: boolean }>): number {
   let streak = 0;

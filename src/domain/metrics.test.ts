@@ -8,7 +8,6 @@ import {
   plannedSetCount,
   sessionVolumeGrams,
   trainingDays,
-  weekCompletion,
 } from './metrics';
 import type { Session, SessionExercise, SetRecord } from './types';
 
@@ -54,7 +53,7 @@ function session(partial: Partial<Session> & { id: string; businessDate: string 
   };
 }
 
-describe('isValidCompleted', () => {
+describe('AC-T10 · 有效完成判定', () => {
   it('只有完成且至少一个工作组才算有效', () => {
     const s = session({
       id: 's1',
@@ -98,7 +97,7 @@ describe('isValidCompleted', () => {
   });
 });
 
-describe('容量与组数', () => {
+describe('AC-T13 · 容量与组数口径', () => {
   it('容量只累计已完成工作组', () => {
     const s = session({
       id: 's5',
@@ -133,7 +132,7 @@ describe('容量与组数', () => {
   });
 });
 
-describe('e1RM', () => {
+describe('AC-T13 · e1RM 估算', () => {
   it('Epley 公式在 1–10 次内有效', () => {
     expect(e1rm(100000, 1)).toBeCloseTo(103333.33, 1);
     expect(e1rm(100000, 10)).toBeCloseTo(133333.33, 1);
@@ -150,7 +149,7 @@ describe('e1RM', () => {
   });
 });
 
-describe('历史记录查询', () => {
+describe('AC-T14 · 最佳与上次记录', () => {
   const sessions: Session[] = [
     session({
       id: 's10',
@@ -196,38 +195,7 @@ describe('历史记录查询', () => {
   });
 });
 
-describe('周完成口径', () => {
-  const sessions: Session[] = [
-    session({
-      id: 'w1',
-      businessDate: '2026-10-05',
-      exercises: [exercise({ id: 'e1', exerciseId: 'bb-squat', sets: [set({ id: 'a' })] })],
-    }),
-    session({
-      id: 'w2',
-      businessDate: '2026-10-06',
-      exercises: [exercise({ id: 'e2', exerciseId: 'bb-squat', sets: [set({ id: 'b' })] })],
-    }),
-    session({
-      id: 'w3',
-      businessDate: '2026-10-07',
-      status: 'discarded',
-      exercises: [exercise({ id: 'e3', exerciseId: 'bb-squat', sets: [set({ id: 'c' })] })],
-    }),
-  ];
-
-  it('只统计周区间内的有效场次', () => {
-    expect(weekCompletion(sessions, '2026-10-05', '2026-10-12')).toBe(2);
-  });
-
-  it('区间为左闭右开：结束日当天不计入', () => {
-    expect(weekCompletion(sessions, '2026-10-05', '2026-10-06')).toBe(1);
-    expect(weekCompletion(sessions, '2026-10-04', '2026-10-05')).toBe(0);
-    expect(weekCompletion(sessions, '2026-10-06', '2026-10-07')).toBe(1);
-  });
-});
-
-describe('训练天数口径', () => {
+describe('AC-W06 · 训练次数与天数', () => {
   it('同一天两场训练只算一天', () => {
     const sessions: Session[] = [
       session({
@@ -245,3 +213,4 @@ describe('训练天数口径', () => {
     expect(trainingDays(sessions)).toBe(1);
   });
 });
+

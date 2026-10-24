@@ -91,7 +91,7 @@ describe('mondayOf', () => {
   });
 });
 
-describe('buildOccurrences', () => {
+describe('AC-T01 · 发生项生成', () => {
   it('每周每 slot 生成唯一项目，slotId 含模板与训练日', () => {
     const list = buildOccurrences({
       template: template('t1', 3),
@@ -120,7 +120,7 @@ describe('buildOccurrences', () => {
   });
 });
 
-describe('ensureOccurrences 幂等', () => {
+describe('AC-T01 · 发生项幂等补齐', () => {
   it('重复调用不新增项目', () => {
     const opts = { template: template('t1'), fromWeekStart: WEEK, weeks: 2, today: WEEK, idFactory };
     const first = ensureOccurrences([], opts);
@@ -158,7 +158,7 @@ describe('ensureWeekGoals', () => {
   });
 });
 
-describe('runOccurrenceCommand', () => {
+describe('AC-W05 · 计划命令与约束', () => {
   function setup(): { occ: PlannedOccurrence[]; goals: WeekGoal[] } {
     const occ = buildOccurrences({
       template: template('t1', 3),
@@ -256,7 +256,7 @@ describe('runOccurrenceCommand', () => {
   });
 });
 
-describe('switchTemplate', () => {
+describe('AC-T02 · 换模板只影响未来', () => {
   it('取消未来项目并建立新项目，原 N 不变，记调整', () => {
     const occ = buildOccurrences({
       template: template('t1', 3),

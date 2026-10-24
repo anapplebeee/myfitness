@@ -44,7 +44,7 @@ function tpl(): Template {
   };
 }
 
-describe('validateTemplate', () => {
+describe('AC-T02 · 模板校验', () => {
   it('合法模板无问题', () => {
     expect(validateTemplate(tpl())).toHaveLength(0);
   });
@@ -150,7 +150,7 @@ describe('训练日管理', () => {
   });
 });
 
-describe('版本化', () => {
+describe('AC-T02 · 模板版本化', () => {
   it('bumpVersion 版本加一并深拷贝', () => {
     const original = tpl();
     const next = bumpVersion(original);

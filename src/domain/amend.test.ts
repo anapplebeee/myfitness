@@ -74,7 +74,7 @@ describe('isFutureDate', () => {
   });
 });
 
-describe('buildBackfill', () => {
+describe('AC-T18 · 补录与自报完成', () => {
   it('过去日期可补录', () => {
     const r = buildBackfill(
       { date: '2026-10-01', title: '补录', exerciseIds: ['bb-squat'], selfReported: false },
@@ -125,7 +125,7 @@ describe('buildBackfill', () => {
   });
 });
 
-describe('changeSessionDate', () => {
+describe('AC-T19 · 更正日期与跨周解除关联', () => {
   it('同日不解除关联', () => {
     const s = session('s1', '2026-10-20', { occurrenceId: 'occ1' });
     const r = changeSessionDate(s, '2026-10-21', mondayOf, TODAY);
@@ -170,7 +170,7 @@ describe('changeSessionDate', () => {
   });
 });
 
-describe('墓碑删除', () => {
+describe('AC-D05 · 墓碑删除与恢复', () => {
   it('删除后不在 liveSessions 里', () => {
     const s = session('s1', '2026-10-20');
     const deleted = tombstone(s);
@@ -192,7 +192,7 @@ describe('墓碑删除', () => {
   });
 });
 
-describe('updateSet', () => {
+describe('AC-T19 · 单组更正', () => {
   it('更正重量与次数并记编辑时间', () => {
     const s = session('s1', '2026-10-20');
     const r = updateSet(s, 'bb-squat', 's_s1', { loadGrams: 110000, reps: 6 });
@@ -225,7 +225,7 @@ describe('updateSet', () => {
   });
 });
 
-describe('未录组处理', () => {
+describe('AC-T17 · 未录组跳过', () => {
   it('pendingSetCount 统计 planned 组', () => {
     const s = session('s1', '2026-10-20', {
       sets: [set('a'), set('b', { status: 'planned', loadGrams: null, reps: null })],
@@ -254,7 +254,7 @@ describe('补录不计算容量', () => {
   });
 });
 
-describe('loadTrend', () => {
+describe('AC-T19 · 负荷趋势', () => {
   it('按日期升序返回每次最大工作组', () => {
     const sessions = [
       session('s1', '2026-10-20', { sets: [set('a', { loadGrams: 100000 }), set('b', { loadGrams: 105000 })] }),
@@ -272,7 +272,7 @@ describe('loadTrend', () => {
   });
 });
 
-describe('suggestProgression', () => {
+describe('AC-T19 · 渐进建议', () => {
   it('所有组达上限时建议加配重', () => {
     const s = session('s1', '2026-10-20', {
       sets: [set('a', { reps: 10 }), set('b', { reps: 10 })],

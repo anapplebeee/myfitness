@@ -12,7 +12,7 @@ import {
   weekdayLabel,
 } from './units';
 
-describe('单位换算', () => {
+describe('AC-T05 · 重量单位换算', () => {
   it('kg 与克往返一致', () => {
     expect(gramsFromDisplay(100, 'kg')).toBe(100000);
     expect(displayLoad(100000, 'kg')).toBe(100);
@@ -50,7 +50,7 @@ describe('时长格式', () => {
   });
 });
 
-describe('业务日期', () => {
+describe('AC-W09 · 业务日期与周首', () => {
   it('addDays 跨月正确', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
