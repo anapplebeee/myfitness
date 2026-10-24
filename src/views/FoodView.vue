@@ -4,6 +4,9 @@ import { store } from '../store/appStore';
 import { FOOD_GROUPS, nutritionFor, searchFoods, type Food } from '../content/foods';
 import { businessDate } from '../domain/units';
 import { useToast } from '../composables/useToast';
+import { filterFoods } from '../domain/allergens';
+import { ALLERGEN_CODES, FOOD_ALLERGENS } from '../content/allergens';
+import type { DietRestriction } from '../domain/types';
 import type { Slot } from '../domain/types';
 
 
@@ -34,10 +37,29 @@ const totals = computed(() => ({
 const targetKcal = computed(() => store.state.targetKcal ?? 2350);
 const targetProtein = computed(() => store.state.targetProtein ?? 165);
 
+/** 用户已确认的过敏原限制；未确认时为空，此时不隐藏食物但界面提示确认。 */
+const restrictions = computed<DietRestriction[]>(() =>
+  store.state.profile.allergies.map((code) => ({
+    id: `r_${code}`,
+    kind: 'allergen' as const,
+    code,
+    label: ALLERGEN_CODES.find((c) => c.code === code)?.label ?? code,
+    severity: 'strict' as const,
+    source: '用户设置',
+  })),
+);
+
+const filterResult = computed(() =>
+  filterFoods(searchFoods(keyword.value), FOOD_ALLERGENS, restrictions.value),
+);
+
 const results = computed(() => {
-  const list = searchFoods(keyword.value);
+  const list = filterResult.value.allowed;
   return group.value === 'all' ? list : list.filter((f) => f.group === group.value);
 });
+
+/** 被过敏原排除的数量，用于给出可解释提示。 */
+const excludedCount = computed(() => filterResult.value.excluded.length);
 
 const preview = computed(() => (selected.value ? nutritionFor(selected.value, grams.value) : null));
 
@@ -184,6 +206,9 @@ function removeEntry(id: string): void {
                 {{ g.label }}
               </button>
             </div>
+            <p v-if="excludedCount > 0" class="add__notice">
+              已按你的过敏原设置隐藏 {{ excludedCount }} 项食物。
+            </p>
             <div class="add__list">
               <button v-for="f in results.slice(0, 40)" :key="f.id" class="add__item" @click="selectFood(f)">
                 <span class="recent__body">
@@ -405,7 +430,18 @@ function removeEntry(id: string): void {
   flex: 1;
   min-width: 0;
 }
+.add__notice {
+  margin: 8px 2px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #fdf6e3;
+  color: #8a6d1f;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 </style>
+
+
 
 
 

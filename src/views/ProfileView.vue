@@ -5,6 +5,29 @@ import { FOODS } from '../content/foods';
 import { EXERCISE_PACKS, packSummary } from '../content/packs';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
+import { useToast } from '../composables/useToast';
+
+import { ALLERGEN_CODES } from '../content/allergens';
+
+const { push } = useToast();
+
+const ALLERGENS = ALLERGEN_CODES;
+
+/**
+ * 切换一个过敏原。
+ * 修改后必须重新确认：安全声明依赖"用户看过并确认过当前设置"，
+ * 改了却不重置确认状态，会让 AC-F03 的门禁失效。
+ */
+function toggleAllergy(code: string): void {
+  const current = store.state.profile.allergies;
+  const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+  store.updateProfile({ allergies: next, restrictionsConfirmed: false });
+}
+
+function confirmRestrictions(): void {
+  store.updateProfile({ restrictionsConfirmed: true });
+  push('已确认过敏原设置', 'success');
+}
 
 const emit = defineEmits<{ (e: 'navigate', tab: 'data'): void }>();
 function openData(): void {
@@ -168,6 +191,26 @@ const sessionCount = computed(() => store.state.sessions.length);
           />
         </div>
         <div class="field" style="margin-top: 12px">
+          <label class="tiny">过敏原</label>
+          <p class="tiny" style="margin: 4px 0 8px; color: var(--text-2)">
+            选中后会从食物库中隐藏相关食物（含"可能含有"的加工食品）。
+          </p>
+          <div class="aller">
+            <button
+              v-for="a in ALLERGENS"
+              :key="a.code"
+              class="aller__chip"
+              :class="{ 'is-on': store.state.profile.allergies.includes(a.code) }"
+              @click="toggleAllergy(a.code)"
+            >
+              {{ a.label }}
+            </button>
+          </div>
+          <button class="btn btn--ghost btn--sm" style="margin-top: 10px" @click="confirmRestrictions">
+            {{ store.state.profile.restrictionsConfirmed ? '已确认，修改后需重新确认' : '确认这些限制' }}
+          </button>
+        </div>
+        <div class="field" style="margin-top: 12px">
           <label class="tiny">身高 cm</label>
           <input
             class="input"
@@ -319,7 +362,31 @@ const sessionCount = computed(() => store.state.sessions.length);
   margin-top: 4px;
   line-height: 1.45;
 }
+.aller {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aller__chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.aller__chip.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
 </style>
+
+
 
 
 

@@ -109,6 +109,35 @@ export interface WeightEntry {
   note?: string;
 }
 
+/** 8 类常见过敏原代码。 */
+export type AllergenCode =
+  | 'gluten'
+  | 'egg'
+  | 'milk'
+  | 'soy'
+  | 'peanut'
+  | 'treenut'
+  | 'fish'
+  | 'shellfish';
+
+/** 三态：不能只用布尔值，否则无法区分"确认不含"与"未标注"。 */
+export type AllergenPresence = 'contains' | 'mayContain' | 'free';
+
+/** 限制类型；allergen 走确定性过滤，其余走提示。 */
+export type RestrictionKind = 'allergen' | 'intolerance' | 'religious' | 'medical' | 'preference';
+
+/** strict 排除 contains+mayContain；avoid 只排除 contains 并提示 mayContain。 */
+export type RestrictionSeverity = 'avoid' | 'strict';
+
+export interface DietRestriction {
+  id: string;
+  kind: RestrictionKind;
+  code: string;
+  label: string;
+  severity: RestrictionSeverity;
+  source: string;
+}
+
 export interface Profile {
   name: string;
   experience: 'beginner' | 'intermediate' | 'advanced';
@@ -155,6 +184,7 @@ export interface AppState {
   /** 最近一次替换前自动备份的存储键。 */
   lastBackupKey: string | null;
 }
+
 
 
 
