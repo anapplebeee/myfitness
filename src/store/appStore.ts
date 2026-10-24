@@ -140,18 +140,54 @@ export const store = {
     schedulePersist();
   },
 
+  /**
+   * 换动作：按 11:28「替代后新建记录，原已完成组保留原动作」。
+   * - 旧动作保留已完成的组（历史事实不消失）
+   * - 旧动作未录的组转为 skipped
+   * - 新增一个动作项承载新动作，从空组开始，不继承负荷
+   */
   replaceExerciseInSession(sessionId: string, exerciseId: string, nextExerciseId: string): void {
     const s = state.sessions.find((x) => x.id === sessionId);
     if (!s) return;
     const target = s.exercises.find((x) => x.exerciseId === exerciseId);
     if (!target) return;
-    target.exerciseId = nextExerciseId;
+
+    // 旧动作：保留完成组，其余标 skipped
     for (const set of target.sets) {
       if (set.status !== 'completed') set.status = 'skipped';
     }
+
+    // 新动作：全新一组计划组
+    const targetSets = Math.max(1, target.targetSets);
+    const next: typeof target = {
+      id: uid('se'),
+      exerciseId: nextExerciseId,
+      order: target.order + 1,
+      targetSets,
+      repMin: target.repMin,
+      repMax: target.repMax,
+      restSeconds: target.restSeconds,
+      incrementGrams: target.incrementGrams,
+      sets: Array.from({ length: targetSets }, () => ({
+        id: uid('set'),
+        kind: 'work' as const,
+        status: 'planned' as const,
+        loadGrams: null,
+        reps: null,
+        durationSeconds: null,
+        distanceMeters: null,
+        rpe: null,
+        completedAt: null,
+      })),
+    };
+    // 插到旧动作之后，并重排 order
+    const at = s.exercises.indexOf(target);
+    s.exercises.splice(at + 1, 0, next);
+    s.exercises.forEach((x, i) => {
+      x.order = i;
+    });
     schedulePersist();
   },
-
   removeExerciseFromSession(sessionId: string, exerciseId: string): void {
     const s = state.sessions.find((x) => x.id === sessionId);
     if (!s) return;
@@ -570,5 +606,8 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
+
+
 
 

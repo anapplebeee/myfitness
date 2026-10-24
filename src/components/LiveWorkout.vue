@@ -6,7 +6,8 @@ import { formatLoad, formatRest, formatDuration } from '../domain/units';
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
-import type { SetRecord } from '../domain/types';
+import { setSummary } from '../domain/tracking';
+import type { SetRecord, TrackingMode } from '../domain/types';
 import { setImmersive } from '../composables/useImmersive';
 import { mondayOf } from '../domain/plan';
 import { computeWeek } from '../domain/week';
@@ -38,6 +39,8 @@ const activeExercise = computed(() => session.value?.exercises[activeExIndex.val
 interface DraftSet {
   load: string;
   reps: string;
+  duration: string;
+  distance: string;
   rpe: string;
 }
 
@@ -54,6 +57,8 @@ function draftFor(exId: string, set: SetRecord): DraftSet {
     drafts.value[key] = {
       load: base ? String(unit.value === 'kg' ? base / 1000 : (base / 1000) * 2.20462) : '',
       reps: set.reps ? String(set.reps) : '',
+      duration: set.durationSeconds ? String(set.durationSeconds) : '',
+      distance: set.distanceMeters ? String(set.distanceMeters) : '',
       rpe: '',
     };
   }
@@ -62,30 +67,90 @@ function draftFor(exId: string, set: SetRecord): DraftSet {
 
 function updateDraft(exId: string, setId: string, patch: Partial<DraftSet>): void {
   const key = draftKey(exId, setId);
-  const current = drafts.value[key] ?? { load: '', reps: '', rpe: '' };
+  const current: DraftSet = drafts.value[key] ?? { load: '', reps: '', duration: '', distance: '', rpe: '' };
   drafts.value[key] = { ...current, ...patch };
 }
 
-function parseDraft(exId: string, set: SetRecord): { loadGrams: number; reps: number } | null {
+/** 按动作模式把草稿解析成组记录；返回 null 表示输入不完整。 */
+function parseDraft(exId: string, set: SetRecord): Partial<SetRecord> | null {
+  const ex = EXERCISES.find((e) => e.id === exId);
+  if (!ex) return null;
   const d = draftFor(exId, set);
-  const load = Number.parseFloat(d.load.replace(',', '.'));
-  const reps = Number.parseInt(d.reps, 10);
-  if (!Number.isFinite(load) || load < 0 || !Number.isFinite(reps) || reps <= 0) return null;
-  const grams = unit.value === 'kg' ? Math.round(load * 1000) : Math.round((load / 2.20462) * 1000);
-  return { loadGrams: grams, reps };
+  const patch: Partial<SetRecord> = {};
+
+  if (ex.mode === 'load_reps') {
+    const load = Number.parseFloat(d.load.replace(',', '.'));
+    const reps = Number.parseInt(d.reps, 10);
+    if (!Number.isFinite(load) || load < 0 || !Number.isFinite(reps) || reps <= 0) return null;
+    patch.loadGrams = unit.value === 'kg' ? Math.round(load * 1000) : Math.round((load / 2.20462) * 1000);
+    patch.reps = reps;
+  } else if (ex.mode === 'reps') {
+    const reps = Number.parseInt(d.reps, 10);
+    if (!Number.isFinite(reps) || reps <= 0) return null;
+    patch.reps = reps;
+  } else if (ex.mode === 'duration') {
+    const secs = Number.parseInt(d.duration, 10);
+    if (!Number.isFinite(secs) || secs <= 0) return null;
+    patch.durationSeconds = secs;
+  } else {
+    const dist = Number.parseFloat(d.distance.replace(',', '.'));
+    const secs = Number.parseInt(d.duration, 10);
+    if (!Number.isFinite(dist) || dist <= 0 || !Number.isFinite(secs) || secs <= 0) return null;
+    patch.distanceMeters = Math.round(dist);
+    patch.durationSeconds = secs;
+  }
+
+  const rpeRaw = d.rpe;
+  patch.rpe = rpeRaw ? Number(rpeRaw) : null;
+  return patch;
+}
+
+const pickerKeyword = ref('');
+
+/**
+ * 面板列出全部动作并支持搜索。
+ * 原实现只列前 24 个，导致平板支撑、坡度快走等排在后面的动作根本选不到。
+ */
+const pickerResults = computed(() => {
+  const q = pickerKeyword.value.trim().toLowerCase();
+  if (!q) return EXERCISES;
+  return EXERCISES.filter(
+    (e) => e.name.toLowerCase().includes(q) || (e.alias ?? []).some((a) => a.includes(q)),
+  );
+});
+
+/** 目标提示按模式给：计时/距离类不该显示"N 次"。 */
+function targetHint(ex: { exerciseId: string; targetSets: number; repMin: number; repMax: number }): string {
+  const def = EXERCISES.find((e) => e.id === ex.exerciseId);
+  const mode = def?.mode ?? 'load_reps';
+  if (mode === 'duration') return '目标 ' + ex.targetSets + ' 组 · 每组计时';
+  if (mode === 'distance_duration') return '目标 ' + ex.targetSets + ' 组 · 每组记距离与时长';
+  if (mode === 'reps') return '目标 ' + ex.targetSets + ' 组 × ' + ex.repMin + '–' + ex.repMax + ' 次（自重）';
+  return '目标 ' + ex.targetSets + ' 组 × ' + ex.repMin + '–' + ex.repMax + ' 次';
+}
+
+function completedSummary(exerciseId: string, set: SetRecord): string {
+  const def = EXERCISES.find((e) => e.id === exerciseId);
+  if (!def) return '—';
+  return setSummary(def, set, unit.value);
+}
+
+function modeLabel(mode: string): string {
+  return mode === 'load_reps' ? '负重' : mode === 'reps' ? '次数' : mode === 'duration' ? '计时' : '距离';
+}
+
+function modeOf(exId: string): TrackingMode {
+  return EXERCISES.find((e) => e.id === exId)?.mode ?? 'load_reps';
 }
 
 function complete(exId: string, set: SetRecord): void {
   const parsed = parseDraft(exId, set);
   if (!parsed) {
-    push('先填重量和次数', 'error');
+    push(EXERCISES.find((e) => e.id === exId)?.mode === 'load_reps' ? '先填重量和次数' : '先填完整数据', 'error');
     return;
   }
   const ex = activeExercise.value;
-  store.completeSet(props.sessionId, exId, set.id, {
-    ...parsed,
-    rpe: drafts.value[draftKey(exId, set.id)]?.rpe ? Number(drafts.value[draftKey(exId, set.id)]!.rpe) : null,
-  });
+  store.completeSet(props.sessionId, exId, set.id, parsed);
   if (ex) rest.start(ex.restSeconds);
   push('已保存本组', 'success');
 }
@@ -166,19 +231,37 @@ function discard(): void {
 function pickExercise(exerciseId: string): void {
   const ex = activeExercise.value;
   if (!ex) {
+    const def = EXERCISES.find((e) => e.id === exerciseId);
+    // 必须带出可录入的组：空数组会让本动作一个输入框都没有
+    const sets = Array.from({ length: 3 }, () => ({
+      id: store.newId('set'),
+      kind: 'work' as const,
+      status: 'planned' as const,
+      loadGrams: null,
+      reps: null,
+      durationSeconds: null,
+      distanceMeters: null,
+      rpe: null,
+      completedAt: null,
+    }));
     store.addExerciseToSession(props.sessionId, {
       id: store.newId('se'),
       exerciseId,
       order: 0,
       targetSets: 3,
-      repMin: 8,
-      repMax: 12,
+      // 计时/距离类不该显示"8–12 次"
+      repMin: def?.mode === 'load_reps' || def?.mode === 'reps' ? 8 : 1,
+      repMax: def?.mode === 'load_reps' || def?.mode === 'reps' ? 12 : 1,
       restSeconds: 90,
       incrementGrams: 2500,
-      sets: [],
+      sets,
     });
   } else {
     store.replaceExerciseInSession(props.sessionId, ex.exerciseId, exerciseId);
+    // 新动作插在原动作之后，自动切过去，否则用户看到的是已跳过的旧动作
+    const list = store.findSession(props.sessionId)?.exercises ?? [];
+    const at = list.findIndex((x) => x.exerciseId === exerciseId);
+    if (at >= 0) activeExIndex.value = at;
   }
   showPicker.value = false;
   push('已更新本场动作，仅影响本次');
@@ -246,11 +329,11 @@ const progress = computed(() => {
         <div>
           <p class="label">{{ MUSCLES.find((m) => m.id === EXERCISES.find((e) => e.id === activeExercise!.exerciseId)?.group)?.label }}</p>
           <h2 class="h2">{{ exerciseName(activeExercise.exerciseId) }}</h2>
-          <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · 目标 {{ activeExercise.targetSets }} 组 × {{ activeExercise.repMin }}–{{ activeExercise.repMax }} 次</p>
+          <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · {{ targetHint(activeExercise) }}</p>
         </div>
       </div>
 
-      <div class="seg live__unit">
+      <div v-if="modeOf(activeExercise.exerciseId) === 'load_reps'" class="seg live__unit">
         <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="unit = 'kg'">kg</button>
         <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="unit = 'lb'">lb</button>
       </div>
@@ -260,8 +343,7 @@ const progress = computed(() => {
           <span class="set__idx">{{ idx + 1 }}</span>
           <template v-if="set.status === 'completed'">
             <span class="set__done">
-              <strong>{{ set.loadGrams !== null ? formatLoad(set.loadGrams, unit) : '—' }}</strong>
-              <span>× {{ set.reps }}</span>
+              <strong>{{ completedSummary(activeExercise.exerciseId, set) }}</strong>
             </span>
             <span v-if="set.rpe" class="chip chip--sm">RPE {{ set.rpe }}</span>
             <span class="chip chip--lime chip--sm">已保存</span>
@@ -271,21 +353,70 @@ const progress = computed(() => {
           </template>
           <template v-else>
             <div class="set__inputs">
-              <input
-                class="input input--lg set__input"
-                inputmode="decimal"
-                :value="draftFor(activeExercise.exerciseId, set).load"
-                :placeholder="set.loadGrams ? String(set.loadGrams / 1000) : '0'"
-                @input="updateDraft(activeExercise.exerciseId, set.id, { load: ($event.target as HTMLInputElement).value })"
-              />
-              <span class="set__x">×</span>
-              <input
-                class="input input--lg set__input"
-                inputmode="numeric"
-                :value="draftFor(activeExercise.exerciseId, set).reps"
-                :placeholder="String(activeExercise.repMin)"
-                @input="updateDraft(activeExercise.exerciseId, set.id, { reps: ($event.target as HTMLInputElement).value })"
-              />
+              <template v-if="modeOf(activeExercise.exerciseId) === 'load_reps'">
+                <input
+                  class="input input--lg set__input"
+                  inputmode="decimal"
+                  :aria-label="`${exerciseName(activeExercise.exerciseId)} 重量`"
+                  :value="draftFor(activeExercise.exerciseId, set).load"
+                  :placeholder="set.loadGrams ? String(set.loadGrams / 1000) : '0'"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { load: ($event.target as HTMLInputElement).value })"
+                />
+                <span class="set__x">×</span>
+                <input
+                  class="input input--lg set__input"
+                  inputmode="numeric"
+                  :aria-label="`${exerciseName(activeExercise.exerciseId)} 次数`"
+                  :value="draftFor(activeExercise.exerciseId, set).reps"
+                  :placeholder="String(activeExercise.repMin)"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { reps: ($event.target as HTMLInputElement).value })"
+                />
+              </template>
+
+              <template v-else-if="modeOf(activeExercise.exerciseId) === 'reps'">
+                <input
+                  class="input input--lg set__input"
+                  inputmode="numeric"
+                  aria-label="次数"
+                  :value="draftFor(activeExercise.exerciseId, set).reps"
+                  :placeholder="String(activeExercise.repMin)"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { reps: ($event.target as HTMLInputElement).value })"
+                />
+                <span class="set__unit">次</span>
+              </template>
+
+              <template v-else-if="modeOf(activeExercise.exerciseId) === 'duration'">
+                <input
+                  class="input input--lg set__input"
+                  inputmode="numeric"
+                  aria-label="时长（秒）"
+                  :value="draftFor(activeExercise.exerciseId, set).duration"
+                  placeholder="45"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { duration: ($event.target as HTMLInputElement).value })"
+                />
+                <span class="set__unit">秒</span>
+              </template>
+
+              <template v-else>
+                <input
+                  class="input input--lg set__input"
+                  inputmode="decimal"
+                  aria-label="距离（米）"
+                  :value="draftFor(activeExercise.exerciseId, set).distance"
+                  placeholder="2000"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { distance: ($event.target as HTMLInputElement).value })"
+                />
+                <span class="set__unit">m</span>
+                <input
+                  class="input input--lg set__input"
+                  inputmode="numeric"
+                  aria-label="时长（秒）"
+                  :value="draftFor(activeExercise.exerciseId, set).duration"
+                  placeholder="720"
+                  @input="updateDraft(activeExercise.exerciseId, set.id, { duration: ($event.target as HTMLInputElement).value })"
+                />
+                <span class="set__unit">秒</span>
+              </template>
             </div>
             <button class="btn btn--lime btn--sm" @click="complete(activeExercise.exerciseId, set)">完成</button>
             <button class="set__skipbtn" aria-label="跳过本组" @click="skip(set.id)">跳过</button>
@@ -371,12 +502,13 @@ const progress = computed(() => {
             </div>
             <button class="icon-btn" @click="showPicker = false" aria-label="关闭">✕</button>
           </div>
+          <input v-model="pickerKeyword" class="input" type="search" placeholder="搜索动作，如 平板 / 快走" style="margin-bottom: 8px" />
           <div class="picker">
-            <button v-for="ex in EXERCISES.slice(0, 24)" :key="ex.id" class="picker__item" @click="pickExercise(ex.id)">
+            <button v-for="ex in pickerResults" :key="ex.id" class="picker__item" @click="pickExercise(ex.id)">
               <span class="lib__tag">{{ MUSCLES.find((m) => m.id === ex.group)?.short }}</span>
               <span class="recent__body">
                 <span class="h3">{{ ex.name }}</span>
-                <span class="tiny">{{ ex.equipment }}</span>
+                <span class="tiny">{{ ex.equipment }} · {{ modeLabel(ex.mode) }}</span>
               </span>
             </button>
           </div>
@@ -634,6 +766,15 @@ const progress = computed(() => {
   min-width: 0;
 }
 </style>
+
+
+
+
+
+
+
+
+
 
 
 

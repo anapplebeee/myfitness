@@ -1,4 +1,4 @@
-import type { MuscleGroup } from '../domain/types';
+import type { LoadConvention, MuscleGroup, TrackingMode } from '../domain/types';
 import type { Exercise, Template } from './types';
 
 export type { Exercise, Template } from './types';
@@ -14,6 +14,12 @@ export const MUSCLES: Array<{ id: MuscleGroup; label: string; short: string }> =
   { id: 'cardio', label: '有氧', short: '氧' },
 ];
 
+interface ExerciseOptions {
+  mode?: TrackingMode;
+  load?: LoadConvention;
+  implementCount?: number;
+}
+
 const e = (
   id: string,
   name: string,
@@ -21,13 +27,15 @@ const e = (
   equipment: string,
   cues: string[],
   alternatives: string[] = [],
+  options: ExerciseOptions = {},
 ): Exercise => ({
   id,
   name,
   group,
   equipment,
-  mode: 'load_reps',
-  load: 'totalExternal',
+  mode: options.mode ?? 'load_reps',
+  load: options.load ?? 'totalExternal',
+  ...(options.implementCount ? { implementCount: options.implementCount } : {}),
   cues,
   alternatives,
 });
@@ -50,10 +58,10 @@ export const EXERCISES: Exercise[] = [
   e('db-bench', '哑铃卧推', 'chest', '哑铃', ['下放到肘略低于肩', '双脚踩实'], ['bb-bench', 'pushup']),
   e('incline-db', '上斜哑铃卧推', 'chest', '哑铃', ['30 度上斜', '推到锁骨上方'], ['bb-bench']),
   e('cable-fly', '绳索夹胸', 'chest', '器械', ['肘微屈固定', '顶峰挤压'], ['pushup']),
-  e('pushup', '俯卧撑', 'chest', '自重', ['身体成一条线', '肘约 45 度'], ['db-bench']),
-  e('dip', '双杠臂屈伸', 'chest', '自重', ['肩不要耸', '下放到舒适深度'], ['pushup']),
+  e('pushup', '俯卧撑', 'chest', '自重', ['身体成一条线', '肘约 45 度'], ['db-bench'], { mode: 'reps', load: 'bodyweight' }),
+  e('dip', '双杠臂屈伸', 'chest', '自重', ['肩不要耸', '下放到舒适深度'], ['pushup'], { mode: 'reps', load: 'bodyweight' }),
 
-  e('pullup', '引体向上', 'back', '自重', ['先沉肩', '胸口靠近横杆'], ['lat-pulldown']),
+  e('pullup', '引体向上', 'back', '自重', ['先沉肩', '胸口靠近横杆'], ['lat-pulldown'], { mode: 'reps', load: 'bodyweight' }),
   e('lat-pulldown', '高位下拉', 'back', '器械', ['肘向下向后', '不要后仰过多'], ['pullup']),
   e('bb-row', '杠铃划船', 'back', '杠铃', ['髋铰链', '拉到下腹'], ['db-row']),
   e('db-row', '单臂哑铃划船', 'back', '哑铃', ['躯干稳定', '肘贴身体'], ['bb-row']),
@@ -75,13 +83,13 @@ export const EXERCISES: Exercise[] = [
   e('skull-crusher', '仰卧臂屈伸', 'arms', '杠铃', ['上臂固定', '控制下放'], ['triceps-pushdown']),
   e('overhead-triceps', '过顶臂屈伸', 'arms', '哑铃', ['肘朝前', '全幅度'], []),
 
-  e('plank', '平板支撑', 'core', '自重', ['臀不塌', '呼吸均匀'], []),
-  e('hanging-leg-raise', '悬垂举腿', 'core', '自重', ['控制摆动', '骨盆后倾'], []),
+  e('plank', '平板支撑', 'core', '自重', ['臀不塌', '呼吸均匀'], [], { mode: 'duration' }),
+  e('hanging-leg-raise', '悬垂举腿', 'core', '自重', ['控制摆动', '骨盆后倾'], [], { mode: 'reps', load: 'bodyweight' }),
   e('cable-crunch', '绳索卷腹', 'core', '器械', ['脊柱屈曲', '不要用手拉'], []),
-  e('ab-wheel', '健腹轮', 'core', '自重', ['核心收紧', '不要塌腰'], []),
+  e('ab-wheel', '健腹轮', 'core', '自重', ['核心收紧', '不要塌腰'], [], { mode: 'reps', load: 'bodyweight' }),
 
-  e('incline-walk', '坡度快走', 'cardio', '跑步机', ['保持心率区间', '不要扶扶手'], []),
-  e('rower', '划船机', 'cardio', '器械', ['腿-核心-手', '节奏稳定'], []),
+  e('incline-walk', '坡度快走', 'cardio', '跑步机', ['保持心率区间', '不要扶扶手'], [], { mode: 'distance_duration' }),
+  e('rower', '划船机', 'cardio', '器械', ['腿-核心-手', '节奏稳定'], [], { mode: 'distance_duration' }),
 ];
 
 export const EXERCISE_BY_ID = new Map(EXERCISES.map((x) => [x.id, x]));
@@ -197,4 +205,6 @@ export const TEMPLATES: Template[] = [
 ];
 
 export const TEMPLATE_BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
+
+
 

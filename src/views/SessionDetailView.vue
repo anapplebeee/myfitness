@@ -11,6 +11,7 @@ import {
   sessionVolumeGrams,
 } from '../domain/metrics';
 import { pendingSetCount, contributesToVolume } from '../domain/amend';
+import { setSummary } from '../domain/tracking';
 import { useToast } from '../composables/useToast';
 import type { SetRecord } from '../domain/types';
 
@@ -98,6 +99,12 @@ function skipRest(): void {
 function markSelfReported(): void {
   store.markSelfReported(props.sessionId);
   push('已标记为本人确认练过', 'success');
+}
+
+function summaryFor(exerciseId: string, set: SetRecord): string {
+  const def = EXERCISE_BY_ID.get(exerciseId);
+  if (!def) return '—';
+  return setSummary(def, set, unit.value);
 }
 
 function groupLabel(exerciseId: string): string {
@@ -196,8 +203,7 @@ function lastHint(exerciseId: string): string {
           <span class="set__idx">{{ i + 1 }}</span>
           <template v-if="set.status === 'completed'">
             <span class="set__main">
-              <strong>{{ set.loadGrams !== null ? formatLoad(set.loadGrams, unit) : '自重' }}</strong>
-              <span>× {{ set.reps }}</span>
+              <strong>{{ summaryFor(ex.exerciseId, set) }}</strong>
             </span>
             <span v-if="set.kind === 'warmup'" class="chip chip--sm">热身</span>
             <span v-if="set.editedAt" class="chip chip--sm">已更正</span>
@@ -431,5 +437,7 @@ function lastHint(exerciseId: string): string {
   padding: 0 4px;
 }
 </style>
+
+
 
 

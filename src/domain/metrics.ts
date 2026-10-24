@@ -1,6 +1,8 @@
 /** 判定与统计：纯函数，不依赖 DOM、存储与真实时钟。 */
 
 import type { Session, SessionExercise, SetRecord } from './types';
+import { EXERCISE_BY_ID } from '../content/exercises';
+import { volumeEligible } from './tracking';
 
 export const EPSILON = 1e-9;
 
@@ -25,9 +27,16 @@ export function isValidCompleted(session: Session): boolean {
   return session.status === 'completed' && completedWorkingSets(session) > 0;
 }
 
+/**
+ * 总外部容量：只对"外部负荷可定义"的模式计算（11:55）。
+ * 自重、纯次数、计时、距离类不并入，否则数值没有可比意义。
+ */
 export function sessionVolumeGrams(session: Session): number {
   let total = 0;
   for (const ex of session.exercises) {
+    const def = EXERCISE_BY_ID.get(ex.exerciseId);
+    const eligible = def ? def.mode === 'load_reps' && volumeEligible(def.load) : true;
+    if (!eligible) continue;
     for (const set of ex.sets) {
       if (!isWorkingSet(set) || set.loadGrams === null || set.reps === null) continue;
       total += set.loadGrams * set.reps;
@@ -92,6 +101,9 @@ export interface ExerciseBest {
 /** 某动作的历史最佳工作组，比较键为动作 ID + 负荷约定。 */
 export function bestSet(sessions: Session[], exerciseId: string): ExerciseBest | null {
   let best: ExerciseBest | null = null;
+  const def = EXERCISE_BY_ID.get(exerciseId);
+  // 力量 PR 只对负重类有意义；计时/距离/自重另走各自趋势
+  if (def && !(def.mode === 'load_reps' && volumeEligible(def.load))) return null;
   for (const session of sessions) {
     if (!isValidCompleted(session)) continue;
     for (const ex of session.exercises) {
@@ -186,3 +198,4 @@ export function createSessionExercise(
     sets: [],
   };
 }
+
