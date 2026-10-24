@@ -119,6 +119,34 @@ export const store = {
     }
   },
 
+  /**
+   * 完成首次引导。
+   *
+   * 原实现把 onboarded 硬编为 true，等于宣称"用户已完成引导"却从未引导过；
+   * 新用户会直接看到 42 场示例训练并误以为是自己的数据。
+   */
+  completeOnboarding(input: {
+    templateId: string;
+    weeklyGoal: number;
+    keepDemoData: boolean;
+  }): void {
+    if (!input.keepDemoData) {
+      // 清空示例业务数据，但保留 datasetId 与内容包
+      state.sessions = [];
+      state.weights = [];
+      state.foods = [];
+      state.occurrences = [];
+      state.weekGoals = [];
+      state.bodyGoalGrams = null;
+    }
+    state.activeTemplateId = input.templateId;
+    state.activeTemplateSince = businessDate();
+    state.weeklyGoal = input.weeklyGoal;
+    state.profile.weeklyTarget = input.weeklyGoal;
+    state.onboarded = true;
+    schedulePersist();
+  },
+
   updateProfile(patch: Partial<Profile>): void {
     Object.assign(state.profile, patch);
     if (patch.weeklyTarget !== undefined) state.weeklyGoal = patch.weeklyTarget;
@@ -715,6 +743,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

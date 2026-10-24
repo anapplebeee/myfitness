@@ -35,6 +35,10 @@ npm run preview      # 预览 dist/（需先 build）
 | [QA 验收](docs/qa/2026-10-24-acceptance.md) | 逐提交验收、实测数据、发现的问题与放行建议 |
 | [阶段审核](docs/qa/2026-10-25-stage-review.md) | 计划 vs 实际、门禁状态、P0/P1 问题清单 |
 | [E2E 与 CI](docs/18-e2e-and-ci.md) | Playwright 覆盖范围、门禁配置、踩过的坑 |
+| [产品评审](docs/qa/2026-10-25-product-review.md) | 实测数据、是否达到预期、优化优先级 |
+| [迭代流程](docs/process/development-workflow.md) | 六条硬性规则、检查清单、评审要点 |
+| [变更日志](CHANGELOG.md) | 做了什么、已知限制 |
+| [参与开发](CONTRIBUTING.md) | 环境、三条最易踩的规则、验证门槛 |
 
 ## 实施计划
 
@@ -81,5 +85,6 @@ src/
 [01 openGym调研](docs/01-research-opengym.md)、[06旧缺口分析](docs/06-gap-analysis.md)、[08市场复核](docs/08-market-review.md)、[10产品架构评审](docs/10-product-architecture-review.md)保留为背景，不定义当前范围。原02/03/04/05/07/09已[归档](docs/archive/2026-10-23-pre-baseline/INDEX.md)。
 
 文档完成不等于业务实现完成；正式v1必须通过12号文档全部门禁。
+
 
 

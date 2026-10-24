@@ -9,6 +9,7 @@ import ProfileView from './views/ProfileView.vue';
 import TemplateEditorView from './views/TemplateEditorView.vue';
 import SessionDetailView from './views/SessionDetailView.vue';
 import DataView from './views/DataView.vue';
+import OnboardingView from './views/OnboardingView.vue';
 import TabBar from './components/TabBar.vue';
 import ToastHost from './components/ToastHost.vue';
 import { store } from './store/appStore';
@@ -89,6 +90,8 @@ function go(next: Route): void {
         </div>
       </header>
 
+      <OnboardingView v-if="booted && !store.state.onboarded" @done="() => {}" />
+
       <main v-if="booted">
         <!-- 全屏编辑/详情优先于普通页面 -->
         <TemplateEditorView
@@ -150,6 +153,7 @@ function go(next: Route): void {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 

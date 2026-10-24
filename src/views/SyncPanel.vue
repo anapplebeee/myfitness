@@ -18,21 +18,23 @@ import {
 import { buildSnapshot, snapshotHash } from '../domain/snapshot';
 import { store } from '../store/appStore';
 import { useToast } from '../composables/useToast';
+import { isConfigured, loadSyncSettings, saveSyncSettings } from '../store/deviceSettings';
 
 const { push } = useToast();
 
-const endpoint = ref(localStorage.getItem('tieguan.sync.endpoint') ?? '');
-const token = ref(localStorage.getItem('tieguan.sync.token') ?? '');
+// 初始值来自设备配置层，视图不直接碰 localStorage
+const initial = loadSyncSettings();
+const endpoint = ref(initial.endpoint);
+const token = ref(initial.token);
 const sync = ref<SyncState>({ ...INITIAL_SYNC_STATE });
 const busy = ref(false);
 const lastMessage = ref<string | null>(null);
 const conflict = ref<{ kind: string; message: string } | null>(null);
 
-const configured = computed(() => endpoint.value.trim().length > 0 && token.value.trim().length > 0);
+const configured = computed(() => isConfigured({ endpoint: endpoint.value, token: token.value }));
 
 function saveConfig(): void {
-  localStorage.setItem('tieguan.sync.endpoint', endpoint.value.trim());
-  localStorage.setItem('tieguan.sync.token', token.value.trim());
+  saveSyncSettings({ endpoint: endpoint.value, token: token.value });
   push('已保存同步设置', 'success');
 }
 
@@ -229,4 +231,5 @@ function useRemote(): void {
   color: #8a6d1f;
 }
 </style>
+
 

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 /**
  * 测试辅助。
@@ -22,6 +22,50 @@ export async function resetApp(page: Page): Promise<void> {
     );
   });
   await page.reload();
+  await expectReady(page);
+  await skipOnboarding(page);
+}
+
+/**
+ * 跳过首次引导。
+ *
+ * 引导是真实产品行为，但 E2E 关注的是引导之后的主路径；
+ * 直接写入 onboarded 状态比点击三步更快也更稳定。
+ * 需要测引导本身的用例，用 completeOnboardingViaUi()。
+ */
+export async function skipOnboarding(page: Page): Promise<void> {
+  const onb = page.locator('.onb');
+  if (await onb.count()) {
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('tieguan.v2.state');
+      if (!raw) return;
+      const state = JSON.parse(raw) as Record<string, unknown>;
+      state.onboarded = true;
+      localStorage.setItem('tieguan.v2.state', JSON.stringify(state));
+    });
+    await page.reload();
+    await expectReady(page);
+  }
+}
+
+/** 通过界面走完引导（测引导本身时用）。 */
+export async function completeOnboardingViaUi(
+  page: Page,
+  opts: { weeklyGoal?: number; keepDemo?: boolean } = {},
+): Promise<void> {
+  await expect(page.locator('.onb')).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: '知道了，下一步' }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole('button', { name: '下一步' }).click();
+  await page.waitForTimeout(300);
+  if (opts.weeklyGoal) {
+    await page.locator('.onb__goal', { hasText: String(opts.weeklyGoal) }).first().click();
+  }
+  if (opts.keepDemo === false) {
+    const cb = page.locator('.onb__check');
+    if (await cb.isChecked()) await cb.uncheck();
+  }
+  await page.getByRole('button', { name: '开始使用' }).click();
   await expectReady(page);
 }
 
@@ -69,4 +113,6 @@ export async function openDataPage(page: Page): Promise<void> {
 export async function expectDataPage(page: Page): Promise<void> {
   await page.waitForSelector('.data__count', { timeout: 10_000 });
 }
+
+
 

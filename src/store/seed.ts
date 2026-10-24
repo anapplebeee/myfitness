@@ -150,7 +150,8 @@ export function seedState(): AppState {
   return {
     version: 2,
     createdAt: new Date().toISOString(),
-    onboarded: true,
+    // 首次启动必须走引导：新用户不该一打开就看到 42 场示例训练并误以为是自己的数据
+    onboarded: false,
     profile: {
       name: '',
       experience: 'intermediate',
@@ -180,6 +181,7 @@ export function seedState(): AppState {
     lastBackupKey: null,
   };
 }
+
 
 
 
