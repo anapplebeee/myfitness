@@ -31,6 +31,13 @@ import {
   type OccurrenceCommand,
 } from '../domain/plan';
 import type { PlannedOccurrence, WeekGoal } from '../domain/week';
+import {
+  applyImport,
+  buildExport,
+  previewImport,
+  type ImportMode,
+  type ImportPreview,
+} from '../domain/transfer';
 
 const state = reactive<AppState>(seedState());
 const ready = ref(false);
@@ -67,6 +74,7 @@ export const store = {
   savedAt,
 
   async init(): Promise<void> {
+    let fromSeed = false;
     try {
       const loaded = await Promise.race([
         loadState(),
@@ -75,13 +83,24 @@ export const store = {
       if (loaded && loaded.version === 2) {
         Object.assign(state, loaded);
         state.profile = { ...state.profile, ...loaded.profile };
+        // 老数据可能缺新字段，补齐但不覆盖已有值
+        if (!state.datasetId) state.datasetId = `ds_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        state.lastBackupKey ??= null;
+        state.customTemplates ??= [];
+        state.occurrences ??= [];
+        state.weekGoals ??= [];
       } else {
         Object.assign(state, seedState());
+        fromSeed = true;
       }
     } catch {
       Object.assign(state, seedState());
+      fromSeed = true;
     } finally {
       ready.value = true;
+      // 种子数据必须立即落盘：否则每次刷新都会换 datasetId，
+      // 导致自己导出的备份在下次导入时被判为"另一个数据集"。
+      if (fromSeed) void persist();
     }
   },
 
@@ -475,6 +494,71 @@ export const store = {
     );
     schedulePersist();
   },
+
+  // ---------- 导出 / 导入 / 备份 ----------
+
+  /** 稳定数据集 ID：首次导出时生成并持久化，之后不变。 */
+  datasetId(): string {
+    if (!state.datasetId) {
+      state.datasetId = `ds_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      schedulePersist();
+    }
+    return state.datasetId;
+  },
+
+  buildExportJson(): string {
+    const env = buildExport(state, store.datasetId());
+    return JSON.stringify(env, null, 2);
+  },
+
+  previewImportJson(raw: string): ImportPreview {
+    return previewImport(raw, { currentDatasetId: store.datasetId(), currentState: state });
+  },
+
+  applyImportPreview(preview: ImportPreview, mode: ImportMode): string | null {
+    const result = applyImport(preview, state, mode);
+    if (result.backup) {
+      // 替换模式：先把旧状态另存为备份，失败可回滚
+      const backupKey = `tieguan.backup.${Date.now()}`;
+      try {
+        localStorage.setItem(backupKey, JSON.stringify(result.backup));
+        state.lastBackupKey = backupKey;
+      } catch {
+        return '无法写入备份（存储空间不足），已取消替换';
+      }
+    }
+    Object.assign(state, result.state);
+    schedulePersist();
+    return null;
+  },
+
+  /** 读取最近一次自动备份，用于误操作恢复。 */
+  latestBackup(): { key: string; state: AppState } | null {
+    if (!state.lastBackupKey) return null;
+    try {
+      const raw = localStorage.getItem(state.lastBackupKey);
+      if (!raw) return null;
+      return { key: state.lastBackupKey, state: JSON.parse(raw) as AppState };
+    } catch {
+      return null;
+    }
+  },
+
+  restoreBackup(): string | null {
+    const backup = store.latestBackup();
+    if (!backup) return '没有可恢复的备份';
+    Object.assign(state, backup.state);
+    schedulePersist();
+    return null;
+  },
+
+  /** 清空本机：删除数据但保留数据集 ID 以外的一切重置为种子。 */
+  wipeLocal(): void {
+    const datasetId = state.datasetId;
+    const fresh = seedState();
+    Object.assign(state, fresh, { datasetId });
+    schedulePersist();
+  },
 };
 
 const weightSeries = computed<WeightEntry[]>(() =>
@@ -486,4 +570,5 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 

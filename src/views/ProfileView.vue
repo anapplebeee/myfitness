@@ -5,6 +5,11 @@ import { FOODS } from '../content/foods';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
 
+const emit = defineEmits<{ (e: 'navigate', tab: 'data'): void }>();
+function openData(): void {
+  emit('navigate', 'data');
+}
+
 defineProps<{ greetingName?: string }>();
 
 const tab = ref<'body' | 'data' | 'settings'>('body');
@@ -121,6 +126,9 @@ const sessionCount = computed(() => store.state.sessions.length);
           <span class="small">本地保存</span>
           <span class="chip chip--lime chip--sm">已启用</span>
         </div>
+        <button class="btn btn--primary btn--block" style="margin-top: 14px" @click="openData()">
+          导出、导入与备份
+        </button>
       </div>
     </template>
 
@@ -273,4 +281,5 @@ const sessionCount = computed(() => store.state.sessions.length);
   color: var(--clay);
 }
 </style>
+
 

@@ -8,6 +8,7 @@ import PlanView from './views/PlanView.vue';
 import ProfileView from './views/ProfileView.vue';
 import TemplateEditorView from './views/TemplateEditorView.vue';
 import SessionDetailView from './views/SessionDetailView.vue';
+import DataView from './views/DataView.vue';
 import TabBar from './components/TabBar.vue';
 import ToastHost from './components/ToastHost.vue';
 import { store } from './store/appStore';
@@ -19,7 +20,7 @@ import { editingTemplateId, openSessionId } from './composables/useOverlay';
 const route = ref<Route>('today');
 const booted = ref(false);
 
-const VALID: readonly Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
+const VALID: readonly Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me', 'data'];
 
 function routeFromHash(): Route {
   const raw = window.location.hash.replace('#', '') as Route;
@@ -54,6 +55,8 @@ const view = computed(() => {
       return FoodView;
     case 'me':
       return ProfileView;
+    case 'data':
+      return DataView;
     default:
       return TodayView;
   }
@@ -140,6 +143,7 @@ function go(next: Route): void {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 

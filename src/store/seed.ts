@@ -176,7 +176,10 @@ export function seedState(): AppState {
     occurrences,
     weekGoals: weekGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),
     customTemplates: [],
+    datasetId: `ds_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    lastBackupKey: null,
   };
 }
+
 
 

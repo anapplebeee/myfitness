@@ -150,6 +150,11 @@ export interface AppState {
   activeTemplateSince: string | null;
   /** 用户自建或改版后的模板；内置模板仍在内容库。 */
   customTemplates: Template[];
+  /** 稳定数据集 ID，用于区分不同来源的导出文件。 */
+  datasetId: string;
+  /** 最近一次替换前自动备份的存储键。 */
+  lastBackupKey: string | null;
 }
+
 
 

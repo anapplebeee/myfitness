@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import type { Route } from '../types/nav';
 defineProps<{
-  active: 'today' | 'train' | 'plan' | 'food' | 'coach' | 'me';
+  active: Route;
 }>();
 
-const emit = defineEmits<{ (e: 'change', tab: 'today' | 'train' | 'plan' | 'food' | 'coach' | 'me'): void }>();
+const emit = defineEmits<{ (e: 'change', tab: Route): void }>();
 
 const items = [
   { id: 'today', label: '今日' },
@@ -54,5 +55,6 @@ const items = [
     </button>
   </nav>
 </template>
+
 
 
