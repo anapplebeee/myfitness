@@ -1,4 +1,7 @@
-import type { Exercise, MuscleGroup, Template } from '../domain/types';
+import type { MuscleGroup } from '../domain/types';
+import type { Exercise, Template } from './types';
+
+export type { Exercise, Template } from './types';
 
 export const MUSCLES: Array<{ id: MuscleGroup; label: string; short: string }> = [
   { id: 'chest', label: '胸部', short: '胸' },
@@ -194,3 +197,4 @@ export const TEMPLATES: Template[] = [
 ];
 
 export const TEMPLATE_BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
+

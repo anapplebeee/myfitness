@@ -1,3 +1,3 @@
-export type Route = 'today' | 'train' | 'food' | 'coach' | 'me';
+export type Route = 'today' | 'train' | 'plan' | 'food' | 'coach' | 'me';
 
-export const ROUTES: readonly Route[] = ['today', 'train', 'food', 'coach', 'me'] as const;
+export const ROUTES: readonly Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'] as const;

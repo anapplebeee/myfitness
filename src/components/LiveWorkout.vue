@@ -8,6 +8,8 @@ import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
 import type { SetRecord } from '../domain/types';
 import { setImmersive } from '../composables/useImmersive';
+import { mondayOf } from '../domain/plan';
+import { computeWeek } from '../domain/week';
 
 const props = defineProps<{ sessionId: string }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'finished'): void }>();
@@ -23,6 +25,8 @@ const unit = ref<'kg' | 'lb'>('kg');
 const activeExIndex = ref(0);
 const showPicker = ref(false);
 const finishing = ref(false);
+const creditChoice = ref<string>('');
+const creditConfirmed = ref(false);
 const elapsed = ref(0);
 window.setInterval(() => {
   const s = session.value;
@@ -113,11 +117,41 @@ function finish(): void {
     push('至少完成一个工作组才能结束', 'error');
     return;
   }
+  // 优先匹配同日的计划项目；无计划训练允许手动匹配本周未满足项目（09:48）
+  const weekStart = mondayOf(s.businessDate);
+  const weekState = computeWeek({
+    weekStart,
+    goal: store.goalForWeek(weekStart),
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    now: new Date(),
+  });
+  // 排除已被其他场次满足的项目，避免一场顶掉已有记录
+  const open = store.openOccurrences(weekStart, weekState.satisfiedOccurrenceIds);
+  const sameDay = open.find((o) => o.scheduledDate === s.businessDate);
+  creditChoice.value = sameDay?.id ?? open[0]?.id ?? '';
+  creditConfirmed.value = false;
   finishing.value = true;
 }
 
+/** 总结页可选项：只列本周仍未被满足的项目。 */
+const creditOptions = computed(() => {
+  const s = session.value;
+  if (!s) return [];
+  const weekStart = mondayOf(s.businessDate);
+  const weekState = computeWeek({
+    weekStart,
+    goal: store.goalForWeek(weekStart),
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    now: new Date(),
+  });
+  return store.openOccurrences(weekStart, weekState.satisfiedOccurrenceIds);
+});
+
 function confirmFinish(): void {
   store.updateSession(props.sessionId, { status: 'completed', endedAt: new Date().toISOString(), restEndsAt: null });
+  store.creditSessionToOccurrence(props.sessionId, creditConfirmed.value && creditChoice.value ? creditChoice.value : null);
   finishing.value = false;
   push('训练已保存', 'success');
   emit('finished');
@@ -294,6 +328,30 @@ const progress = computed(() => {
           <p class="small">
             {{ completedSetCount(session) < plannedSetCount(session) ? '有未录的计划组，未录组不会自动算完成。' : '全部计划组已完成。' }}
           </p>
+
+          <div class="credit">
+            <label class="credit__row">
+              <input v-model="creditConfirmed" type="checkbox" class="credit__box" />
+              <span class="credit__text">
+                <span class="h3">本次计入周目标</span>
+                <span class="tiny">只有勾选并确认后，本场才算满足一个计划项目</span>
+              </span>
+            </label>
+            <div v-if="creditConfirmed" class="credit__pick">
+              <label class="tiny">匹配哪一项</label>
+              <select v-model="creditChoice" class="input credit__select">
+                <option value="">不匹配具体项目</option>
+                <option
+                  v-for="o in creditOptions"
+                  :key="o.id"
+                  :value="o.id"
+                >
+                  {{ o.title }}
+                </option>
+              </select>
+            </div>
+          </div>
+
           <div class="row gap-10" style="margin-top: 18px">
             <button class="btn btn--ghost btn--block" @click="finishing = false">继续练</button>
             <button class="btn btn--lime btn--block" @click="confirmFinish">确认结束</button>
@@ -500,6 +558,45 @@ const progress = computed(() => {
   flex: 1;
 }
 
+.credit {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: rgba(17, 20, 17, 0.035);
+}
+
+.credit__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.credit__box {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: var(--ink);
+  flex: none;
+}
+
+.credit__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.credit__pick {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.credit__select {
+  height: 44px;
+  font-size: 14px;
+}
 .picker {
   display: flex;
   flex-direction: column;
@@ -537,4 +634,7 @@ const progress = computed(() => {
   min-width: 0;
 }
 </style>
+
+
+
 

@@ -3,6 +3,8 @@
 import type { AppState, Session, SetRecord } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
 import { TEMPLATES } from '../content/exercises';
+import { buildOccurrences, mondayOf } from '../domain/plan';
+import { initialWeekGoal, type PlannedOccurrence, type WeekGoal } from '../domain/week';
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -100,6 +102,51 @@ export function seedState(): AppState {
     createdAt: new Date(`${today}T${String(8 + i * 3).padStart(2, '0')}:00:00`).toISOString(),
   }));
 
+  // 历史周的计划：按模板生成，并把已完成的会话挂到对应项目上
+  const historyWeeks = 4;
+  const occurrences: PlannedOccurrence[] = [];
+  const weekGoals: WeekGoal[] = [];
+  let seq = 0;
+  const nextId = (prefix: string) => `${prefix}_${(seq += 1).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+  for (let back = historyWeeks; back >= -3; back -= 1) {
+    const weekStart = addDays(mondayOf(today), -back * 7);
+    const built = buildOccurrences({
+      template,
+      fromWeekStart: weekStart,
+      weeks: 1,
+      today: addDays(weekStart, -7),
+      idFactory: nextId,
+    });
+    occurrences.push(...built);
+    weekGoals.push(initialWeekGoal(weekStart, built));
+  }
+
+  // 把已完成会话按日期匹配到同日项目，模拟真实使用后的状态
+  for (const s of sessions) {
+    const day = occurrences.find(
+      (o) => o.weekStart === mondayOf(s.businessDate) && o.scheduledDate === s.businessDate,
+    );
+    if (!day) continue;
+    s.occurrenceId = day.id;
+    s.goalCreditConfirmed = true;
+  }
+
+  // 给最近一周加一个豁免示例，让界面能展示"原始 N → 调整后 A"
+  const currentWeek = mondayOf(today);
+  const currentWeekOcc = occurrences.filter((o) => o.weekStart === currentWeek);
+  const lastFuture = [...currentWeekOcc].reverse().find((o) => o.scheduledDate > today);
+  if (lastFuture) {
+    lastFuture.disposition = 'excused';
+    lastFuture.dispositionReason = '出差';
+    lastFuture.disposedAt = new Date().toISOString();
+    const goal = weekGoals.find((g) => g.weekStart === currentWeek);
+    if (goal) {
+      const A = currentWeekOcc.filter((o) => o.disposition === 'scheduled').length;
+      goal.minimumTarget = Math.min(goal.minimumTarget, A);
+    }
+  }
+
   return {
     version: 2,
     createdAt: new Date().toISOString(),
@@ -118,6 +165,7 @@ export function seedState(): AppState {
       restrictionsConfirmed: false,
     },
     activeTemplateId: template.id,
+    activeTemplateSince: addDays(today, -historyWeeks * 7),
     sessions: sessions.sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1)),
     weights,
     foods,
@@ -125,5 +173,8 @@ export function seedState(): AppState {
     targetKcal: 2350,
     targetProtein: 165,
     weeklyGoal: 4,
+    occurrences,
+    weekGoals: weekGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),
   };
 }
+

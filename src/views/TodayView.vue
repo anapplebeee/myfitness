@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import { store, derived } from '../store/appStore';
 import { TEMPLATE_BY_ID, exerciseName } from '../content/exercises';
 import {
-  addDays,
   businessDate,
   formatVolume,
   shortDate,
@@ -15,25 +14,37 @@ import {
   isValidCompleted,
   sessionVolumeGrams,
   trainingCount,
-  weekCompletion,
 } from '../domain/metrics';
 import Sparkline from '../components/Sparkline.vue';
 import type { Route } from '../types/nav';
+import { computeWeek, dayStatesForWeek, statusLabel, targetNarrative } from '../domain/week';
 
 const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
 withDefaults(defineProps<{ greetingName?: string }>(), { greetingName: '你' });
 
 const today = businessDate();
 const weekStart = weekStartOf(today);
-const nextWeekStart = addDays(weekStart, 7);
 
 const sessions = computed(() => store.state.sessions);
 const live = computed(() => activeSession([...sessions.value]));
-const activeSessionList = computed(() => [...sessions.value]);
 
-const doneThisWeek = computed(() => weekCompletion(activeSessionList.value, weekStart, nextWeekStart));
-const weekGoal = computed(() => Math.max(1, store.state.weeklyGoal));
+const weekResult = computed(() =>
+  computeWeek({
+    weekStart,
+    goal: store.goalForWeek(weekStart),
+    occurrences: [...store.state.occurrences],
+    sessions: [...sessions.value],
+    now: new Date(),
+  }),
+);
+
+// 周目标卡用 09 号口径：完成数来自被唯一满足的项目，而非会话总数
+const doneThisWeek = computed(() => weekResult.value.completedOccurrences);
+const weekGoal = computed(() => Math.max(1, weekResult.value.minimumTarget || store.state.weeklyGoal));
 const weekPct = computed(() => Math.min(100, Math.round((doneThisWeek.value / weekGoal.value) * 100)));
+const weekStatus = computed(() => weekResult.value.status);
+const weekStatusText = computed(() => statusLabel(weekResult.value.status));
+const adjustedHint = computed(() => targetNarrative(weekResult.value));
 
 const template = computed(() =>
   store.state.activeTemplateId ? TEMPLATE_BY_ID.get(store.state.activeTemplateId) ?? null : null,
@@ -86,16 +97,20 @@ const proteinTarget = computed(() => store.state.targetProtein ?? 0);
 const kcalPct = computed(() => (kcalTarget.value ? Math.min(100, Math.round((caloriesToday.value.kcal / kcalTarget.value) * 100)) : 0));
 const proteinPct = computed(() => (proteinTarget.value ? Math.min(100, Math.round((caloriesToday.value.protein / proteinTarget.value) * 100)) : 0));
 
-const weekDays = computed(() =>
-  Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(weekStart, i);
-    const done = sessions.value.some((s) => s.businessDate === date && isValidCompleted(s));
-    const isToday = date === today;
-    const isFuture = date > today;
-    const isPlanDay = template.value ? i % Math.max(2, Math.round(7 / template.value.daysPerWeek)) === 0 : false;
-    return { date, done, isToday, isFuture, isPlanDay, label: weekdayLabel(date).replace('周', '') };
-  }),
-);
+const weekDays = computed(() => {
+  const cells = dayStatesForWeek(weekStart, [...store.state.occurrences], [...sessions.value], weekResult.value, today);
+  return cells.map((cell) => ({
+    date: cell.date,
+    done: cell.primary === 'done',
+    live: cell.primary === 'in_progress',
+    excused: cell.primary === 'excused',
+    isToday: cell.date === today,
+    isFuture: cell.date > today,
+    isPlanDay: cell.openCount > 0,
+    note: cell.missedNote,
+    label: weekdayLabel(cell.date).replace('周', ''),
+  }));
+});
 
 const totalTraining = computed(() => trainingCount([...sessions.value]));
 
@@ -158,9 +173,15 @@ function startWorkout(): void {
       <div class="section__head">
         <div>
           <p class="label">本周节奏</p>
-          <p class="h3">{{ doneThisWeek }} / {{ weekGoal }} 次完成</p>
+          <p class="h3">{{ doneThisWeek }} / {{ weekGoal }} 项完成</p>
+          <p class="tiny week__narr">{{ adjustedHint }}</p>
         </div>
-        <span class="chip chip--sm">{{ weekPct }}%</span>
+        <div class="week__badges">
+          <span class="chip chip--sm" :class="weekStatus === 'achieved' ? 'chip--lime' : weekStatus === 'notAchieved' ? 'chip--clay' : ''">
+            {{ weekStatusText }}
+          </span>
+          <span class="chip chip--sm">{{ weekPct }}%</span>
+        </div>
       </div>
       <div class="week__strip">
         <div
@@ -398,6 +419,15 @@ function startWorkout(): void {
   color: rgba(244, 246, 238, 0.5);
 }
 
+.week__narr {
+  margin-top: 3px;
+}
+
+.week__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .week__strip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -521,5 +551,9 @@ function startWorkout(): void {
   min-width: 0;
 }
 </style>
+
+
+
+
 
 

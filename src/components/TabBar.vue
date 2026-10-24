@@ -1,13 +1,14 @@
 <script setup lang="ts">
 defineProps<{
-  active: 'today' | 'train' | 'food' | 'coach' | 'me';
+  active: 'today' | 'train' | 'plan' | 'food' | 'coach' | 'me';
 }>();
 
-const emit = defineEmits<{ (e: 'change', tab: 'today' | 'train' | 'food' | 'coach' | 'me'): void }>();
+const emit = defineEmits<{ (e: 'change', tab: 'today' | 'train' | 'plan' | 'food' | 'coach' | 'me'): void }>();
 
 const items = [
   { id: 'today', label: '今日' },
   { id: 'train', label: '训练' },
+  { id: 'plan', label: '周目标' },
   { id: 'food', label: '饮食' },
   { id: 'coach', label: '教练' },
   { id: 'me', label: '我的' },
@@ -31,6 +32,11 @@ const items = [
       <svg v-else-if="item.id === 'train'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
         <path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" />
       </svg>
+      <svg v-else-if="item.id === 'plan'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <rect x="3.4" y="5" width="17.2" height="15.4" rx="3" />
+        <path d="M3.4 9.6h17.2M8 3.4v3.2M16 3.4v3.2" />
+        <path d="M8 13.6h2.2M13.8 13.6H16M8 17h2.2" />
+      </svg>
       <svg v-else-if="item.id === 'food'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
         <path d="M6 3.4v7.2a2.4 2.4 0 0 0 2.4 2.4h.2a2.4 2.4 0 0 0 2.4-2.4V3.4" />
         <path d="M8.5 13v7.6M17 3.4c-1.6 1.2-2.4 3.1-2.4 5.2S15.4 12 17 12s2.4-1.3 2.4-3.4S18.6 4.6 17 3.4z" />
@@ -48,3 +54,5 @@ const items = [
     </button>
   </nav>
 </template>
+
+

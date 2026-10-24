@@ -1,5 +1,7 @@
 /** 领域类型：v1 事实模型的最小可用子集（见 docs/11-data-model.md）。 */
 
+import type { PlannedOccurrence, WeekGoal } from './week';
+
 export type Id = string;
 
 export type LoadConvention = 'totalExternal' | 'perImplement' | 'bodyweight' | 'added' | 'assistance';
@@ -164,4 +166,10 @@ export interface AppState {
   targetProtein: number | null;
   weeklyGoal: number;
   onboarded: boolean;
+  /** 周计划发生项与周目标（09 号模型）。 */
+  occurrences: PlannedOccurrence[];
+  weekGoals: WeekGoal[];
+  /** 计划生效日；换模板只影响此日之后的安排。 */
+  activeTemplateSince: string | null;
 }
+

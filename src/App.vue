@@ -4,6 +4,7 @@ import TodayView from './views/TodayView.vue';
 import TrainView from './views/TrainView.vue';
 import CoachView from './views/CoachView.vue';
 import FoodView from './views/FoodView.vue';
+import PlanView from './views/PlanView.vue';
 import ProfileView from './views/ProfileView.vue';
 import TabBar from './components/TabBar.vue';
 import ToastHost from './components/ToastHost.vue';
@@ -15,7 +16,7 @@ import { immersive } from './composables/useImmersive';
 const route = ref<Route>('today');
 const booted = ref(false);
 
-const VALID: readonly Route[] = ['today', 'train', 'food', 'coach', 'me'];
+const VALID: readonly Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
 
 function routeFromHash(): Route {
   const raw = window.location.hash.replace('#', '') as Route;
@@ -42,6 +43,8 @@ const view = computed(() => {
   switch (route.value) {
     case 'train':
       return TrainView;
+    case 'plan':
+      return PlanView;
     case 'coach':
       return CoachView;
     case 'food':
@@ -123,5 +126,6 @@ function go(next: Route): void {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 

@@ -1,8 +1,19 @@
 import { computed, reactive, readonly, ref } from 'vue';
 import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
-import { businessDate } from '../domain/units';
+import { addDays, businessDate } from '../domain/units';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
+import { TEMPLATE_BY_ID } from '../content/exercises';
+import {
+  changeMinimumTarget,
+  ensureWeekGoals,
+  mondayOf,
+  openOccurrencesForWeek,
+  runOccurrenceCommand,
+  switchTemplate,
+  type OccurrenceCommand,
+} from '../domain/plan';
+import type { PlannedOccurrence, WeekGoal } from '../domain/week';
 
 const state = reactive<AppState>(seedState());
 const ready = ref(false);
@@ -191,6 +202,112 @@ export const store = {
 
   newId(prefix: string): string {
     return uid(prefix);
+  },
+  // ---------- 周计划 ----------
+
+  occurrencesForWeek(weekStart: string): PlannedOccurrence[] {
+    return state.occurrences.filter((o) => o.weekStart === weekStart);
+  },
+
+  goalForWeek(weekStart: string): WeekGoal | null {
+    return state.weekGoals.find((g) => g.weekStart === weekStart) ?? null;
+  },
+
+  runPlanCommand(command: OccurrenceCommand): string | null {
+    const result = runOccurrenceCommand({
+      command,
+      occurrences: [...state.occurrences],
+      goals: [...state.weekGoals],
+      sessions: [...state.sessions],
+      recordedAt: new Date().toISOString(),
+      idFactory: uid,
+    });
+    if (result.error) return result.error;
+    state.occurrences = result.occurrences;
+    state.weekGoals = result.goals;
+    schedulePersist();
+    return null;
+  },
+
+  setMinimumTarget(weekStart: string, next: number, reason: string): string | null {
+    const result = changeMinimumTarget({
+      goals: [...state.weekGoals],
+      occurrences: [...state.occurrences],
+      weekStart,
+      next,
+      reason,
+      recordedAt: new Date().toISOString(),
+      idFactory: uid,
+    });
+    if (result.error) return result.error;
+    state.weekGoals = result.goals;
+    schedulePersist();
+    return null;
+  },
+
+  applyTemplate(nextId: string): string | null {
+    const next = TEMPLATE_BY_ID.get(nextId);
+    if (!next) return '模板不存在';
+    const today = businessDate();
+    const result = switchTemplate({
+      occurrences: [...state.occurrences],
+      goals: [...state.weekGoals],
+      next,
+      effectiveFrom: today,
+      sessions: [...state.sessions],
+      idFactory: uid,
+      recordedAt: new Date().toISOString(),
+    });
+    state.occurrences = result.occurrences;
+    state.weekGoals = result.goals;
+    state.activeTemplateId = nextId;
+    state.activeTemplateSince = today;
+    schedulePersist();
+    return null;
+  },
+
+  creditSessionToOccurrence(sessionId: string, occurrenceId: string | null): void {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s) return;
+    s.occurrenceId = occurrenceId ?? undefined;
+    s.goalCreditConfirmed = occurrenceId !== null;
+    schedulePersist();
+  },
+
+  openOccurrences(weekStart: string, satisfiedIds: string[]): PlannedOccurrence[] {
+    return openOccurrencesForWeek([...state.occurrences], weekStart, satisfiedIds);
+  },
+
+  ensurePlanAhead(): void {
+    const template = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
+    if (!template) return;
+    const today = businessDate();
+    const from = mondayOf(today);
+    const missing = [0, 1, 2, 3]
+      .map((i) => addDays(from, i * 7))
+      .filter((w) => !state.occurrences.some((o) => o.weekStart === w));
+    if (!missing.length) return;
+    let occ = [...state.occurrences];
+    for (const weekStart of missing) {
+      for (const day of template.days) {
+        const date = addDays(weekStart, day.slot);
+        if (date < today) continue;
+        occ.push({
+          id: uid('occ'),
+          planVersionId: `${template.id}@v${template.version}`,
+          weekStart,
+          originalDate: date,
+          scheduledDate: date,
+          slotId: `${template.id}-${day.id}`,
+          title: day.title,
+          exerciseIds: day.exercises.map((e) => e.exerciseId),
+          disposition: 'scheduled',
+        });
+      }
+    }
+    state.occurrences = occ;
+    state.weekGoals = ensureWeekGoals([...state.weekGoals], occ);
+    schedulePersist();
   },
 };
 

@@ -1,16 +1,8 @@
 /** 食物库：每 100g 可食部。数据为常见参考值，界面标注来源与估算。 */
 
-export interface Food {
-  id: string;
-  name: string;
-  alias?: string[];
-  group: 'protein' | 'carb' | 'fat' | 'veg' | 'dairy' | 'fruit' | 'snack';
-  kcal: number;
-  protein: number;
-  carb: number;
-  fat: number;
-  portion: { label: string; grams: number };
-}
+import type { Food } from './types';
+
+export type { Food } from './types';
 
 const f = (
   id: string,
@@ -123,3 +115,5 @@ export function nutritionFor(food: Food, grams: number) {
     fat: Math.round(food.fat * ratio * 10) / 10,
   };
 }
+
+
