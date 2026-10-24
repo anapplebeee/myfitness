@@ -15,3 +15,14 @@ keystore.properties
 
 # Capacitor sync 产物（由 `npm run sync` 生成）
 android/app/src/main/assets/
+
+# 构建产物与本地调试残留
+dist/
+shots/
+coverage/
+.npm-cache/
+.edge-profile*/
+.edge-cdp/
+*.local
+
+# 临时提交信息.commitmsg.txt

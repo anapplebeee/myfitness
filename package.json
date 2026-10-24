@@ -1,17 +1,30 @@
 {
   "name": "tieguan",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "铁馆 · 健身 AI 教练（Web / PWA / Android 壳共用一套代码）",
+  "type": "module",
+  "description": "铁馆 · 力量训练与饮食记录（本地优先）",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "www": "node scripts/make-www.js",
-    "sync": "node scripts/make-www.js && cap sync android",
-    "open:android": "cap open android",
-    "add:android": "cap add android"
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "vue": "3.5.13"
   },
   "devDependencies": {
-    "@capacitor/android": "^7.0.0",
-    "@capacitor/cli": "^7.0.0",
-    "@capacitor/core": "^7.0.0"
+    "@vitejs/plugin-vue": "5.2.1",
+    "@vitest/coverage-v8": "^3.0.5",
+    "typescript": "5.7.2",
+    "vite": "6.0.5",
+    "vitest": "^3.0.5",
+    "vue-tsc": "2.2.0"
   }
 }
