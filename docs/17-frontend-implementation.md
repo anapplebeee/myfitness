@@ -184,7 +184,7 @@ views/    只读 store，通过 store 方法修改
 
 | 缺口 | 影响 | 计划 |
 |---|---|---|
-| 冲突与同步 | 无配对、无服务端协议 | S7 |
+| 冲突与同步 | 协议与客户端已实现（docs/sync-contract.md）；**无配对流程、无三方合并 UI、无冲突副本持久化** | S7 剩余 |
 | AI 教练 | 教练页是本地统计建议，没有模型调用 | S5 |
 | 辅助/递增负荷模式 | 支持 assistance/added 的校验与展示，但内容库暂无此类动作 | S4 剩余 |
 | 服务端与 Android | `server.js`、`sw.js`、`android/` 仍是旧 demo | S7 / S8 |
@@ -202,6 +202,7 @@ node scripts/serve.mjs dist 4173   # 无 vite 的静态服务（用于截图验�
 ```
 
 截图验证需先起本地服务，再用 `scripts/cdp-check.mjs` 通过 CDP 驱动。截图产物在 `shots/`，已加入 `.gitignore`。
+
 
 
 
