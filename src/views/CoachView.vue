@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
-import { exerciseName, exerciseGroup, MUSCLES, TEMPLATE_BY_ID } from '../content/exercises';
+import { exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
+import { suggestProgression } from '../domain/amend';
 import { formatLoad, formatVolume } from '../domain/units';
 import {
   bestSet,
   isValidCompleted,
-  lastExerciseSets,
   sessionVolumeGrams,
 } from '../domain/metrics';
 
@@ -65,22 +65,31 @@ const topPrs = computed(() =>
 );
 
 const template = computed(() =>
-  store.state.activeTemplateId ? TEMPLATE_BY_ID.get(store.state.activeTemplateId) ?? null : null,
+  store.state.activeTemplateId ? store.templateById(store.state.activeTemplateId) : null,
 );
 
 const totalVolume = computed(() => formatVolume(sessions.value.reduce((s, x) => s + sessionVolumeGrams(x), 0), unit.value));
 
+/** 渐进建议用真实规则：达标上限则加配重，连续低于下限则减重。 */
 const suggestions = computed(() => {
-  const out: Array<{ exerciseId: string; text: string }> = [];
-  for (const row of exercises.value.slice(0, 3)) {
-    const hist = lastExerciseSets([...sessions.value], row.exerciseId, null);
-    const top = hist.reduce((max, s) => Math.max(max, s.loadGrams ?? 0), 0);
-    if (!top) continue;
-    const next = Math.round((top + 2500) / 2500) * 2500;
-    out.push({
-      exerciseId: row.exerciseId,
-      text: `下次可尝试 ${formatLoad(next, unit.value)}（上次 ${formatLoad(top, unit.value)}）`,
-    });
+  const out: Array<{ exerciseId: string; text: string; action: string }> = [];
+  const tpl = template.value;
+  for (const row of exercises.value.slice(0, 5)) {
+    const planEx = tpl?.days
+      .flatMap((d) => d.exercises)
+      .find((e) => e.exerciseId === row.exerciseId);
+    const repMin = planEx?.repMin ?? 6;
+    const repMax = planEx?.repMax ?? 10;
+    const increment = planEx?.incrementGrams ?? 2500;
+    const tip = suggestProgression(
+      [...sessions.value],
+      row.exerciseId,
+      repMin,
+      repMax,
+      increment,
+      unit.value,
+    );
+    if (tip) out.push({ exerciseId: row.exerciseId, text: tip.text, action: tip.action });
   }
   return out;
 });
@@ -333,6 +342,8 @@ function groupOf(id: string): string {
   min-width: 0;
 }
 </style>
+
+
 
 
 

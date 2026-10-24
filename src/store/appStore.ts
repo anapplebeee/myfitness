@@ -3,7 +3,24 @@ import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord,
 import { addDays, businessDate } from '../domain/units';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
-import { TEMPLATE_BY_ID } from '../content/exercises';
+import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
+import type { Template } from '../content/types';
+import {
+  blankTemplate,
+  cloneTemplate,
+  isSameTemplate,
+  validateTemplate,
+} from '../domain/template';
+import {
+  buildBackfill,
+  changeSessionDate,
+  liveSessions,
+  restoreTombstone,
+  skipRemainingSets,
+  tombstone,
+  updateSet,
+  type BackfillInput,
+} from '../domain/amend';
 import {
   changeMinimumTarget,
   ensureWeekGoals,
@@ -309,6 +326,155 @@ export const store = {
     state.weekGoals = ensureWeekGoals([...state.weekGoals], occ);
     schedulePersist();
   },
+
+  // ---------- 模板编辑 ----------
+
+  /** 取模板：先查自建，再查内置。 */
+  templateById(id: string): Template | null {
+    return state.customTemplates.find((t) => t.id === id) ?? TEMPLATE_BY_ID.get(id) ?? null;
+  },
+
+  /** 列表：同一 ID 以自建/改版后的为最新，避免出现两个同名模板。 */
+  allTemplates(): Template[] {
+    const customIds = new Set(state.customTemplates.map((t) => t.id));
+    const builtins = TEMPLATES.filter((t) => !customIds.has(t.id));
+    return [...builtins, ...state.customTemplates];
+  },
+
+  /** 保存模板；若是已启用模板的内容改动，自动升版本并按新版本重排未来安排。 */
+  saveTemplate(next: Template, options: { applyToPlan?: boolean } = {}): string | null {
+    const issues = validateTemplate(next);
+    if (issues.length) return issues[0]!.message;
+
+    const existingIndex = state.customTemplates.findIndex((t) => t.id === next.id);
+    const builtin = TEMPLATE_BY_ID.get(next.id);
+
+    if (existingIndex >= 0) {
+      state.customTemplates = state.customTemplates.map((t, i) => (i === existingIndex ? next : t));
+    } else if (builtin && isSameTemplate(builtin, next)) {
+      // 内置模板未改动，无需存副本
+    } else {
+      state.customTemplates = [...state.customTemplates, next];
+    }
+
+    if (options.applyToPlan !== false && state.activeTemplateId === next.id) {
+      const error = store.applyTemplate(next.id);
+      if (error) return error;
+    }
+    schedulePersist();
+    return null;
+  },
+
+  createTemplate(): Template {
+    const t = blankTemplate(uid('tpl'));
+    state.customTemplates = [...state.customTemplates, t];
+    schedulePersist();
+    return t;
+  },
+
+  /** 基于内置模板复制一份可编辑副本。 */
+  duplicateTemplate(sourceId: string): Template | null {
+    const source = store.templateById(sourceId);
+    if (!source) return null;
+    const copy: Template = {
+      ...cloneTemplate(source),
+      id: uid('tpl'),
+      title: `${source.title}（副本）`,
+      version: 1,
+    };
+    // 训练日 ID 必须重新生成，避免与源模板 slotId 冲突
+    copy.days = copy.days.map((d, i) => ({
+      ...d,
+      id: `${copy.id}-d${i}`,
+      exercises: d.exercises.map((e) => ({ ...e })),
+    }));
+    state.customTemplates = [...state.customTemplates, copy];
+    schedulePersist();
+    return copy;
+  },
+
+  deleteTemplate(id: string): void {
+    state.customTemplates = state.customTemplates.filter((t) => t.id !== id);
+    if (state.activeTemplateId === id) state.activeTemplateId = null;
+    schedulePersist();
+  },
+
+  // ---------- 训练更正 / 补录 ----------
+
+  getSession(id: string): Session | undefined {
+    return state.sessions.find((s) => s.id === id);
+  },
+
+  /** 响应式单场查询：视图里用 computed 包裹后，数组被替换时会正确重算。 */
+  sessionById(id: string): Session | null {
+    return state.sessions.find((s) => s.id === id) ?? null;
+  },
+
+  /** 可编辑/可删除的场次：过滤 tombstone 后展示。 */
+  visibleSessions(): Session[] {
+    return liveSessions([...state.sessions]);
+  },
+
+  backfillSession(input: BackfillInput): string | null {
+    const result = buildBackfill(input, businessDate(), uid);
+    if (result.issue) return result.issue;
+    if (result.session) state.sessions.push(result.session);
+    schedulePersist();
+    return null;
+  },
+
+  amendSessionDate(sessionId: string, nextDate: string): string | null {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s) return '找不到这场训练';
+    const result = changeSessionDate(s, nextDate, mondayOf, businessDate());
+    if (result.issue) return result.issue;
+    if (result.session) {
+      state.sessions = state.sessions.map((x) => (x.id === sessionId ? result.session! : x));
+    }
+    schedulePersist();
+    return null;
+  },
+
+  editSet(sessionId: string, exerciseId: string, setId: string, patch: Partial<SetRecord>): string | null {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s) return '找不到这场训练';
+    const result = updateSet(s, exerciseId, setId, patch);
+    if (result.issue) return result.issue;
+    if (result.session) {
+      state.sessions = state.sessions.map((x) => (x.id === sessionId ? result.session! : x));
+    }
+    schedulePersist();
+    return null;
+  },
+
+  deleteSession(sessionId: string): void {
+    state.sessions = state.sessions.map((s) =>
+      s.id === sessionId ? tombstone(s) : s,
+    );
+    schedulePersist();
+  },
+
+  restoreSession(sessionId: string): void {
+    state.sessions = state.sessions.map((s) =>
+      s.id === sessionId ? restoreTombstone(s) : s,
+    );
+    schedulePersist();
+  },
+
+  skipRemaining(sessionId: string): void {
+    state.sessions = state.sessions.map((s) =>
+      s.id === sessionId ? skipRemainingSets(s) : s,
+    );
+    schedulePersist();
+  },
+
+  /** 自报完成：把没有组记录的场次标记为本人确认。 */
+  markSelfReported(sessionId: string): void {
+    state.sessions = state.sessions.map((s) =>
+      s.id === sessionId ? { ...s, completionBasis: 'selfReported' as const } : s,
+    );
+    schedulePersist();
+  },
 };
 
 const weightSeries = computed<WeightEntry[]>(() =>
@@ -320,3 +486,4 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+

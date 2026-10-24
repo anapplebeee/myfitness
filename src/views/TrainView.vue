@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
-import { EXERCISES, TEMPLATES, TEMPLATE_BY_ID, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
+import { EXERCISES, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { businessDate, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { isValidCompleted, lastExerciseSets, sessionVolumeGrams } from '../domain/metrics';
 import LiveWorkout from '../components/LiveWorkout.vue';
+import { openSession, openTemplateEditor } from '../composables/useOverlay';
+import { useToast } from '../composables/useToast';
+import type { Route } from '../types/nav';
 
-
+const props = defineProps<{ greetingName?: string }>();
+void props;
+const { push } = useToast();
+const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
+void emit;
 const mode = ref<'plan' | 'history' | 'library'>('plan');
 const liveSessionId = ref<string | null>(null);
 const search = ref('');
@@ -17,9 +24,9 @@ const active = computed(() => sessions.value.find((s) => s.status === 'active' |
 
 const history = computed(() => sessions.value.filter(isValidCompleted));
 
-const templates = TEMPLATES;
+const templates = computed(() => store.allTemplates());
 const currentTemplate = computed(() =>
-  store.state.activeTemplateId ? TEMPLATE_BY_ID.get(store.state.activeTemplateId) ?? null : null,
+  store.state.activeTemplateId ? store.templateById(store.state.activeTemplateId) : null,
 );
 
 const filteredExercises = computed(() => {
@@ -99,6 +106,66 @@ function resume(): void {
   if (active.value) liveSessionId.value = active.value.id;
 }
 
+function chooseTemplate(id: string): void {
+  const error = store.applyTemplate(id);
+  if (error) {
+    push(error, 'error');
+    return;
+  }
+  push('已切换模板，只影响今天及以后还没开始的安排', 'success');
+}
+
+function duplicate(id: string): void {
+  const copy = store.duplicateTemplate(id);
+  if (!copy) {
+    push('复制失败', 'error');
+    return;
+  }
+  push(`已复制为「${copy.title}」`, 'success');
+  openTemplateEditor(copy.id);
+}
+
+function createNewTemplate(): void {
+  const t = store.createTemplate();
+  openTemplateEditor(t.id);
+}
+
+// ---- 补录 ----
+const backfillOpen = ref(false);
+const backfillDate = ref('');
+const backfillTitle = ref('补录训练');
+const backfillSelfReported = ref(false);
+const backfillPicked = ref<string[]>([]);
+
+function openBackfill(): void {
+  backfillDate.value = businessDate();
+  backfillTitle.value = '补录训练';
+  backfillSelfReported.value = false;
+  backfillPicked.value = [];
+  backfillOpen.value = true;
+}
+
+function toggleBackfillExercise(id: string): void {
+  backfillPicked.value = backfillPicked.value.includes(id)
+    ? backfillPicked.value.filter((x) => x !== id)
+    : [...backfillPicked.value, id];
+}
+
+function submitBackfill(): void {
+  const error = store.backfillSession({
+    date: backfillDate.value,
+    title: backfillTitle.value,
+    exerciseIds: backfillPicked.value,
+    selfReported: backfillSelfReported.value,
+  });
+  if (error) {
+    push(error, 'error');
+    return;
+  }
+  push('补录已保存', 'success');
+  backfillOpen.value = false;
+}
+
 function groupLabel(id: string): string {
   return MUSCLES.find((m) => m.id === id)?.short ?? id;
 }
@@ -123,7 +190,10 @@ function sessionDuration(startedAt: string): string {
           <p class="label">训练</p>
           <h1 class="h1">{{ active ? '有一场未结束' : '今天练点力气' }}</h1>
         </div>
-        <span v-if="active" class="chip chip--clay">{{ sessionDuration(active.startedAt) }}</span>
+        <div class="row gap-6">
+          <span v-if="active" class="chip chip--clay">{{ sessionDuration(active.startedAt) }}</span>
+          <button class="btn btn--ghost btn--sm" @click="openBackfill">补录</button>
+        </div>
       </header>
 
       <button v-if="active" class="card resume" @click="resume">
@@ -155,7 +225,10 @@ function sessionDuration(startedAt: string): string {
         <div v-if="currentTemplate" class="section">
           <div class="section__head">
             <h2 class="h2">{{ currentTemplate.title }}</h2>
-            <span class="chip chip--sm">{{ currentTemplate.daysPerWeek }} 天/周</span>
+            <div class="row gap-6">
+              <span class="chip chip--sm">v{{ currentTemplate.version }}</span>
+              <button class="btn btn--ghost btn--sm" @click="openTemplateEditor(currentTemplate.id)">编辑</button>
+            </div>
           </div>
           <p class="small template__sub">{{ currentTemplate.subtitle }}</p>
 
@@ -186,19 +259,28 @@ function sessionDuration(startedAt: string): string {
         <div class="section">
           <div class="section__head">
             <h2 class="h2">换一套模板</h2>
+            <button class="btn btn--ghost btn--sm" @click="createNewTemplate">新建</button>
           </div>
           <div class="scroll-x">
-            <button
+            <div
               v-for="tpl in templates"
               :key="tpl.id"
-              class="card card--flat tpl"
-              :class="{ 'is-on': tpl.id === store.state.activeTemplateId }"
-              @click="store.setTemplate(tpl.id)"
+              class="tpl-wrap"
             >
-              <span class="label">{{ tpl.daysPerWeek }} 天 / 周</span>
-              <span class="h3">{{ tpl.title.split(' · ')[0] }}</span>
-              <span class="tiny">{{ tpl.days.length }} 个训练日</span>
-            </button>
+              <button
+                class="card card--flat tpl"
+                :class="{ 'is-on': tpl.id === store.state.activeTemplateId }"
+                @click="chooseTemplate(tpl.id)"
+              >
+                <span class="label">{{ tpl.daysPerWeek }} 天 / 周 · v{{ tpl.version }}</span>
+                <span class="h3">{{ tpl.title.split(' · ')[0] }}</span>
+                <span class="tiny">{{ tpl.days.length }} 个训练日</span>
+              </button>
+              <div class="tpl__tools">
+                <button class="tpl__tool" @click="openTemplateEditor(tpl.id)">编辑</button>
+                <button class="tpl__tool" @click="duplicate(tpl.id)">复制</button>
+              </div>
+            </div>
           </div>
         </div>
       </template>
@@ -222,7 +304,12 @@ function sessionDuration(startedAt: string): string {
         </div>
 
         <div class="card history__list">
-          <div v-for="s in history.slice(0, 20)" :key="s.id" class="list__row history__row">
+          <button
+            v-for="s in history.slice(0, 20)"
+            :key="s.id"
+            class="list__row history__row history__btn"
+            @click="openSession(s.id)"
+          >
             <span class="recent__date">
               <strong>{{ shortDate(s.businessDate).split('月')[1]?.replace('日', '') }}</strong>
               <span>{{ shortDate(s.businessDate).split('月')[0] }}月</span>
@@ -233,9 +320,16 @@ function sessionDuration(startedAt: string): string {
                 {{ s.exercises.length }} 个动作 · {{ formatVolume(sessionVolumeGrams(s), 'kg') }} · {{ formatDuration((new Date(s.endedAt ?? s.startedAt).getTime() - new Date(s.startedAt).getTime()) / 1000) }}
               </span>
             </span>
-          </div>
+            <span v-if="s.completionBasis === 'selfReported'" class="chip chip--sky chip--sm">自报</span>
+            <span v-else-if="s.backfilledAt" class="chip chip--sm">补录</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
           <p v-if="!history.length" class="empty">还没有完成的训练，开始第一场吧。</p>
         </div>
+
+        
       </template>
 
       <!-- library -->
@@ -267,6 +361,58 @@ function sessionDuration(startedAt: string): string {
         </div>
       </template>
     </template>
+
+    <!-- 补录 -->
+    <Transition name="sheet">
+      <div v-if="backfillOpen" class="sheet" @click.self="backfillOpen = false">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">补录</p>
+              <h2 class="h2">补录一次训练</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="backfillOpen = false">✕</button>
+          </div>
+
+          <div class="field">
+            <label class="tiny">日期（不能是未来）</label>
+            <input v-model="backfillDate" class="input" type="date" :max="businessDate()" />
+          </div>
+          <div class="field" style="margin-top: 12px">
+            <label class="tiny">名称</label>
+            <input v-model="backfillTitle" class="input" />
+          </div>
+
+          <label class="credit__row" style="margin-top: 14px">
+            <input v-model="backfillSelfReported" type="checkbox" class="credit__box" />
+            <span class="credit__text">
+              <span class="h3">只确认练过，不记组</span>
+              <span class="tiny">自报完成不计容量与 PR，但计入训练次数与周目标</span>
+            </span>
+          </label>
+
+          <template v-if="!backfillSelfReported">
+            <div class="divider" />
+            <p class="tiny">选择动作（{{ backfillPicked.length }} 个已选）</p>
+            <div class="pick-grid">
+              <button
+                v-for="ex in EXERCISES.slice(0, 18)"
+                :key="ex.id"
+                class="chip"
+                :class="{ 'chip--on': backfillPicked.includes(ex.id) }"
+                @click="toggleBackfillExercise(ex.id)"
+              >
+                {{ ex.name }}
+              </button>
+            </div>
+          </template>
+
+          <button class="btn btn--lime btn--block btn--lg" style="margin-top: 16px" @click="submitBackfill">
+            保存补录
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -454,5 +600,43 @@ function sessionDuration(startedAt: string): string {
 </style>
 
 
+
+
+
+
+<style>
+.credit__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(17, 20, 17, 0.035);
+}
+
+.credit__box {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: var(--ink);
+  flex: none;
+}
+
+.credit__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 30vh;
+  overflow: auto;
+}
+</style>
 
 

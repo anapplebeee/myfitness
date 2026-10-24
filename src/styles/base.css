@@ -185,3 +185,9 @@ a {
   margin-top: 4px;
   background: linear-gradient(180deg, rgba(242, 240, 234, 0) 0%, var(--paper) 34%);
 }
+
+/* 全屏编辑/详情：不需要为底部导航预留空间 */
+.shell__inner:has(.editor),
+.shell__inner:has(.detail) {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}

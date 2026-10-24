@@ -6,12 +6,15 @@ import CoachView from './views/CoachView.vue';
 import FoodView from './views/FoodView.vue';
 import PlanView from './views/PlanView.vue';
 import ProfileView from './views/ProfileView.vue';
+import TemplateEditorView from './views/TemplateEditorView.vue';
+import SessionDetailView from './views/SessionDetailView.vue';
 import TabBar from './components/TabBar.vue';
 import ToastHost from './components/ToastHost.vue';
 import { store } from './store/appStore';
 import { businessDate, shortDate, weekdayLabel } from './domain/units';
 import type { Route } from './types/nav';
 import { immersive } from './composables/useImmersive';
+import { editingTemplateId, openSessionId } from './composables/useOverlay';
 
 const route = ref<Route>('today');
 const booted = ref(false);
@@ -83,7 +86,18 @@ function go(next: Route): void {
       </header>
 
       <main v-if="booted">
-        <Transition name="rise" mode="out-in">
+        <!-- 全屏编辑/详情优先于普通页面 -->
+        <TemplateEditorView
+          v-if="editingTemplateId"
+          :template-id="editingTemplateId"
+          @close="editingTemplateId = null"
+        />
+        <SessionDetailView
+          v-else-if="openSessionId"
+          :session-id="openSessionId"
+          @close="openSessionId = null"
+        />
+        <Transition v-else name="rise" mode="out-in">
           <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
         </Transition>
       </main>
@@ -94,7 +108,7 @@ function go(next: Route): void {
       </div>
     </div>
 
-    <TabBar v-if="!immersive" :active="route" @change="go" />
+    <TabBar v-if="!immersive && !editingTemplateId && !openSessionId" :active="route" @change="go" />
     <ToastHost />
   </div>
 </template>
@@ -126,6 +140,7 @@ function go(next: Route): void {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 

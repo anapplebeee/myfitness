@@ -1,6 +1,7 @@
 /** 领域类型：v1 事实模型的最小可用子集（见 docs/11-data-model.md）。 */
 
 import type { PlannedOccurrence, WeekGoal } from './week';
+import type { Template } from '../content/types';
 
 export type Id = string;
 
@@ -30,34 +31,6 @@ export type MuscleGroup =
   | 'core'
   | 'cardio';
 
-export interface PlanDay {
-  id: Id;
-  title: string;
-  slot: number;
-  exercises: PlanExercise[];
-}
-
-export interface PlanExercise {
-  exerciseId: Id;
-  sets: number;
-  repMin: number;
-  repMax: number;
-  restSeconds: number;
-  incrementGrams: number;
-}
-
-export interface Template {
-  id: Id;
-  title: string;
-  subtitle: string;
-  daysPerWeek: number;
-  level: 'beginner' | 'intermediate';
-  equipment: 'gym' | 'home' | 'minimal';
-  days: PlanDay[];
-  progression: string;
-  version: number;
-}
-
 export type SetKind = 'warmup' | 'work';
 export type SetStatus = 'planned' | 'completed' | 'skipped';
 
@@ -71,6 +44,8 @@ export interface SetRecord {
   distanceMeters: number | null;
   rpe: number | null;
   completedAt: string | null;
+  /** 最近一次编辑时间，用于审计展示。 */
+  editedAt?: string;
 }
 
 export interface SessionExercise {
@@ -109,6 +84,8 @@ export interface Session {
   accountingTimezone?: string;
   /** 补录时间，仅表示录入晚，不降低事实可信度。 */
   backfilledAt?: string;
+  /** 删除墓碑；统计与列表按此过滤，不物理删除事实。 */
+  deletedAt?: string;
 }
 
 export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -171,5 +148,8 @@ export interface AppState {
   weekGoals: WeekGoal[];
   /** 计划生效日；换模板只影响此日之后的安排。 */
   activeTemplateSince: string | null;
+  /** 用户自建或改版后的模板；内置模板仍在内容库。 */
+  customTemplates: Template[];
 }
+
 

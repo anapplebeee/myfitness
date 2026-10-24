@@ -702,3 +702,9 @@
   color: var(--text-3);
   font-size: 13.5px;
 }
+
+/* 需要保留小写（如版本号 v2）的标签关闭大写转换 */
+.label--plain {
+  text-transform: none;
+  letter-spacing: 0.08em;
+}

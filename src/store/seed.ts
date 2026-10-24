@@ -175,6 +175,8 @@ export function seedState(): AppState {
     weeklyGoal: 4,
     occurrences,
     weekGoals: weekGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),
+    customTemplates: [],
   };
 }
+
 
