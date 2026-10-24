@@ -281,6 +281,19 @@ function sessionDuration(startedAt: string): string {
 
       <!-- history -->
       <template v-else-if="mode === 'history'">
+        <!-- 空状态：没有记录时显示 0 次与空列表，会让用户以为坏了 -->
+        <div v-if="!history.length" class="card history__blank">
+          <p class="label">还没有训练记录</p>
+          <p class="h2" style="margin-top: 8px">第一次训练完成后，这里会有东西</p>
+          <p class="small" style="margin-top: 8px">
+            每场训练会记下动作、组数、重量与时长。之后可以按日期回看，也能看到同一动作的变化。
+          </p>
+          <button class="btn btn--lime btn--block" style="margin-top: 16px" @click="mode = 'plan'">
+            去计划页开始
+          </button>
+        </div>
+
+        <template v-else>
         <div class="card card--ink history__summary">
           <p class="label">累计</p>
           <div class="row gap-28">
@@ -324,6 +337,7 @@ function sessionDuration(startedAt: string): string {
         </div>
 
         
+        </template>
       </template>
 
       <!-- library -->
@@ -632,6 +646,7 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
 
 
 

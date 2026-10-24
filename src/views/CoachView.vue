@@ -11,6 +11,7 @@ import {
 } from '../domain/metrics';
 
 defineProps<{ greetingName?: string }>();
+const emit = defineEmits<{ (e: 'navigate', tab: 'today'): void }>();
 
 const unit = ref<'kg' | 'lb'>('kg');
 const openId = ref<string | null>(null);
@@ -112,6 +113,20 @@ function groupOf(id: string): string {
       </div>
     </header>
 
+    <!-- 空状态：一次训练都没有时，不显示 0 kg 与空榜，直接给下一步 -->
+    <section v-if="!sessions.length" class="card coach__blank">
+      <p class="label">还没有可比较的记录</p>
+      <p class="h2" style="margin-top: 8px">先完成一次训练</p>
+      <p class="small" style="margin-top: 8px">
+        教练会用你实际完成的组做比较：同一个动作这次比上次重了多少、多了几次。
+        没有记录之前，这里的任何数字都没有意义，所以先不显示。
+      </p>
+      <button class="btn btn--lime btn--block" style="margin-top: 16px" @click="emit('navigate', 'today')">
+        去记第一组
+      </button>
+    </section>
+
+    <template v-else>
     <section class="card card--ink coach__hero">
       <div class="coach__hero-top">
         <div>
@@ -193,6 +208,7 @@ function groupOf(id: string): string {
         <p class="tiny">{{ template?.progression ?? '达到重复区间上限后加最小配重；达不到下限则保持重量。' }}</p>
       </div>
     </section>
+    </template>
   </div>
 </template>
 
@@ -342,6 +358,8 @@ function groupOf(id: string): string {
   min-width: 0;
 }
 </style>
+
+
 
 
 

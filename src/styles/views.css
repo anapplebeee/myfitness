@@ -78,3 +78,17 @@
     align-items: start;
   }
 }
+
+/* 空状态：统一外观，避免各页各写一套 */
+.history__blank,
+.coach__blank {
+  display: flex;
+  flex-direction: column;
+}
+
+.history__blank .h2,
+.coach__blank .h2 {
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
