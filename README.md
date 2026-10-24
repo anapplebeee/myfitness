@@ -1,6 +1,18 @@
 # 铁馆 · 健身记录与饮食辅助
 
-当前状态：**需求与架构设计阶段，仓库代码仅为demo**。现有前端、服务端和Android工程允许完全推翻重构，不能视为已达到v1验收。本轮仅整理设计文档，不修改业务代码、依赖、配置或工程。
+当前状态：**新版前端已实现（M1 训练闭环可运行），服务端与 Android 壳仍为旧 demo**。旧 demo 的 `js/`、`css/`、`server.js`、`sw.js` 不再被新版页面引用，允许推翻或删除；`android/` 工程尚未适配新构建产物。
+
+## 快速开始
+
+```bash
+npm install          # 首次安装依赖
+npm run dev          # 开发服务器
+npm run build        # 类型检查 + 生产构建到 dist/
+npm test             # 领域层单元测试（27 项）
+npm run preview      # 预览 dist/（需先 build）
+```
+
+构建产物是纯静态文件，可直接部署为 PWA。数据全部保存在浏览器 IndexedDB（失败时回落 localStorage），不需要账号或网络。
 
 ## 开发基线
 
@@ -17,6 +29,32 @@
 | [07 · 营养](docs/07-nutrition-and-adaptation.md) | 实际摄入、完整度、初始目标、算法边界 |
 | [03 · 模块扩展](docs/03-plugin-architecture.md) | 端口和版本化内容包，无插件平台 |
 | [04 · Android与PWA](docs/04-android-app.md) | 交付、生命周期、升级与发布证据 |
+| [13 · 需求与架构分析](docs/13-requirements-architecture-analysis.md) | 评审意见：M0 阻塞项、同步契约、容量实测与执行顺序（不定义范围） |
+| [17 · 前端实现](docs/17-frontend-implementation.md) | 设计系统、页面结构、状态模型、已知边界 |
+
+## 实施计划
+
+评审之后开始排期时，从[实施计划](docs/14-implementation-plan.md)进入。计划类文档不定义产品范围，范围仍以 00 为准。
+
+| 文档 | 内容 |
+|---|---|
+| [14 · 实施计划](docs/14-implementation-plan.md) | 阶段与里程碑、WBS、9 个垂直切片、20 周排期、G0–G6 门禁、风险与缩放 |
+| [15 · 测试方案](docs/15-test-plan.md) | D/C/E/P/R 分层、夹具、专项测试、覆盖率门槛、证据格式 |
+| [16 · 验收追踪](docs/16-ac-traceability.md) | F01–F12 → AC → Test ID → 证据路径，含待补 AC 清单 |
+| [ADR 索引](docs/adr/README.md) | 0001 构建/TS、0002 测试/CI、0003 IDB、0004 同步协议、0005 Android、0006 密钥/日志 |
+
+## 代码结构
+
+```
+src/
+  domain/       纯领域层：类型、单位换算、口径判定与统计（无 DOM/存储依赖）
+  content/      内置动作库（44 个动作 / 3 套模板）与食物库（47 种）
+  store/        IndexedDB 持久化端口、应用状态、种子数据
+  views/        今日 / 训练 / 饮食 / 教练 / 我的
+  components/   训练直播页、导航、图表、提示
+  styles/       设计令牌、基础样式、组件样式
+  composables/  休息计时、Toast、沉浸模式
+```
 
 ## 第一版范围
 
