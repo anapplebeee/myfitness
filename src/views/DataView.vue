@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exportFileName, type ImportMode, type ImportPreview } from '../domain/transfer';
 import { useToast } from '../composables/useToast';
+import SyncPanel from './SyncPanel.vue';
 
 const { push } = useToast();
 
@@ -214,6 +215,9 @@ const totalRecords = computed(() => {
       </template>
     </section>
 
+    <!-- 同步 -->
+    <SyncPanel />
+
     <!-- 备份恢复 -->
     <section v-if="backup" class="card">
       <p class="label">自动备份</p>
@@ -391,4 +395,5 @@ const totalRecords = computed(() => {
   gap: 3px;
 }
 </style>
+
 

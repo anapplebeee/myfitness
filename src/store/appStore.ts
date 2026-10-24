@@ -568,6 +568,49 @@ export const store = {
     return null;
   },
 
+  /**
+   * 应用远端快照（快进场景）。
+   *
+   * 只替换快照覆盖的业务字段，保留本机设备私有配置（datasetId 除外——
+   * 快照里的 datasetId 才是权威值）。应用前把当前状态存为备份，
+   * 避免用户误点后无法回退。
+   */
+  applyExternalSnapshot(snapshot: {
+    datasetId: string;
+    createdAt: string;
+    records: Record<string, unknown>;
+  }): string | null {
+    const r = snapshot.records as Record<string, unknown>;
+    const backupKey = `tieguan.syncbackup.${Date.now()}`;
+    try {
+      localStorage.setItem(backupKey, JSON.stringify(state));
+      state.lastBackupKey = backupKey;
+    } catch {
+      return '无法写入本地备份，已取消应用远端数据';
+    }
+
+    const assign = <K extends keyof AppState>(key: K, value: unknown): void => {
+      if (value !== undefined) state[key] = value as AppState[K];
+    };
+    assign('datasetId', snapshot.datasetId);
+    assign('createdAt', snapshot.createdAt);
+    assign('profile', r.profile);
+    assign('sessions', r.sessions);
+    assign('weights', r.weights);
+    assign('foods', r.foods);
+    assign('occurrences', r.occurrences);
+    assign('weekGoals', r.weekGoals);
+    assign('customTemplates', r.customTemplates);
+    assign('bodyGoalGrams', r.bodyGoalGrams);
+    assign('targetKcal', r.targetKcal);
+    assign('targetProtein', r.targetProtein);
+    assign('weeklyGoal', r.weeklyGoal);
+    assign('activeTemplateId', r.activeTemplateId);
+    assign('activeTemplateSince', r.activeTemplateSince);
+    schedulePersist();
+    return null;
+  },
+
   /** 读取最近一次自动备份，用于误操作恢复。 */
   latestBackup(): { key: string; state: AppState } | null {
     if (!state.lastBackupKey) return null;
@@ -606,6 +649,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 
