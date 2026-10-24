@@ -1,0 +1,79 @@
+name: verify
+
+# 门禁目标：让"能构建、能测试、能跑关键路径"成为合并前置条件。
+# 之前 273 项测试全靠人工执行，任何提交都可能悄悄破坏主路径。
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: 静态检查与单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # --ignore-scripts：本项目的依赖无需 postinstall，
+      # 且部分环境 postinstall 会因权限失败（见 README 环境说明）
+      - run: npm ci --ignore-scripts
+
+      - name: 类型检查（应用）
+        run: npm run typecheck
+
+      - name: 类型检查（E2E）
+        run: npm run typecheck:e2e
+
+      - name: 单元测试
+        run: npm run test
+
+      - name: 构建
+        run: npx vite build
+
+  e2e:
+    name: 端到端
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      # CI 用 Playwright 自带 Chromium（本地开发用系统 Edge，两者都支持 channel 覆盖）
+      - name: 安装浏览器
+        run: npx playwright install --with-deps chromium
+
+      - name: 运行 E2E
+        run: npx playwright test
+        env:
+          CI: '1'
+          # 覆盖 playwright.config.ts 里的 channel: 'msedge'
+          E2E_CHANNEL: 'chromium'
+
+      - name: 上传失败痕迹
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

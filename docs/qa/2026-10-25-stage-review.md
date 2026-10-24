@@ -196,3 +196,24 @@ M1 训练闭环**在演示层面可用**，但不满足"可交付试用版"的�
 
 **仍存在的 P0**：无 CI、无 E2E、G0 未通过（过敏原/营养参数）、Android 链路断开。
 
+
+## 12. 审核后进展（2026-10-25 同日）
+
+审核提出的 P0-1、P0-2 已处理：
+
+| 原问题 | 处理 | 证据 |
+|---|---|---|
+| P0-1 无 CI | 新增 `.github/workflows/verify.yml`，push/PR 跑 typecheck + 单测 + 构建 + E2E | [18 号文档](../18-e2e-and-ci.md) |
+| P0-2 无 E2E | 新增 13 项 Playwright E2E，覆盖训练/导入导出/同步三条主路径 | 同上 |
+
+**E2E 立刻抓到一个 P1 级真实缺陷**：
+
+昨日审核时未发现——今日页的"开始训练"按钮只执行 `emit('navigate','train')`，
+把用户丢到训练页却不开始训练，与按钮文字和首屏文案"把这一组，记下来"不符。
+`store` 里甚至没有"开始训练"的方法。
+
+已修复：新增 `store.startSessionFromDay()`，并把录制面板开关提升为全局 `liveSessionId`
+（原来它是 `TrainView` 的局部 ref，`App` 无法打开，导致 `openSessionId` 只能打开只读详情）。
+修复中又发现 `TrainView` 与 `App` 会双重渲染 `LiveWorkout`，已统一由 `App` 负责。
+
+剩余 P0 未处理：G0 剩余 2 项（过敏原标注、营养策略参数）、Android 链路断开。

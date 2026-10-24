@@ -4,7 +4,7 @@ import { store } from '../store/appStore';
 import { EXERCISES, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { businessDate, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { isValidCompleted, lastExerciseSets, sessionVolumeGrams } from '../domain/metrics';
-import LiveWorkout from '../components/LiveWorkout.vue';
+import { liveSessionId } from '../composables/useOverlay';
 import { openSession, openTemplateEditor } from '../composables/useOverlay';
 import { useToast } from '../composables/useToast';
 import type { Route } from '../types/nav';
@@ -15,7 +15,7 @@ const { push } = useToast();
 const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
 void emit;
 const mode = ref<'plan' | 'history' | 'library'>('plan');
-const liveSessionId = ref<string | null>(null);
+// 录制开关统一由 useOverlay 管理，避免本页与全局各持一套状态
 const search = ref('');
 const group = ref<string>('all');
 
@@ -177,14 +177,8 @@ function sessionDuration(startedAt: string): string {
 
 <template>
   <div class="train">
-    <LiveWorkout
-      v-if="liveSessionId"
-      :session-id="liveSessionId"
-      @close="liveSessionId = null"
-      @finished="liveSessionId = null"
-    />
-
-    <template v-else>
+    <!-- 录制面板由 App.vue 统一渲染（覆盖层），此处不再重复 -->
+    <!-- 录制面板由 App.vue 统一渲染（覆盖层），此处不再重复 -->
       <header class="train__head">
         <div>
           <p class="label">训练</p>
@@ -360,7 +354,7 @@ function sessionDuration(startedAt: string): string {
           <p v-if="!filteredExercises.length" class="empty">没有匹配的动作，试试其他关键词。</p>
         </div>
       </template>
-    </template>
+
 
     <!-- 补录 -->
     <Transition name="sheet">
@@ -638,5 +632,9 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
+
+
+
 
 

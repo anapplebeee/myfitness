@@ -15,7 +15,8 @@ import { store } from './store/appStore';
 import { businessDate, shortDate, weekdayLabel } from './domain/units';
 import type { Route } from './types/nav';
 import { immersive } from './composables/useImmersive';
-import { editingTemplateId, openSessionId } from './composables/useOverlay';
+import { editingTemplateId, openSessionId, liveSessionId } from './composables/useOverlay';
+import LiveWorkout from './components/LiveWorkout.vue';
 
 const route = ref<Route>('today');
 const booted = ref(false);
@@ -95,6 +96,12 @@ function go(next: Route): void {
           :template-id="editingTemplateId"
           @close="editingTemplateId = null"
         />
+        <LiveWorkout
+          v-else-if="liveSessionId"
+          :session-id="liveSessionId"
+          @close="liveSessionId = null"
+          @finished="liveSessionId = null"
+        />
         <SessionDetailView
           v-else-if="openSessionId"
           :session-id="openSessionId"
@@ -111,7 +118,7 @@ function go(next: Route): void {
       </div>
     </div>
 
-    <TabBar v-if="!immersive && !editingTemplateId && !openSessionId" :active="route" @change="go" />
+    <TabBar v-if="!immersive && !editingTemplateId && !openSessionId && !liveSessionId" :active="route" @change="go" />
     <ToastHost />
   </div>
 </template>
@@ -143,6 +150,7 @@ function go(next: Route): void {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 

@@ -16,6 +16,7 @@ import {
   trainingCount,
 } from '../domain/metrics';
 import Sparkline from '../components/Sparkline.vue';
+import { startLive } from '../composables/useOverlay';
 import type { Route } from '../types/nav';
 import { computeWeek, dayStatesForWeek, statusLabel, targetNarrative } from '../domain/week';
 
@@ -114,7 +115,22 @@ const weekDays = computed(() => {
 
 const totalTraining = computed(() => trainingCount([...sessions.value]));
 
+/**
+ * 开始训练。
+ *
+ * 原实现只 emit('navigate','train')——把用户丢到训练页，还得自己再点一次，
+ * 与"开始训练"的字面承诺不符。现在按今日计划直接建会话并打开录制页；
+ * 没有计划时才退回到训练页让用户选。
+ */
 function startWorkout(): void {
+  const day = todayPlan.value;
+  if (day && !live.value) {
+    const session = store.startSessionFromDay(day.id);
+    if (session) {
+      startLive(session.id);
+      return;
+    }
+  }
   emit('navigate', 'train');
 }
 </script>
@@ -551,6 +567,8 @@ function startWorkout(): void {
   min-width: 0;
 }
 </style>
+
+
 
 
 

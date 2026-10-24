@@ -1,6 +1,7 @@
 import { computed, reactive, readonly, ref } from 'vue';
 import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
+import { lastExerciseSets } from '../domain/metrics';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
 import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
@@ -47,6 +48,20 @@ let saveTimer: number | null = null;
 
 function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 模块级 ID 生成，供不依赖 store 实例的构造逻辑复用。 */
+const nextId = uid;
+
+/**
+ * 纯构造：把一次训练加进 state 并返回。
+ * 抽成模块级函数是为了避免在 reactive 对象里用 `this`——
+ * 方法被解构或作为回调传递时 `this` 会丢，属于隐蔽 bug 源。
+ */
+function createSessionRecord(session: Session): Session {
+  state.sessions.push(session);
+  schedulePersist();
+  return session;
 }
 
 async function persist(): Promise<void> {
@@ -115,10 +130,61 @@ export const store = {
     schedulePersist();
   },
 
-  createSession(session: Session): Session {
-    state.sessions.push(session);
-    schedulePersist();
+  /**
+   * 按模板某一天开始训练。
+   *
+   * 今日页的"开始训练"与训练页的"开始这一天"必须走同一条路径，
+   * 否则两处预填逻辑会各自演化。原实现里今日页只做了跳转，
+   * 用户点完还得再点一次，与"开始训练"的字面承诺不符。
+   */
+  startSessionFromDay(dayId: string): Session | null {
+    const tpl = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
+    const day = tpl?.days.find((d) => d.id === dayId);
+    if (!tpl || !day) return null;
+    const session = createSessionRecord({
+      id: nextId('s'),
+      templateId: tpl.id,
+      dayId: day.id,
+      title: day.title,
+      status: 'active',
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+      businessDate: businessDate(),
+      restEndsAt: null,
+      note: '',
+      exercises: day.exercises.map((pe, i) => {
+        // 用上次可比记录预填计划组，首次训练则留空
+        const last = lastExerciseSets([...state.sessions], pe.exerciseId, null);
+        const top = last.reduce<number>((max, s) => Math.max(max, s.loadGrams ?? 0), 0);
+        const topReps = last.find((s) => (s.loadGrams ?? 0) === top)?.reps ?? pe.repMin;
+        return {
+          id: nextId('se'),
+          exerciseId: pe.exerciseId,
+          order: i,
+          targetSets: pe.sets,
+          repMin: pe.repMin,
+          repMax: pe.repMax,
+          restSeconds: pe.restSeconds,
+          incrementGrams: pe.incrementGrams,
+          sets: Array.from({ length: pe.sets }, () => ({
+            id: nextId('set'),
+            kind: 'work' as const,
+            status: 'planned' as const,
+            loadGrams: top > 0 ? top : null,
+            reps: top > 0 ? Math.min(pe.repMax, Math.max(pe.repMin, topReps)) : null,
+            durationSeconds: null,
+            distanceMeters: null,
+            rpe: null,
+            completedAt: null,
+          })),
+        };
+      }),
+    });
     return session;
+  },
+
+  createSession(session: Session): Session {
+    return createSessionRecord(session);
   },
 
   findSession(id: string): Session | undefined {
@@ -273,7 +339,7 @@ export const store = {
   },
 
   newId(prefix: string): string {
-    return uid(prefix);
+    return nextId(prefix);
   },
   // ---------- 周计划 ----------
 
@@ -649,6 +715,10 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
+
+
+
 
 
 

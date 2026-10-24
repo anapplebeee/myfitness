@@ -31,3 +31,10 @@ coverage/
 
 # 无头浏览器调试目录（任何以 .edge- 开头）
 .edge-*/
+
+# Playwright 产物
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
