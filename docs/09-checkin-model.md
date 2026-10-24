@@ -6,6 +6,22 @@
 
 计划描述安排；会话记录实际训练；打卡是派生结果，没有额外“点打卡才算练过”的动作。训练次数、训练天数、周目标完成数分别展示，不把训练和饮食混算。连续周可隐藏，无欠账和惩罚提示。
 
+### 1.1 `goalCreditConfirmed` 的准确定义
+
+本节与第 5 节"用户明确选择本次计入周目标才满足关联项目"不矛盾，两者分工如下：
+
+| 概念 | 由谁决定 | 含义 |
+|---|---|---|
+| 训练发生过 | `status` + 完成工作组 | 事实，不依赖任何确认动作；计入**训练次数**与**训练天数** |
+| 计入周目标 | `occurrenceId` + `goalCreditConfirmed` | 把一个已完成会话**匹配**到某个计划项目；只影响**周目标完成数** |
+
+因此：
+
+- "没有点打卡才算练过"指**训练事实**不需要额外动作——练完即计入次数与天数。
+- "本次计入周目标"是一次**匹配确认**，因为一个会话可能对应多个计划项（或不对应任何计划项），系统不替用户猜。
+- `goalCreditConfirmed` 只由用户显式操作写入，默认 `false`；`false` 时该会话仍计入次数与天数，只是不增加周目标完成数。
+- 该字段不因计划换版、豁免、顺延而改变；会话日期移出原关联周时由更正操作同时解除 `occurrenceId` 并置 `false`（见第 6 节）。
+
 ## 2. 周与时间
 
 按 Dataset.accountingTimezone，周一00:00至下周一00:00，键为周一日期 weekStart。会话业务日期固定为开始日；跨午夜不拆两天，换设备时区不重归历史。v1不支持修改数据集记账时区，误录日期可显式更正。
@@ -77,13 +93,22 @@ computeWeek(weekStart, goal, occurrences, sessions, now, ruleVersion):
   S = 目标调整后的项目集合（按ID去重）
   active = S中disposition == scheduled
   A = active数量
+
+  // 必须先判空：goal 可能不存在（例如纯自由训练周）
+  if goal不存在:
+    return {originalPlanned:0, adjustedPlanned:A, minimumTarget:0,
+            completedOccurrences:0, actualSessionCount, trainingDays,
+            excusedCount, cancelledCount, targetReached:false, full:false,
+            status: unplanned}
+
+  if S为空且goal.originalPlannedCount==0:
+    return 同上但 originalPlanned=0，status=unplanned
+
   K = min(goal.currentMinimumTarget, A)
   D = active中被本周有效完成会话唯一满足的项目数
   actualSessions = 本周所有有效完成会话（按ID去重）
   trainingDays = actualSessions不同businessDate数量
-  if goal不存在，或S为空且originalPlannedCount==0:
-    status = unplanned
-  else if K==0: status = paused
+  if K==0: status = paused
   else if now < 本周开始: status = upcoming
   else if now < 本周结束: status = ongoing
   else: status = D>=K ? achieved : notAchieved
@@ -94,7 +119,9 @@ computeWeek(weekStart, goal, occurrences, sessions, now, ruleVersion):
           excusedCount, cancelledCount, targetReached, full, status}
 ~~~
 
-goal不存在时K=0。本周已够目标仍为ongoing，可显示“本周已达标（进行中）”，不提前累计连续周。
+**修订说明（2026-10-24）**：原伪代码在 `K = min(goal.currentMinimumTarget, A)` 处先解引用 `goal`，之后才在第 84 行判空，`goal` 为 null 时会抛错，导致 W05（无计划训练）无法执行。现已改为先判空并提前返回，K=0 仅用于 goal 存在的 paused 分支。实现见 `src/domain/week.ts` 的 `computeWeek`。
+
+`goal` 不存在时 `minimumTarget` 与 `originalPlannedCount` 均为 0，且 `adjustedPlanned` 仍返回真实可执行数 A，便于界面区分"无计划但有训练"与"有计划未达标"。
 
 连续达标周按已结束周升序折叠：achieved加1，notAchieved归0，paused/unplanned保持不增加，ongoing/upcoming不参与。文案是“连续达标的有目标周，休整和无目标周跳过”，不称连续日历周。
 

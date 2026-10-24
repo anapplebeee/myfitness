@@ -22,18 +22,22 @@
 | ExerciseDefinition | id, name, aliases[], origin, definitionVersion, trackingMode, equipmentIds[], movementPattern, muscleIds[], loadConvention, cues[], alternatives[] | origin=builtin/custom；模式 load_reps/reps/duration/distance_duration；有历史后改变模式创建新版本 |
 | PlanTemplate | id, title, source, contentVersion, eligibility, days[], progressionPolicy, licenseRef | 内置审核或用户自建；模板不包含执行事实 |
 | PlanVersion | id, templateId?, effectiveDate, archivedAt?, inputsSnapshot, daysSnapshot[], progressionPolicySnapshot | 生效后不可原地编辑；更改产生新版本；历史引用永久保留 |
-| PlannedOccurrence | id, planVersionId, weekStart, originalDate, scheduledDate, workoutSnapshot, disposition | disposition=scheduled/excused/cancelled；顺延不是状态，是日期变更；fulfilledBySessionId仅是从会话引用派生的查询值，不双向存储事实 |
+| PlannedOccurrence | id, planVersionId, weekStart, originalDate, scheduledDate, slotId, workoutSnapshot, disposition | disposition=scheduled/excused/cancelled；顺延不是状态，是日期变更；fulfilledBySessionId仅是从会话引用派生的查询值，不双向存储事实 |
 | WeekGoal | id, weekStart, originalPlannedCount, minimumTarget, adjustments[] | 同一周唯一；详见 09，原始计划数不可事后修改；调整有审计记录 |
 | WorkoutSession | id, occurrenceId?, goalCreditConfirmed, status, startedAt, endedAt?, businessDate, accountingTimezone, activeDurationSeconds, restEndsAt?, completionBasis, note?, backfilledAt? | status=active/paused/completed/discarded；completionBasis=sets/selfReported/legacyReported；occurrenceId是匹配的唯一权威引用，goalCreditConfirmed仅由用户确认写入；结束事实不会因计划更新消失 |
 | SessionExercise | id, sessionId, exerciseId, definitionVersion, definitionSnapshot, order, replacedFromId?, plannedSetsSnapshot[] | 替代后新建记录，原已完成组保留原动作；替代旧动作的未完成组转为 skipped，不转移负荷 |
 | SetRecord | id, sessionExerciseId, kind, status, loadGrams?, reps?, durationSeconds?, distanceMeters?, rpe?, completedAt? | kind=warmup/work；status=planned/completed/skipped；字段组合由动作模式校验 |
 | BodyMeasurement | id, kind=weight, valueGrams, businessDate, measuredAt?, source, note? | v1 每天一个有效体重；同日更新同实体；导入同日不同值列为冲突；补旧记录不改变最新测量 |
-| FoodLog | id, businessDate, consumedAt?, slot, items[], note?, source, confirmedAt | slot=breakfast/lunch/dinner/snack/other；只保存用户确认的实际；餐单引用另存，不能自动成为摄入 |
-| FoodLogItem | id, foodId?, dataVersion?, label, quantity, unit, grams?, preparation?, kcal, proteinDecigrams, carbDecigrams?, fatDecigrams?, method, sourceRef?, uncertainty?, originalText? | method=label/weighed/database/estimated/manual；无“绝对精确”标记；手工总量可作为单项保存 |
+| FoodLog | id, businessDate, consumedAt?, slot, note?, source, confirmedAt | slot=breakfast/lunch/dinner/snack/other；只保存用户确认的实际；餐单引用另存，不能自动成为摄入。**条目通过 FoodLogItem.foodLogId 反向引用，不在本实体存 items[] 副本** |
+| FoodLogItem | id, foodLogId, foodId?, dataVersion?, label, quantity, unit, grams?, preparation?, kcal, proteinDecigrams, carbDecigrams?, fatDecigrams?, method, sourceRef?, uncertainty?, originalText? | method=label/weighed/database/estimated/manual；无“绝对精确”标记；手工总量可作为单项保存。`foodLogId` 为必填外键，索引 `(foodLogId, id)` |
 | FoodDefinition | id, name, aliases[], dataVersion, preparation, edibleBasis, nutrientsPer100g, sourceRef | 内置只读内容；用户自定义有独立ID和来源，不能改内置ID所代表的旧数据 |
 | FoodPreference | id, foodId?, logItemSnapshot?, favorite, preferredQuantity?, preferredUnit? | 收藏或显式保存的份量偏好，可同步；最近记录从FoodLog派生，不后台学习油量 |
 | NutritionDay | id, businessDate, completeness, confirmedAt? | completeness=missing/partial/complete/confirmedFasting；有记录后默认 partial；添加/改删餐次后使 complete 失效，需重新确认 |
 | NutritionTargetVersion | id, effectiveDate, kcal, proteinDecigrams, carbDecigrams?, fatDecigrams?, source, policyVersion?, inputsSnapshot, acceptedAt | source=manual/formula；同一日期仅一个生效目标；未来算法不纳入 v1 |
+| NutritionPolicy | id, version, formulaName, activityFactors[], defaultProteinPerKg, proteinPerKgByGoal{}, kcalFloor, minFatPerKg, rounding, notes | 纯参数实体，可审核、可版本化。`formulaName` 指定算法，`activityFactors` 是活动系数表，`inputsSnapshot` 记录算目标时用的体重/身高/年龄/性别/活动量/目标，保证可追溯。算法变更新增版本，不改旧版本 |
+| DietRestriction | id, kind, code, label, severity, source | kind=allergen/intolerance/religious/medical/preference；severity=avoid/strict；`code` 与食物包 `allergens[]` 对齐，用于确定性过滤。用户确认状态记在 Profile，不在本实体 |
+| FoodAllergen | foodId, code, presence, sourceRef | presence=contains/mayContain/free；**三态而非布尔**，"未标注"必须与"已确认不含"区分，否则过滤会误放行 |
+| Ingredient | id, name, aliases[], allergens[], dataVersion, sourceRef | 复合食物可拆到配料层；v1 允许食物只到"菜品"粒度，但过敏原必须在菜品层标注，不依赖配料推断 |
 | MealPlan | id, targetVersionId?, meals[], dietaryRestrictionsSnapshot, contentVersion, acceptedAt | 参考餐单，可选；照餐单吃需显式确认后复制为独立 FoodLog |
 | Recommendation | id, kind, inputsRef, proposedPatch, status, reason, providerVersion? | status=draft/accepted/rejected/expired；采纳前校验当前实体版本；不保存成隐式自动执行指令 |
 | Conversation / Message | id, role, text, createdAt, contextRefs?, provider? | 单会话；密钥不在消息；历史长时默认仅保留最近 200 条，导出覆盖当前保留内容，裁剪前提示策略 |
@@ -50,6 +54,43 @@ PlanVersion.daysSnapshot须包含周几、动作定义版本、目标组类型/�
 
 日程按已确认周安排产生唯一发生项（planVersionId+weekStart+slotId去重），预建未来4周；前台启动不足4周时补建，命令幂等。未来WeekGoal按该周实际项目数初始化，最低目标取用户计划设定且不超过项目数；计划生效周仅包含生效日及以后新安排。历史空白不自动补造成未完成，计划变更按09显式调整，不覆盖旧周。
 
+**`slotId` 定义**：某训练日在一个模板内的稳定标识，取值 `<templateId>-<dayId>`，在该 `planVersionId` 内唯一且不随时间变化。它回答"这条发生项对应模板里的哪一天"，因此：
+
+- 同一模板版本、同一周内，每个 slotId 最多一条发生项；唯一键为 `(planVersionId, weekStart, slotId)`。
+- 顺延只改 `scheduledDate`，**不改** `slotId`，因此顺延后仍与同一计划项对应，不会产生第二条。
+- 换模板产生新 `planVersionId`，slotId 不同即视为不同项目，与 09 号"取消旧未来项目并建立新项目"一致。
+- 用户自建模板复制时，训练日 ID 必须重新生成，避免与源模板 slotId 冲突。
+
+
+### 2.1a 营养计算的输入与可追溯
+
+初始营养目标必须能从实体复算，不允许只存结果。`NutritionTargetVersion.inputsSnapshot` 至少包含：
+
+| 字段 | 来源 | 缺失时行为 |
+|---|---|---|
+| weightGrams | 最近一次有效 BodyMeasurement | 无体重则**不生成**自动目标，提示用户手填 |
+| heightCm | Profile | 缺失则不生成，不猜 |
+| ageYears | Profile.birthYear 派生 | 缺失则按 30 岁并标注"估算" |
+| sex | Profile | 缺失则不生成（公式区分性别） |
+| activityFactor | Profile.activity | 缺失用 1.4 并标注 |
+| goalDirection | Profile.bodyGoal（maintain/cut/bulk） | 缺失按 maintain |
+| policyId + policyVersion | NutritionPolicy | 必填，用于区分算法版本 |
+
+规则：
+
+- 缺关键输入时不生成目标，界面显示"缺少 X，请补充或手填"，**不得**用默认值静默生成。
+- 手工目标 `source=manual`，不需要 inputsSnapshot，但仍记 policyVersion 为 null。
+- 目标只影响建议，不修改任何已记录摄入。
+
+### 2.1b 过敏原过滤的确定性
+
+"按过敏原确定性过滤"要求三件事同时成立，缺一不可：
+
+1. **食物标注三态**：`FoodAllergen.presence` 为 contains / mayContain / free。仅有布尔值无法区分"确认不含"与"未标注"。
+2. **用户确认状态**：Profile 记录 `restrictionsConfirmed` 与 `allergies[]`；未确认时不得生成自动餐单（见 12 号 AC-F03）。
+3. **过滤语义固定**：`strict` 级过敏原排除 contains 与 mayContain；`avoid` 级只排除 contains 并提示 mayContain。未标注（无 FoodAllergen 记录）按 mayContain 处理，宁可少推荐。
+
+过滤是纯函数：输入 `(食物集合, 过敏原集合, 严格度)`，输出可用食物集合与被排除原因，同样输入必须得到同样输出，且必须能被单测覆盖。
 ### 2.2 负荷与指标
 
 `loadConvention` 明确 totalExternal/perImplement/bodyweight/added/assistance；perImplement 附 `implementCount`。显示必须写清“单只”或“总重量”。总外部容量仅对外部负荷可定义的可比较工作组计算：总外部负荷 × 次数；自重/辅助不强行归入同一容量。
@@ -68,7 +109,7 @@ PR 的比较键包含 exerciseId、definitionVersion、trackingMode、loadConven
 
 ## 4. 饮食一致性
 
-FoodLog 总量由 items 相加派生；NutritionDay 统计只汇总有效 FoodLog。missing/partial 不展示为完整全天缺口，confirmedFasting 必须显式确认且无有效食物条目。后续添加食物时自动转 partial。
+FoodLog 总量由 `FoodLogItem` 按 `foodLogId` 聚合派生（查询时计算，不冗余存储 items 数组）；NutritionDay 统计只汇总有效 FoodLog。missing/partial 不展示为完整全天缺口，confirmedFasting 必须显式确认且无有效食物条目。后续添加食物时自动转 partial。
 
 手工热量/蛋白记录允许缺碳水脂肪，不反推为 0。只有三项均完整时检查 4P+4C+9F 与总 kcal 的一致性，超出 max(50kcal, 目标热量×5%) 时提示核对；标签数据可说明保留原值。自动生成的目标必须满足内部一致性，不靠抬高碳水下限制造矛盾。
 
@@ -94,3 +135,4 @@ FoodLog 总量由 items 相加派生；NutritionDay 统计只汇总有效 FoodLo
 导入先限大小/解析/schema/引用/单位/冲突校验，再预览。默认合并：同 ID 同内容忽略，同 ID 异内容冲突保留双方；新 ID 同日体重冲突、同周目标冲突需处理。不同 datasetId 不直接混入，允许作为独立数据集打开，或者显式转换后合并并显示来源。确认后单事务提交，失败完全回滚；替换模式先自动备份。
 
 demo 导入单独识别 `{v:1, profile,...}`，不把旧 v 当新 schema：体重转 BodyMeasurement；计划转草稿模板；日程与勾选转 LegacyActivity；旧 checkin 转 legacyReported 会话只在用户逐项确认实际训练后计统计，默认仅旧记录展示；餐次勾选不转实际摄入；双线程聊天按时间合并；Key 不导入、不写日志；原文件和旧 localStorage key 保持不变。未来版本拒绝写入且不覆盖现有数据。
+
