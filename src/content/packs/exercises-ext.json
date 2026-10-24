@@ -1,0 +1,1069 @@
+{
+  "packageId": "tieguan-exercises-ext",
+  "version": 1,
+  "title": "铁馆扩展动作包",
+  "description": "基于 free-exercise-db（公有领域）精选的动作子集，仅收录已确认中文名的动作，并按本项目模式标注。",
+  "license": {
+    "id": "Unlicense",
+    "url": "https://unlicense.org/",
+    "attribution": "Exercise data derived from free-exercise-db by yuhonas, released under the Unlicense.",
+    "upstream": "https://github.com/yuhonas/free-exercise-db",
+    "upstreamSha256": "07bf30011527e9b9652f06ca79c44b3d2fe0e7a99eb55b6c9039366d01de38f1",
+    "notice": "Unlicense 属公有领域奉献，可自由复制、修改、分发与商用，无署名义务；本文件保留来源以便追溯。",
+    "modifications": "仅做字段映射、中文名补充与跟踪模式标注，未改动作要领原文。"
+  },
+  "generatedAt": "2026-10-24T13:53:25.955Z",
+  "counts": {
+    "upstreamTotal": 876,
+    "included": 61,
+    "curated": 61,
+    "missingUpstream": 0,
+    "duplicateNames": 0
+  },
+  "modeDistribution": {
+    "load_reps": 46,
+    "distance_duration": 5,
+    "reps": 8,
+    "duration": 2
+  },
+  "exercises": [
+    {
+      "id": "ext-ab-roller",
+      "name": "健腹轮",
+      "group": "core",
+      "equipment": "其他",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Ab_Roller",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-arnold-dumbbell-press",
+      "name": "阿诺德推举",
+      "group": "shoulders",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Arnold_Dumbbell_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-bench-press-medium-grip",
+      "name": "杠铃卧推",
+      "group": "chest",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Bench_Press_-_Medium_Grip",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-curl",
+      "name": "杠铃弯举",
+      "group": "arms",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Curl",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-deadlift",
+      "name": "杠铃硬拉",
+      "group": "back",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Deadlift",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-glute-bridge",
+      "name": "杠铃臀桥",
+      "group": "glutes",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Glute_Bridge",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-hack-squat",
+      "name": "杠铃哈克深蹲",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Hack_Squat",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-hip-thrust",
+      "name": "杠铃臀推",
+      "group": "glutes",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Hip_Thrust",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-lunge",
+      "name": "杠铃箭步蹲",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Lunge",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-shoulder-press",
+      "name": "杠铃肩推",
+      "group": "shoulders",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Shoulder_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-shrug",
+      "name": "杠铃耸肩",
+      "group": "back",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Shrug",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-barbell-squat",
+      "name": "杠铃深蹲",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Barbell_Squat",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-bent-over-barbell-row",
+      "name": "杠铃俯身划船",
+      "group": "back",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Bent_Over_Barbell_Row",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-bent-over-two-dumbbell-row",
+      "name": "单臂哑铃划船",
+      "group": "back",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Bent_Over_Two-Dumbbell_Row",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-bicycling-stationary",
+      "name": "动感单车",
+      "group": "cardio",
+      "equipment": "器械",
+      "mode": "distance_duration",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Bicycling_Stationary",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-cable-crossover",
+      "name": "绳索夹胸",
+      "group": "chest",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Cable_Crossover",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-cable-crunch",
+      "name": "绳索卷腹",
+      "group": "core",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Cable_Crunch",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-chin-up",
+      "name": "反手引体",
+      "group": "back",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Chin-Up",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-close-grip-barbell-bench-press",
+      "name": "窄距卧推",
+      "group": "arms",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Close-Grip_Barbell_Bench_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-close-grip-front-lat-pulldown",
+      "name": "窄握高位下拉",
+      "group": "back",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Close-Grip_Front_Lat_Pulldown",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-concentration-curls",
+      "name": "集中弯举",
+      "group": "arms",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Concentration_Curls",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dead-bug",
+      "name": "死虫式",
+      "group": "core",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dead_Bug",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-decline-barbell-bench-press",
+      "name": "下斜杠铃卧推",
+      "group": "chest",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Decline_Barbell_Bench_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dips-chest-version",
+      "name": "双杠臂屈伸（胸）",
+      "group": "chest",
+      "equipment": "其他",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dips_-_Chest_Version",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dips-triceps-version",
+      "name": "双杠臂屈伸（三头）",
+      "group": "arms",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dips_-_Triceps_Version",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dumbbell-bicep-curl",
+      "name": "哑铃弯举",
+      "group": "arms",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dumbbell_Bicep_Curl",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dumbbell-flyes",
+      "name": "哑铃飞鸟",
+      "group": "chest",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dumbbell_Flyes",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-dumbbell-lunges",
+      "name": "哑铃箭步蹲",
+      "group": "legs",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Dumbbell_Lunges",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-elliptical-trainer",
+      "name": "椭圆机",
+      "group": "cardio",
+      "equipment": "器械",
+      "mode": "distance_duration",
+      "load": "bodyweight",
+      "level": "intermediate",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Elliptical_Trainer",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-face-pull",
+      "name": "面拉",
+      "group": "back",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Face_Pull",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-front-dumbbell-raise",
+      "name": "哑铃前平举",
+      "group": "shoulders",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Front_Dumbbell_Raise",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-front-squat-clean-grip",
+      "name": "杠铃前蹲",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Front_Squat_Clean_Grip",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-goblet-squat",
+      "name": "高脚杯深蹲",
+      "group": "legs",
+      "equipment": "壶铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Goblet_Squat",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-hammer-curls",
+      "name": "锤式弯举",
+      "group": "arms",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Hammer_Curls",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-hanging-leg-raise",
+      "name": "悬垂举腿",
+      "group": "core",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "expert",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Hanging_Leg_Raise",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-incline-dumbbell-press",
+      "name": "上斜哑铃卧推",
+      "group": "chest",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Incline_Dumbbell_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-leg-extensions",
+      "name": "腿屈伸",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Leg_Extensions",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-leg-press",
+      "name": "腿举",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Leg_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-lying-leg-curls",
+      "name": "俯卧腿弯举",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Lying_Leg_Curls",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-plank",
+      "name": "平板支撑",
+      "group": "core",
+      "equipment": "自重",
+      "mode": "duration",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Plank",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-preacher-curl",
+      "name": "牧师凳弯举",
+      "group": "arms",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Preacher_Curl",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-pullups",
+      "name": "引体向上",
+      "group": "back",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Pullups",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-pushups",
+      "name": "俯卧撑",
+      "group": "chest",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Pushups",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-reverse-flyes",
+      "name": "反向飞鸟",
+      "group": "shoulders",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Reverse_Flyes",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-romanian-deadlift",
+      "name": "罗马尼亚硬拉",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Romanian_Deadlift",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-rowing-stationary",
+      "name": "划船机",
+      "group": "cardio",
+      "equipment": "器械",
+      "mode": "distance_duration",
+      "load": "bodyweight",
+      "level": "intermediate",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Rowing_Stationary",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-running-treadmill",
+      "name": "跑步机",
+      "group": "cardio",
+      "equipment": "器械",
+      "mode": "distance_duration",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Running_Treadmill",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-russian-twist",
+      "name": "俄罗斯转体",
+      "group": "core",
+      "equipment": "自重",
+      "mode": "reps",
+      "load": "bodyweight",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Russian_Twist",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-seated-cable-rows",
+      "name": "坐姿绳索划船",
+      "group": "back",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Seated_Cable_Rows",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-seated-calf-raise",
+      "name": "坐姿提踵",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Seated_Calf_Raise",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-seated-dumbbell-press",
+      "name": "坐姿哑铃推举",
+      "group": "shoulders",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Seated_Dumbbell_Press",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-seated-leg-curl",
+      "name": "坐姿腿弯举",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Seated_Leg_Curl",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-side-bridge",
+      "name": "侧平板",
+      "group": "core",
+      "equipment": "自重",
+      "mode": "duration",
+      "load": "bodyweight",
+      "level": "beginner",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Side_Bridge",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-side-lateral-raise",
+      "name": "侧平举",
+      "group": "shoulders",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Side_Lateral_Raise",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-stairmaster",
+      "name": "登阶机",
+      "group": "cardio",
+      "equipment": "器械",
+      "mode": "distance_duration",
+      "load": "bodyweight",
+      "level": "intermediate",
+      "mechanic": null,
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Stairmaster",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-standing-calf-raises",
+      "name": "站姿提踵",
+      "group": "legs",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Standing_Calf_Raises",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-standing-dumbbell-triceps-extension",
+      "name": "站姿哑铃臂屈伸",
+      "group": "arms",
+      "equipment": "哑铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Standing_Dumbbell_Triceps_Extension",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-sumo-deadlift",
+      "name": "相扑硬拉",
+      "group": "legs",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Sumo_Deadlift",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-triceps-pushdown",
+      "name": "绳索下压",
+      "group": "arms",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "isolation",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Triceps_Pushdown",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-upright-barbell-row",
+      "name": "直立划船",
+      "group": "shoulders",
+      "equipment": "杠铃",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Upright_Barbell_Row",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    },
+    {
+      "id": "ext-wide-grip-lat-pulldown",
+      "name": "宽握高位下拉",
+      "group": "back",
+      "equipment": "器械",
+      "mode": "load_reps",
+      "load": "totalExternal",
+      "level": "beginner",
+      "mechanic": "compound",
+      "cues": [],
+      "source": {
+        "dataset": "free-exercise-db",
+        "upstreamId": "Wide-Grip_Lat_Pulldown",
+        "license": "Unlicense",
+        "url": "https://github.com/yuhonas/free-exercise-db"
+      }
+    }
+  ],
+  "checksum": "4aac1601ed9de4167ae862cc611558bb7ca917ed81a63bd491a8ccd8d25f5df5"
+}

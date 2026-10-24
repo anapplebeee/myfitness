@@ -31,6 +31,8 @@ npm run preview      # 预览 dist/（需先 build）
 | [04 · Android与PWA](docs/04-android-app.md) | 交付、生命周期、升级与发布证据 |
 | [13 · 需求与架构分析](docs/13-requirements-architecture-analysis.md) | 评审意见：M0 阻塞项、同步契约、容量实测与执行顺序（不定义范围） |
 | [17 · 前端实现](docs/17-frontend-implementation.md) | 设计系统、页面结构、状态模型、已知边界 |
+| [内容授权](docs/content/licensing.md) | 开源动作库评估、Unlicense 采用理由、ODbL 为何不采用 |
+| [QA 验收](docs/qa/2026-10-24-acceptance.md) | 逐提交验收、实测数据、发现的问题与放行建议 |
 
 ## 实施计划
 
@@ -77,3 +79,4 @@ src/
 [01 openGym调研](docs/01-research-opengym.md)、[06旧缺口分析](docs/06-gap-analysis.md)、[08市场复核](docs/08-market-review.md)、[10产品架构评审](docs/10-product-architecture-review.md)保留为背景，不定义当前范围。原02/03/04/05/07/09已[归档](docs/archive/2026-10-23-pre-baseline/INDEX.md)。
 
 文档完成不等于业务实现完成；正式v1必须通过12号文档全部门禁。
+

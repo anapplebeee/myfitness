@@ -1,5 +1,6 @@
 import type { LoadConvention, MuscleGroup, TrackingMode } from '../domain/types';
 import type { Exercise, Template } from './types';
+import { EXERCISE_PACKS, packExercisesToLibrary } from './packs';
 
 export type { Exercise, Template } from './types';
 
@@ -40,7 +41,7 @@ const e = (
   alternatives,
 });
 
-export const EXERCISES: Exercise[] = [
+const BUILTIN_EXERCISES: Exercise[] = [
   e('bb-squat', '杠铃深蹲', 'legs', '杠铃', ['脚掌三点着地', '下蹲至大腿平行', '核心持续收紧'], ['goblet-squat', 'leg-press']),
   e('goblet-squat', '高脚杯深蹲', 'legs', '哑铃', ['哑铃贴胸', '膝盖与脚尖同向'], ['bb-squat', 'leg-press']),
   e('leg-press', '腿举', 'legs', '器械', ['腰背贴紧靠垫', '不要锁死膝盖'], ['bb-squat']),
@@ -91,6 +92,13 @@ export const EXERCISES: Exercise[] = [
   e('incline-walk', '坡度快走', 'cardio', '跑步机', ['保持心率区间', '不要扶扶手'], [], { mode: 'distance_duration' }),
   e('rower', '划船机', 'cardio', '器械', ['腿-核心-手', '节奏稳定'], [], { mode: 'distance_duration' }),
 ];
+
+/** 内置动作 + 内容包动作；ID 冲突时内置优先。 */
+export const EXERCISES: Exercise[] = (() => {
+  const builtinIds = new Set(BUILTIN_EXERCISES.map((e) => e.id));
+  const fromPacks = packExercisesToLibrary(EXERCISE_PACKS).filter((e) => !builtinIds.has(e.id));
+  return [...BUILTIN_EXERCISES, ...fromPacks];
+})();
 
 export const EXERCISE_BY_ID = new Map(EXERCISES.map((x) => [x.id, x]));
 
@@ -205,6 +213,7 @@ export const TEMPLATES: Template[] = [
 ];
 
 export const TEMPLATE_BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
+
 
 
 

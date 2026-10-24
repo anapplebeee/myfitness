@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { store, derived } from '../store/appStore';
 import { FOODS } from '../content/foods';
+import { EXERCISE_PACKS, packSummary } from '../content/packs';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
 
@@ -43,6 +44,8 @@ function saveWeight(): void {
 }
 
 const foodCount = computed(() => FOODS.length);
+const packInfo = computed(() => EXERCISE_PACKS);
+const packText = computed(() => packSummary(EXERCISE_PACKS));
 const sessionCount = computed(() => store.state.sessions.length);
 </script>
 
@@ -116,6 +119,24 @@ const sessionCount = computed(() => store.state.sessions.length);
           <span class="stat__label">内置食物</span>
         </div>
       </div>
+      <div class="card">
+        <p class="label">内容来源与授权</p>
+        <p class="small" style="margin-top: 8px">{{ packText }}</p>
+        <div v-for="p in packInfo" :key="p.packageId" class="lic">
+          <div class="lic__row">
+            <span class="h3">{{ p.title }}</span>
+            <span class="chip chip--lime chip--sm">{{ p.license.id }}</span>
+          </div>
+          <p class="tiny">{{ p.exercises.length }} 个动作 · v{{ p.version }} · {{ p.license.url }}</p>
+          <p class="tiny lic__note">{{ p.license.attribution }}</p>
+          <p class="tiny lic__note">{{ p.license.notice }}</p>
+        </div>
+        <div class="divider" />
+        <p class="tiny">
+          内置动作与模板为自建内容；食物营养值为常见参考值，非医疗建议。
+        </p>
+      </div>
+
       <div class="card">
         <p class="label">数据说明</p>
         <p class="small" style="margin-top: 8px">
@@ -280,6 +301,26 @@ const sessionCount = computed(() => store.state.sessions.length);
   background: var(--clay-soft);
   color: var(--clay);
 }
+.lic {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(17, 20, 17, 0.03);
+}
+
+.lic__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lic__note {
+  margin-top: 4px;
+  line-height: 1.45;
+}
 </style>
+
+
 
 
