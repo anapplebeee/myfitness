@@ -38,3 +38,6 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# 本地构建的测试包，不入库（体积大且可随时重建）
+dist-apk/*.apk
+
