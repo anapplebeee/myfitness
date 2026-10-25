@@ -187,7 +187,15 @@ function lastHint(exId: string): string {
 function prevFor(exId: string, index: number): string {
   const last = lastExerciseSets([...store.state.sessions], exId, props.sessionId);
   const rec = last[index];
-  if (!rec) return '—';
+  /*
+   * 上次那场只做了更少的组时，后面的组没有对照值。
+   *
+   * 直接显示 "—" 会让用户以为功能坏了（真机实测就是这个反应），
+   * 所以区分两种情况：
+   *   - 完全没历史 → "首次"
+   *   - 有历史但这场组数更少 → "未做"（明确表示上次没做到这一组）
+   */
+  if (!rec) return last.length ? '未做' : '首次';
   if (rec.loadGrams !== null && rec.reps !== null) {
     return `${formatLoad(rec.loadGrams, unit.value)} × ${rec.reps}`;
   }
@@ -857,11 +865,20 @@ const progress = computed(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  /*
+   * 与第 2 列的「上次」之间加一条细分隔线。
+   * 不加的话两个数字会连成一串：真机实测显示成 "80 kg ×7 80 kg × 8"，
+   * 用户根本分不清哪个是历史、哪个是本次。
+   */
+  padding-left: 8px;
+  border-left: 1.5px solid var(--line-strong);
 }
 
 .set__done strong {
   font-size: 16px;
+  font-weight: 680;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .set__rpe {
@@ -892,6 +909,19 @@ const progress = computed(() => {
   display: flex;
   gap: 10px;
   margin-top: 4px;
+  /*
+   * 真机上「放弃」曾被压到贴屏幕左边缘（文字被裁）。
+   * 原因：它没有宽度约束，flex 把剩余空间全给了「结束训练」。
+   * 这里给「放弃」固定最小宽度，并允许它在极窄屏上收缩但不消失。
+   */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.live__actions .btn--ghost {
+  flex: 0 0 auto;
+  min-width: 88px;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .live__finish {
@@ -1028,6 +1058,8 @@ const progress = computed(() => {
   color: var(--text-2);
 }
 </style>
+
+
 
 
 
