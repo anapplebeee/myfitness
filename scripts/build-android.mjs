@@ -147,10 +147,10 @@ if (existsSync(aapt)) {
     const min = /sdkVersion:'(\d+)'/.exec(badging)?.[1];
     record('minSdk 合理（>= 23）', Number(min) >= 23, `minSdk=${min}`);
 
-    // AC-C07：备份必须排除业务数据与口令
+    // AC-C09：备份必须排除业务数据与口令
     const tree = execFileSync(aapt, ['dump', 'xmltree', apkPath, 'AndroidManifest.xml'], { encoding: 'utf8' });
     const allowBackup = /android:allowBackup\(0x[0-9a-f]+\)=\(type 0x12\)0x([01])/i.exec(tree)?.[1];
-    record('allowBackup 为 false（AC-C07）', allowBackup === '0', `allowBackup=${allowBackup ?? 'absent'}`);
+    record('allowBackup 为 false（AC-C09）', allowBackup === '0', `allowBackup=${allowBackup ?? 'absent'}`);
     record('备份排除规则已配置', tree.includes('fullBackupContent') && tree.includes('dataExtractionRules'));
   } catch (e) {
     record('aapt 校验', false, String(e).slice(0, 100));
@@ -163,5 +163,6 @@ const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} 通过`);
 console.log(`APK: ${apkPath}`);
 if (failed.length) process.exit(1);
+
 
 

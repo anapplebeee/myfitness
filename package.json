@@ -21,7 +21,8 @@
     "verify": "npm run typecheck && npm run typecheck:e2e && npm run test && npm run build",
     "android:check": "node scripts/check-android.mjs",
     "android:sync": "npm run build && npx cap sync android",
-    "android:build": "node scripts/build-android.mjs"
+    "android:build": "node scripts/build-android.mjs",
+    "android:smoke": "node scripts/android-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
