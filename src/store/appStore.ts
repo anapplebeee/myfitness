@@ -132,6 +132,9 @@ export const store = {
     templateId: string;
     weeklyGoal: number;
     keepDemoData: boolean;
+    /** 可选：引导第四步设定的目标。允许为空。 */
+    bodyGoalKg?: number | null;
+    strengthGoal?: { exerciseId: string; targetKg: number } | null;
   }): void {
     if (!input.keepDemoData) {
       // 清空示例业务数据，但保留 datasetId 与内容包
@@ -146,6 +149,37 @@ export const store = {
     state.activeTemplateSince = businessDate();
     state.weeklyGoal = input.weeklyGoal;
     state.profile.weeklyTarget = input.weeklyGoal;
+
+    /*
+     * 引导第四步的目标（可跳过）。
+     * 体重目标需要起点：用当前最新体重作起点，没有记录则留空，
+     * 由 goals 的进度计算显示"缺少起始体重"。
+     */
+    if (input.bodyGoalKg != null && input.bodyGoalKg > 0) {
+      const latest = [...state.weights].sort((a, b) => (a.date < b.date ? 1 : -1))[0] ?? null;
+      state.goals = state.goals.filter((g) => g.kind !== 'bodyweight');
+      state.goals.push({
+        kind: 'bodyweight',
+        targetGrams: Math.round(input.bodyGoalKg * 1000),
+        startGrams: latest?.grams ?? null,
+        targetDate: null,
+        createdAt: new Date().toISOString(),
+      });
+      state.bodyGoalGrams = Math.round(input.bodyGoalKg * 1000);
+    }
+    if (input.strengthGoal && input.strengthGoal.targetKg > 0) {
+      const sg = input.strengthGoal;
+      state.goals = state.goals.filter(
+        (g) => !(g.kind === 'strength' && g.exerciseId === sg.exerciseId),
+      );
+      state.goals.push({
+        kind: 'strength',
+        exerciseId: sg.exerciseId,
+        targetGrams: Math.round(sg.targetKg * 1000),
+        targetDate: null,
+        createdAt: new Date().toISOString(),
+      });
+    }
     state.onboarded = true;
     schedulePersist();
   },
@@ -799,6 +833,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

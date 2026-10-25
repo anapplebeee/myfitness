@@ -17,17 +17,45 @@ const weeklyGoal = ref(3);
 // 用户想从零开始可以主动取消勾选。
 const keepDemo = ref(true);
 
+/*
+ * 第四步：可选目标。
+ *
+ * 为什么不放前面：基线文档要求"无需填写身高体重即可开始记录训练"。
+ * 一上来就问体重，会劝退一部分人；放在最后并允许跳过，
+ * 既不挡路，又让用户知道有目标功能（此前完全没提，用户找不到）。
+ */
+const bodyGoalKg = ref('');
+const strengthGoalKg = ref('');
+const chosenLift = ref('bb-squat');
+
 const emit = defineEmits<{ (e: 'done'): void }>();
 
 const templateOptions = computed(() =>
   TEMPLATES.map((t) => ({ id: t.id, title: t.title, subtitle: t.subtitle, days: t.daysPerWeek })),
 );
 
+const LIFT_OPTIONS = [
+  { id: 'bb-squat', label: '杠铃深蹲' },
+  { id: 'bench-press', label: '杠铃卧推' },
+  { id: 'deadlift', label: '硬拉' },
+] as const;
+
+const bodyGoalNum = computed(() => {
+  const n = Number.parseFloat(bodyGoalKg.value.replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+});
+const strengthGoalNum = computed(() => {
+  const n = Number.parseFloat(strengthGoalKg.value.replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+});
+
 function finish(): void {
   store.completeOnboarding({
     templateId: chosenTemplate.value,
     weeklyGoal: weeklyGoal.value,
     keepDemoData: keepDemo.value,
+    bodyGoalKg: bodyGoalNum.value,
+    strengthGoal: strengthGoalNum.value ? { exerciseId: chosenLift.value, targetKg: strengthGoalNum.value } : null,
   });
   emit('done');
 }
@@ -103,6 +131,23 @@ function finish(): void {
             <span class="tiny">取消勾选会清空示例记录，从零开始（不可撤销）</span>
           </span>
         </label>
+
+
+        <div class="onb__optional">
+          <p class="label">可选 · 定个目标</p>
+          <p class="tiny onb__opt-hint">跳过也没关系，之后可以在「我的」里随时设置。</p>
+
+          <label class="tiny onb__field-label">目标体重（kg）</label>
+          <input v-model="bodyGoalKg" class="input" inputmode="decimal" placeholder="例如 72" />
+
+          <label class="tiny onb__field-label">目标力量（kg）</label>
+          <div class="onb__lift-row">
+            <select v-model="chosenLift" class="input onb__lift-select">
+              <option v-for="l in LIFT_OPTIONS" :key="l.id" :value="l.id">{{ l.label }}</option>
+            </select>
+            <input v-model="strengthGoalKg" class="input onb__lift-weight" inputmode="decimal" placeholder="例如 100" />
+          </div>
+        </div>
 
         <button class="btn btn--lime btn--block btn--lg" style="margin-top: 16px" @click="finish">
           开始使用
@@ -255,5 +300,41 @@ function finish(): void {
   accent-color: var(--ink);
   flex: none;
 }
+.onb__optional {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(17, 20, 17, 0.035);
+}
+
+.onb__opt-hint {
+  margin-top: 4px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.onb__field-label {
+  display: block;
+  margin-top: 12px;
+}
+
+.onb__lift-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.onb__lift-select,
+.onb__lift-weight {
+  min-width: 0;
+  width: 100%;
+}
+
+.onb__optional .input {
+  margin-top: 6px;
+}
 </style>
+
+
 

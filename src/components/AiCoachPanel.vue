@@ -26,6 +26,7 @@ import { AI_TIMEOUT_MS, callModel, type ChatMessage } from '../domain/ai-client'
 import { buildAiContext, renderContext } from '../domain/ai-context';
 import { parseDraft, validateDraft, type Draft, type DraftValidation } from '../domain/ai-draft';
 import { canAdopt } from '../domain/ai-adopt';
+import { parseMarkdownLite } from '../domain/markdown-lite';
 
 const { push } = useToast();
 
@@ -38,6 +39,8 @@ const confirmingEgress = ref(false);
 
 const question = ref('');
 const busy = ref(false);
+/** 回答解析成块，渲染时用模板插值——不用 v-html，避免模型输出被当成 HTML 执行。 */
+const answerBlocks = computed(() => (answer.value ? parseMarkdownLite(answer.value) : []));
 const answer = ref('');
 const draft = ref<Draft | null>(null);
 const validation = ref<DraftValidation | null>(null);
@@ -285,7 +288,45 @@ onBeforeUnmount(() => controller?.abort());
       -->
       <div v-if="answer && !draft" class="ai__answer">
         <p class="label">回答</p>
-        <p class="small ai__text">{{ answer }}</p>
+        <!--
+          结构化渲染而不是 v-html：模型输出不可信，
+          插值方式保证任何 HTML 都只会显示为文字。
+        -->
+        <div class="ai__text">
+          <template v-for="(b, bi) in answerBlocks" :key="bi">
+            <p v-if="b.kind === 'paragraph'" class="ai__para">
+              <template v-for="(s, si) in b.segments" :key="si">
+                <strong v-if="s.bold">{{ s.text }}</strong>
+                <code v-else-if="s.code" class="ai__code">{{ s.text }}</code>
+                <template v-else>{{ s.text }}</template>
+              </template>
+            </p>
+            <p v-else-if="b.kind === 'heading'" class="ai__heading">
+              <template v-for="(s, si) in b.segments" :key="si">
+                <strong v-if="s.bold">{{ s.text }}</strong>
+                <template v-else>{{ s.text }}</template>
+              </template>
+            </p>
+            <ol v-else-if="b.kind === 'list' && b.ordered" class="ai__list ai__list--ordered">
+              <li v-for="(item, ii) in b.items" :key="ii">
+                <template v-for="(s, si) in item" :key="si">
+                  <strong v-if="s.bold">{{ s.text }}</strong>
+                  <code v-else-if="s.code" class="ai__code">{{ s.text }}</code>
+                  <template v-else>{{ s.text }}</template>
+                </template>
+              </li>
+            </ol>
+            <ul v-else-if="b.kind === 'list'" class="ai__list">
+              <li v-for="(item, ii) in b.items" :key="ii">
+                <template v-for="(s, si) in item" :key="si">
+                  <strong v-if="s.bold">{{ s.text }}</strong>
+                  <code v-else-if="s.code" class="ai__code">{{ s.text }}</code>
+                  <template v-else>{{ s.text }}</template>
+                </template>
+              </li>
+            </ul>
+          </template>
+        </div>
       </div>
 
       <!-- 草稿：校验结果必须可见，被拒的项要说清原因 -->
@@ -509,7 +550,57 @@ onBeforeUnmount(() => controller?.abort());
 .ai__consent strong {
   font-weight: 700;
 }
+.ai__para {
+  margin-bottom: 8px;
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+.ai__para:last-child {
+  margin-bottom: 0;
+}
+
+.ai__heading {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai__list {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.ai__list--ordered {
+  list-style: decimal;
+}
+
+.ai__list li {
+  margin-bottom: 5px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.ai__list li::marker {
+  color: var(--text-3);
+}
+
+.ai__code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(17, 20, 17, 0.07);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.ai__text strong {
+  font-weight: 700;
+  color: var(--ink);
+}
 </style>
+
+
 
 
 

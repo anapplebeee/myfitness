@@ -7,10 +7,41 @@ import GoalsPanel from '../components/GoalsPanel.vue';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
 import { useToast } from '../composables/useToast';
+import { clearCacheAndReload, listCacheNames } from '../store/cacheControl';
 
 import { ALLERGEN_CODES } from '../content/allergens';
 
 const { push } = useToast();
+
+/* 缓存清理状态 */
+const clearingCache = ref(false);
+const cacheMsg = ref('');
+const cacheNames = ref<string[]>([]);
+
+/**
+ * 清理前端静态缓存并重新加载。
+ *
+ * 只清 Cache Storage 与 SW 注册，不动 localStorage / IndexedDB——
+ * 那是用户的训练记录。有警告时不刷新，避免用户误以为已修好。
+ */
+async function doClearCache(): Promise<void> {
+  clearingCache.value = true;
+  cacheMsg.value = '';
+  try {
+    const r = await clearCacheAndReload();
+    if (r.warnings.length) {
+      cacheMsg.value = r.warnings.join('；');
+      push('部分缓存未能清理', 'error');
+    } else {
+      // 成功时页面会重新加载，这里通常来不及显示
+      push(`已清理 ${r.cachesCleared} 份缓存`, 'success');
+    }
+  } finally {
+    clearingCache.value = false;
+  }
+}
+
+void listCacheNames().then((n) => { cacheNames.value = n; });
 
 const ALLERGENS = ALLERGEN_CODES;
 
@@ -223,6 +254,28 @@ const sessionCount = computed(() => store.state.sessions.length);
           />
         </div>
       </div>
+
+      <!--
+        清理前端缓存。
+        与"清空本机数据"是两件不同的事：这里只清静态资源缓存，
+        不碰训练记录。放在设置里，因为它属于"修问题"而非日常操作。
+      -->
+      <div class="card cache">
+        <p class="label">清理缓存</p>
+        <p class="small" style="margin-top: 6px">
+          应用更新后如果界面没变化，多半是浏览器缓存了旧文件。清理后会重新加载。
+        </p>
+        <p class="tiny cache__safe">
+          只清静态资源缓存，<strong>不会删除任何训练、饮食、体重记录</strong>。
+        </p>
+        <p v-if="cacheNames.length" class="tiny cache__list">
+          当前有 {{ cacheNames.length }} 份缓存待清理。
+        </p>
+        <button class="btn btn--ghost btn--block" style="margin-top: 12px" :disabled="clearingCache" @click="doClearCache">
+          {{ clearingCache ? "清理中…" : "清理缓存并重新加载" }}
+        </button>
+        <p v-if="cacheMsg" class="tiny cache__msg">{{ cacheMsg }}</p>
+      </div>
     </template>
 
     <Transition name="sheet">
@@ -387,7 +440,32 @@ const sessionCount = computed(() => store.state.sessions.length);
   border-color: var(--ink);
   color: var(--paper);
 }
+.cache__safe {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(201, 245, 63, 0.14);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.cache__safe strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.cache__list {
+  margin-top: 6px;
+  color: var(--text-3);
+}
+
+.cache__msg {
+  margin-top: 8px;
+  color: var(--clay);
+  line-height: 1.5;
+}
 </style>
+
 
 
 
