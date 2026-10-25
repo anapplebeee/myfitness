@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
+
     repositories {
         google()
         mavenCentral()
@@ -21,6 +21,25 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+
+    /*
+     * Kotlin 版本对齐。
+     *
+     * Capacitor 8 依赖 kotlin-stdlib 1.8.22，但某些传递依赖仍会拉起
+     * kotlin-stdlib-jdk7/jdk8:1.6.21。Kotlin 1.8 起 jdk7/jdk8 已并入主 stdlib，
+     * 于是出现 "Duplicate class kotlin.*"，编译直接失败。
+     *
+     * 解法：把 jdk7/jdk8 一起拉到 1.8.22（该版本是空壳 POM），冲突消失。
+     * 不降主 stdlib，避免与 Capacitor 8 不兼容。
+     */
+    configurations.all {
+        resolutionStrategy {
+            force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22'
+        }
     }
 }
 

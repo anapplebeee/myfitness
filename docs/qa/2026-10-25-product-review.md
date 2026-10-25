@@ -325,3 +325,49 @@
 | 2 训练后小结 | **完成**（含 E2E） |
 | 3 饮食 E2E | **完成** |
 | 4 Android 链路 | **部分完成**：配置与同步打通，未编译验证 |
+
+## 11. 第四轮：Android 真正出包 + 同步冲突（同日）
+
+### 11.1 Android：从"配置通过"到"真的出包"
+
+上一轮受限于"本机无 JDK/SDK"，只做到配置检查。本轮实际安装环境：
+
+| 组件 | 版本 | 方式 |
+|---|---|---|
+| JDK | Temurin 21.0.12 | `winget install EclipseAdoptium.Temurin.21.JDK` |
+| cmdline-tools | 146.5 MB | dl.google.com |
+| platform / build-tools | android-35 / 35.0.0 | sdkmanager |
+
+**两次真实编译失败并修复**：
+
+1. `Duplicate class kotlin.*`：Cordova 插件模块拉入 `kotlin-stdlib-jdk7/jdk8:1.6.21`，与 Capacitor 8 的 `1.8.22` 冲突。先移除无用的 cordova 模块（不够），再在根 gradle 强制对齐 1.8.22（生效）。
+2. `npx.cmd EINVAL`：Node 在 Windows 上不能用 `execFileSync` 直接启动 `.cmd`，改为 `shell: true`。
+
+**结果**：`BUILD SUCCESSFUL`，APK **4.26 MB**，18/18 校验通过，含包名、应用名、targetSdk 35、minSdk 23、前端产物齐全。
+
+### 11.2 AC-C09 备份排除
+
+原 Manifest 是 `android:allowBackup="true"`——WebView 的 IndexedDB 存着全部训练数据与同步口令，会被传到用户云端备份，与"数据只在本机"承诺冲突。
+
+已改 `false`，并加 `backup_rules.xml` / `data_extraction_rules.xml`（覆盖 Android 11- 与 12+）。实测 APK 内 `allowBackup=0x0`。
+
+### 11.3 同步冲突
+
+此前：检测到冲突只弹提示，两个按钮都只关提示、不做事，`makeConflictCopy` 从未被调用——等于没实现。
+
+现在：
+
+- 冲突发生时**立刻把双方存成副本**（最多保留 5 份）
+- **保留远端**：用远端快照覆盖本地，标记已解决
+- **保留本地**：force 推送到远端，远端那份留在副本里
+- **随时取回**：副本列表可单独取回远端版本
+
+`conflictStore` 13 项单测（持久化、排序、去重、上限、容错）。
+
+### 11.4 仍未做
+
+- **真机安装与冒烟**（G3 门槛）
+- Android 返回键、安全区、图标重做
+- 同步冲突的**三方自动合并**（当前必须人工二选一）
+- 冲突路径的 E2E（本机单客户端，无法模拟双设备并发）
+

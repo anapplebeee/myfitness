@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        allowBackup=false 是安全要求，不是可选项（12 号 AC-C07）：
+        WebView 的 IndexedDB 里存着全部训练、饮食、体重记录与同步口令。
+        若允许系统备份，这些数据会被传到用户的云端备份，
+        与"数据只在本机"的产品承诺冲突。
+
+        fullBackupContent / dataExtractionRules 兜底覆盖 Android 11 及以下与 12+ 的规则。
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

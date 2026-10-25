@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ 的数据提取规则（AC-C07）。
+    云端备份与设备迁移都不应带走业务数据与口令。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="app_webview" />
+        <exclude domain="file" path="databases" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="app_webview" />
+        <exclude domain="file" path="databases" />
+    </device-transfer>
+</data-extraction-rules>

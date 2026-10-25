@@ -93,19 +93,35 @@ if (await exists(mainActivity)) {
 }
 
 // 5. 构建工具链（只报告，不作为失败项）
-const javaOk = await (async () => {
-  try {
-    const { execFile } = await import('node:child_process');
-    return await new Promise((resolve) => {
-      execFile('java', ['-version'], (err) => resolve(!err));
-    });
-  } catch {
-    return false;
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+
+function findJava() {
+  if (process.env.JAVA_HOME && existsSync(join(process.env.JAVA_HOME, 'bin', 'java.exe'))) {
+    return process.env.JAVA_HOME;
   }
-})();
-check('[环境] JDK 可用', javaOk, javaOk ? '' : '未安装：无法在本机编译 APK');
-const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? '';
-check('[环境] Android SDK 已配置', Boolean(sdk), sdk || '未设置 ANDROID_HOME');
+  for (const base of ['C:\\Program Files\\Eclipse Adoptium', 'C:\\Program Files\\Java']) {
+    if (!existsSync(base)) continue;
+    for (const d of readdirSync(base)) {
+      const home = join(base, d);
+      if (existsSync(join(home, 'bin', 'java.exe'))) return home;
+    }
+  }
+  return null;
+}
+
+function findSdk() {
+  for (const p of [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT]) {
+    if (p && existsSync(p)) return p;
+  }
+  const guess = join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
+  return existsSync(guess) ? guess : null;
+}
+
+const javaHome = findJava();
+check('[环境] JDK 可用', Boolean(javaHome), javaHome ?? '未安装：无法编译 APK（winget install EclipseAdoptium.Temurin.21.JDK）');
+const sdkHome = findSdk();
+check('[环境] Android SDK 可用', Boolean(sdkHome), sdkHome ?? '未找到：见 docs/19-android.md');
 
 // 输出
 const fail = checks.filter((c) => !c.ok && !c.name.startsWith('[环境]'));
@@ -126,3 +142,4 @@ if (envWarn.length) {
   console.log(`环境缺失 ${envWarn.length} 项：无法在本机编译 APK，需安装 JDK 与 Android SDK`);
 }
 process.exit(0);
+

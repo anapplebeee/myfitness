@@ -13,12 +13,15 @@ import {
   httpTransport,
   pullSnapshot,
   pushSnapshot,
+  type ConflictCopy,
+  makeConflictCopy,
   type SyncState,
 } from '../domain/sync';
 import { buildSnapshot, snapshotHash } from '../domain/snapshot';
 import { store } from '../store/appStore';
 import { useToast } from '../composables/useToast';
 import { isConfigured, loadSyncSettings, saveSyncSettings } from '../store/deviceSettings';
+import { listConflicts, markResolved, saveConflict } from '../store/conflictStore';
 
 const { push } = useToast();
 
@@ -27,9 +30,11 @@ const initial = loadSyncSettings();
 const endpoint = ref(initial.endpoint);
 const token = ref(initial.token);
 const sync = ref<SyncState>({ ...INITIAL_SYNC_STATE });
+refreshConflicts();
 const busy = ref(false);
 const lastMessage = ref<string | null>(null);
-const conflict = ref<{ kind: string; message: string } | null>(null);
+const conflict = ref<{ kind: string; message: string; remoteRevision: number } | null>(null);
+const pendingConflict = ref<ConflictCopy | null>(null);
 
 const configured = computed(() => isConfigured({ endpoint: endpoint.value, token: token.value }));
 
@@ -101,7 +106,21 @@ async function syncNow(): Promise<void> {
         return;
       }
       if (verdict.kind === 'diverged') {
-        conflict.value = { kind: verdict.kind, message: verdict.message };
+        // 冲突时立刻把双方都存成副本：用户无论选哪边，
+        // 另一边都能事后取回。只弹提示而不留档等于没实现。
+        const copy = makeConflictCopy(
+          remote.revision ?? 0,
+          remote.snapshot,
+          snap,
+          crypto.randomUUID(),
+        );
+        saveConflict({ ...copy, resolution: 'unresolved' });
+        pendingConflict.value = copy;
+        conflict.value = {
+          kind: verdict.kind,
+          message: verdict.message,
+          remoteRevision: remote.revision ?? 0,
+        };
         lastMessage.value = verdict.message;
         push('检测到冲突，需要选择', 'error');
         busy.value = false;
@@ -156,9 +175,88 @@ async function syncNow(): Promise<void> {
   }
 }
 
-function useRemote(): void {
+const savedConflicts = ref(listConflicts());
+
+function refreshConflicts(): void {
+  savedConflicts.value = listConflicts();
+}
+
+/** 保留远端：用远端快照覆盖本地，并标记冲突已解决。 */
+function keepRemote(): void {
+  const c = pendingConflict.value;
+  if (!c) {
+    conflict.value = null;
+    return;
+  }
+  const err = store.applyExternalSnapshot(c.remoteSnapshot);
+  if (err) {
+    push(err, 'error');
+    return;
+  }
+  markResolved(c.id, 'kept_remote');
+  sync.value.remoteRevision = c.remoteRevision;
+  sync.value.lastSyncedHash = null;
+  sync.value.inflightKey = null;
   conflict.value = null;
-  push('已选择远端版本，请重新同步', 'default');
+  pendingConflict.value = null;
+  refreshConflicts();
+  lastMessage.value = '已用远端版本覆盖本地';
+  push('已保留远端版本', 'success');
+}
+
+/**
+ * 保留本地：把本地推上去（force），远端那份已存为副本。
+ * 必须 force，否则 pushSnapshot 会因 hash 与 lastSyncedHash 相同而跳过上传。
+ */
+async function keepLocal(): Promise<void> {
+  const c = pendingConflict.value;
+  if (!c) {
+    conflict.value = null;
+    return;
+  }
+  busy.value = true;
+  try {
+    const t = httpTransport({ endpoint: endpoint.value.trim(), token: token.value.trim() });
+    sync.value.remoteRevision = c.remoteRevision;
+    const key = crypto.randomUUID();
+    const localHash = await snapshotHash(c.localSnapshot);
+    const result = await pushSnapshot(t, c.localSnapshot, sync.value, {
+      idempotencyKey: key,
+      force: true,
+    });
+    if (result.ok) {
+      markResolved(c.id, 'kept_local');
+      sync.value.remoteRevision = result.revision ?? c.remoteRevision + 1;
+      sync.value.lastSyncedHash = result.snapshotHash ?? localHash;
+      sync.value.ackedGeneration = sync.value.generation;
+      conflict.value = null;
+      pendingConflict.value = null;
+      refreshConflicts();
+      lastMessage.value = `已保留本地版本 · revision ${sync.value.remoteRevision}`;
+      push('已保留本地版本', 'success');
+    } else {
+      lastMessage.value = result.message ?? '上传失败';
+      push(result.message ?? '上传失败', 'error');
+    }
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** 从任意一份冲突副本取回远端版本。 */
+function restoreRemote(id: string): void {
+  const c = savedConflicts.value.find((x) => x.id === id);
+  if (!c) return;
+  const err = store.applyExternalSnapshot(c.remoteSnapshot);
+  if (err) {
+    push(err, 'error');
+    return;
+  }
+  markResolved(id, 'kept_remote');
+  refreshConflicts();
+  sync.value.lastSyncedHash = null;
+  lastMessage.value = '已取回冲突副本中的远端版本';
+  push('已取回远端版本', 'success');
 }
 </script>
 
@@ -193,11 +291,25 @@ function useRemote(): void {
     <div v-if="conflict" class="syn__conflict">
       <p class="h3">本地与远端都有改动</p>
       <p class="tiny" style="margin-top: 4px">
-        为避免覆盖，本次没有写入任何一方。请选择保留哪个版本，另一份会存为冲突副本。
+        为避免覆盖，本次没有写入任何一方。两边都已存成副本，选哪边都能事后取回另一边。
+      </p>
+      <p class="tiny" style="margin-top: 4px">
+        远端 revision {{ conflict.remoteRevision }}
       </p>
       <div class="row gap-8" style="margin-top: 10px">
-        <button class="btn btn--ghost btn--sm" @click="useRemote">保留远端</button>
-        <button class="btn btn--lime btn--sm" @click="conflict = null">保留本地</button>
+        <button class="btn btn--ghost btn--sm" :disabled="busy" @click="keepRemote">保留远端</button>
+        <button class="btn btn--lime btn--sm" :disabled="busy" @click="keepLocal">保留本地</button>
+      </div>
+    </div>
+
+    <div v-if="savedConflicts.length" class="syn__saved">
+      <p class="label">冲突副本</p>
+      <p class="tiny" style="margin-top: 4px">
+        共 {{ savedConflicts.length }} 份。保留本地时，远端那份会留下来，可随时取回。
+      </p>
+      <div v-for="c in savedConflicts.slice(0, 3)" :key="c.id" class="syn__copy">
+        <span class="tiny">{{ c.createdAt.slice(0, 16).replace('T', ' ') }} · rev {{ c.remoteRevision }}</span>
+        <button class="btn btn--ghost btn--sm" @click="restoreRemote(c.id)">取回远端版本</button>
       </div>
     </div>
   </section>
@@ -230,6 +342,27 @@ function useRemote(): void {
   background: #fdf6e3;
   color: #8a6d1f;
 }
+.syn__saved {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.syn__copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(17, 20, 17, 0.03);
+}
 </style>
+
+
+
+
+
 
 
