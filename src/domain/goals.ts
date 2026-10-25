@@ -8,6 +8,7 @@
  */
 
 import type { Session } from './types';
+import { addDays, weekStartOf } from './units';
 import { bestSet, isValidCompleted, sessionVolumeGrams } from './metrics';
 
 export type GoalKind = 'bodyweight' | 'strength' | 'frequency';
@@ -141,34 +142,30 @@ export function frequencyProgress(
   weeks = 4,
 ): GoalProgress {
   const valid = sessions.filter(isValidCompleted).filter((s) => s.businessDate <= today);
-  const dates = new Set<string>();
-  for (const s of valid) {
-    const d = new Date(`${s.businessDate}T12:00:00`);
-    const day = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - day);
-    dates.add(d.toISOString().slice(0, 10));
-  }
 
-  // 统计最近 weeks 周内每周的场次数
+  /*
+   * 周首一律用 weekStartOf（本地时区）。
+   *
+   * 原实现用 new Date(...).toISOString().slice(0, 10) 取周首，
+   * 那是 UTC 切片：在 UTC+8 下，本地周一的 12:00 对应 UTC 04:00，
+   * 看着没差；但当 today 是周日时，本地某个时刻的 UTC 会落到前一天，
+   * recentWeeks 整体偏移，导致"近 4 周平均"统计到错误的周。
+   *
+   * 更根本的问题：units.ts 的 weekStartOf 与 plan.ts 的 mondayOf
+   * 都用本地时区算周首，这里用 UTC 等于同一概念两套实现——
+   * 正是 metrics.ts 注释里明令禁止的"第二个数据源"。
+   */
   const counts = new Map<string, number>();
   for (const s of valid) {
-    const d = new Date(`${s.businessDate}T12:00:00`);
-    const day = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - day);
-    const weekStart = d.toISOString().slice(0, 10);
+    const weekStart = weekStartOf(s.businessDate);
     counts.set(weekStart, (counts.get(weekStart) ?? 0) + 1);
   }
 
   const recentWeeks: string[] = [];
-  const base = new Date(`${today}T12:00:00`);
-  const baseDay = (base.getDay() + 6) % 7;
-  base.setDate(base.getDate() - baseDay);
+  const thisWeek = weekStartOf(today);
   for (let i = 0; i < weeks; i += 1) {
-    const d = new Date(base);
-    d.setDate(d.getDate() - i * 7);
-    recentWeeks.push(d.toISOString().slice(0, 10));
+    recentWeeks.push(addDays(thisWeek, -i * 7));
   }
-
   const total = recentWeeks.reduce((sum, w) => sum + (counts.get(w) ?? 0), 0);
   const avg = total / weeks;
   const ratio = goal.perWeek === 0 ? 0 : Math.max(0, Math.min(1, avg / goal.perWeek));
@@ -320,6 +317,7 @@ export function diffSessions(current: SessionSummary, previous: SessionSummary):
     text: parts.length ? parts.join(' · ') : '与上次持平',
   };
 }
+
 
 
 

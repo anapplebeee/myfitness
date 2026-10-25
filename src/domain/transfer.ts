@@ -10,6 +10,7 @@
  */
 
 import type { AppState } from './types';
+import { EXERCISE_BY_ID } from '../content/exercises';
 
 export const EXPORT_FORMAT = 'tieguan-export';
 export const EXPORT_SCHEMA_VERSION = 1;
@@ -246,10 +247,31 @@ export function previewImport(
 
   // 6. 引用与单位
   const rec = env.records as ExportEnvelope['records'];
-  const knownExerciseIds = new Set<string>();
+  /*
+   * 引用校验：动作 ID 必须存在于内容库。
+   *
+   * 原实现把导入文件里出现的动作 ID 收集进 knownExerciseIds，
+   * 然后从未与内容库比对——集合只来自待校验文件自身，
+   * 是个死变量，bad_reference 永远不可能触发。
+   *
+   * 后果：导入引用不存在动作的会话会通过校验，写入后
+   * metrics 里 EXERCISE_BY_ID.get() 返回 undefined，
+   * 该动作的容量被静默跳过，用户在统计页莫名少数据。
+   */
+  const checkedExercises = new Set<string>();
   for (const session of rec.sessions ?? []) {
     for (const ex of session.exercises ?? []) {
-      knownExerciseIds.add(ex.exerciseId);
+      if (checkedExercises.has(ex.exerciseId)) continue;
+      checkedExercises.add(ex.exerciseId);
+      if (!EXERCISE_BY_ID.has(ex.exerciseId)) {
+        issues.push(
+          issue(
+            'bad_reference',
+            `会话 ${session.id} 引用了不存在的动作「${ex.exerciseId}」`,
+            true,
+          ),
+        );
+      }
     }
   }
   for (const session of rec.sessions ?? []) {
@@ -448,3 +470,4 @@ export function exportFileName(datasetId: string, at = new Date()): string {
   const mm = String(at.getMinutes()).padStart(2, '0');
   return `tieguan-${datasetId}-${y}${m}${d}-${hh}${mm}.json`;
 }
+

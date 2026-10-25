@@ -76,6 +76,44 @@ async function persist(): Promise<void> {
   }
 }
 
+/**
+ * 预建未来 4 周的计划发生项。
+ *
+ * 提取为模块级函数而不是 store 方法，因为 init() 需要调用它，
+ * 而 init 内用 this 访问其他方法会踩响应式代理的坑。
+ */
+function ensurePlanAheadImpl(state: AppState): void {
+  const template = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
+  if (!template) return;
+  const today = businessDate();
+  const from = mondayOf(today);
+  const missing = [0, 1, 2, 3]
+    .map((i) => addDays(from, i * 7))
+    .filter((w) => !state.occurrences.some((o) => o.weekStart === w));
+  if (!missing.length) return;
+  const occ = [...state.occurrences];
+  for (const weekStart of missing) {
+    for (const day of template.days) {
+      const date = addDays(weekStart, day.slot);
+      if (date < today) continue;
+      occ.push({
+        id: uid('occ'),
+        planVersionId: `${template.id}@v${template.version}`,
+        weekStart,
+        originalDate: date,
+        scheduledDate: date,
+        title: day.title,
+        slotId: `${template.id}-${day.id}`,
+        exerciseIds: day.exercises.map((e) => e.exerciseId),
+        disposition: 'scheduled',
+      });
+    }
+  }
+  state.occurrences = occ;
+  state.weekGoals = ensureWeekGoals([...state.weekGoals], occ);
+  schedulePersist();
+}
+
 function schedulePersist(): void {
   if (saveTimer !== null) window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
@@ -93,13 +131,34 @@ export const store = {
   async init(): Promise<void> {
     let fromSeed = false;
     try {
-      const loaded = await Promise.race([
-        loadState(),
-        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 1200)),
-      ]);
+      /*
+       * 直接 await，不做外层超时竞速。
+       *
+       * 原实现用 Promise.race 在 1200ms 后判定"无数据"并播种，
+       * 但 loadState() 并不会因此中止——它可能在 1.3 秒后带着
+       * 用户的真实数据返回，而那时 state 已被种子覆盖，
+       * finally 里的 persist() 还会把种子写回存储，原数据就此永久丢失。
+       *
+       * loadState 内部已有超时（idbGet 1500ms）且会回落 localStorage，
+       * 所以外层不需要、也不应该再砍一刀。
+       */
+      const loaded = await loadState();
       if (loaded && loaded.version === 2) {
         Object.assign(state, loaded);
         state.profile = { ...state.profile, ...loaded.profile };
+        /*
+         * 老数据的 profile 可能缺字段。
+         *
+         * 最危险的是 restrictionsConfirmed 缺失——它会让
+         * mealPlanBlocker 把"未确认过敏设置"当成已确认，
+         * 直接绕过 AC-F03 的过敏原门槛。所以这里显式补默认值：
+         * 缺字段一律按"未确认"处理，宁可多问用户一次。
+         */
+        if (typeof state.profile.restrictionsConfirmed !== 'boolean') {
+          state.profile.restrictionsConfirmed = false;
+        }
+        if (!Array.isArray(state.profile.allergies)) state.profile.allergies = [];
+        if (!Array.isArray(state.profile.restrictions)) state.profile.restrictions = [];
         // 老数据可能缺新字段，补齐但不覆盖已有值
         if (!state.datasetId) state.datasetId = `ds_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
         state.lastBackupKey ??= null;
@@ -119,6 +178,18 @@ export const store = {
       // 种子数据必须立即落盘：否则每次刷新都会换 datasetId，
       // 导致自己导出的备份在下次导入时被判为"另一个数据集"。
       if (fromSeed) void persist();
+    /*
+     * 预建未来 4 周的计划发生项。
+     *
+     * 原来这个方法定义了但从未被调用，于是 occurrences 只由
+     * seed 和 switchTemplate 填充；用户越过种子覆盖范围后，
+     * computeWeek 因 goal === null 直接返回 unplanned，
+     * 周计划页对未来周永远显示"无计划"（新用户约 3 周后失效）。
+     *
+     * 放在 init 末尾：此时 activeTemplateId 已从存储恢复，
+     * 且 state 已就绪，不会在种子数据加载前空跑。
+     */
+    ensurePlanAheadImpl(state);
     }
   },
 
@@ -515,35 +586,7 @@ export const store = {
   },
 
   ensurePlanAhead(): void {
-    const template = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
-    if (!template) return;
-    const today = businessDate();
-    const from = mondayOf(today);
-    const missing = [0, 1, 2, 3]
-      .map((i) => addDays(from, i * 7))
-      .filter((w) => !state.occurrences.some((o) => o.weekStart === w));
-    if (!missing.length) return;
-    let occ = [...state.occurrences];
-    for (const weekStart of missing) {
-      for (const day of template.days) {
-        const date = addDays(weekStart, day.slot);
-        if (date < today) continue;
-        occ.push({
-          id: uid('occ'),
-          planVersionId: `${template.id}@v${template.version}`,
-          weekStart,
-          originalDate: date,
-          scheduledDate: date,
-          slotId: `${template.id}-${day.id}`,
-          title: day.title,
-          exerciseIds: day.exercises.map((e) => e.exerciseId),
-          disposition: 'scheduled',
-        });
-      }
-    }
-    state.occurrences = occ;
-    state.weekGoals = ensureWeekGoals([...state.weekGoals], occ);
-    schedulePersist();
+    ensurePlanAheadImpl(state);
   },
 
   // ---------- 模板编辑 ----------
@@ -833,6 +876,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

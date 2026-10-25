@@ -7,7 +7,6 @@
  */
 import { computed, ref } from 'vue';
 import {
-  INITIAL_SYNC_STATE,
   backoffMs,
   detectConflict,
   httpTransport,
@@ -22,6 +21,7 @@ import { store } from '../store/appStore';
 import { useToast } from '../composables/useToast';
 import { isConfigured, loadSyncSettings, saveSyncSettings } from '../store/deviceSettings';
 import { listConflicts, markResolved, saveConflict } from '../store/conflictStore';
+import { loadSyncState, saveSyncState } from '../store/syncStateStore';
 
 const { push } = useToast();
 
@@ -29,7 +29,14 @@ const { push } = useToast();
 const initial = loadSyncSettings();
 const endpoint = ref(initial.endpoint);
 const token = ref(initial.token);
-const sync = ref<SyncState>({ ...INITIAL_SYNC_STATE });
+/*
+ * 从存储恢复同步状态。
+ *
+ * 原来每次都重置为 INITIAL_SYNC_STATE，导致 remoteRevision=0、
+ * lastSyncedHash=null，detectConflict 永远偏向 fast_forward，
+ * 真实的本地改动会被远端静默覆盖。这是数据安全问题，不是体验问题。
+ */
+const sync = ref<SyncState>(loadSyncState());
 const busy = ref(false);
 const lastMessage = ref<string | null>(null);
 const conflict = ref<{ kind: string; message: string; remoteRevision: number } | null>(null);
@@ -171,6 +178,14 @@ async function syncNow(): Promise<void> {
     push('同步异常', 'error');
   } finally {
     busy.value = false;
+    /*
+     * 统一在这里保存，而不是散落在 10 多个赋值点。
+     *
+     * syncNow 有 4 处提前 return（fast_forward / diverged / already-latest），
+     * 逐点保存必漏；finally 覆盖全部路径，包括异常。
+     * 存的是"这台设备同步到哪了"，下次进页面才能正确判断冲突。
+     */
+    saveSyncState(sync.value);
   }
 }
 
@@ -358,6 +373,8 @@ function restoreRemote(id: string): void {
   background: rgba(17, 20, 17, 0.03);
 }
 </style>
+
+
 
 
 

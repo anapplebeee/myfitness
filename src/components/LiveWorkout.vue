@@ -19,7 +19,13 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'finished'): void }>();
 const { push } = useToast();
 
 onMounted(() => setImmersive(true));
-onBeforeUnmount(() => setImmersive(false));
+onBeforeUnmount(() => {
+  setImmersive(false);
+  if (elapsedTimer !== null) {
+    window.clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
+});
 const session = computed(() => store.findSession(props.sessionId));
 const rest = useRestTimer();
 
@@ -30,7 +36,15 @@ const finishing = ref(false);
 const creditChoice = ref<string>('');
 const creditConfirmed = ref(false);
 const elapsed = ref(0);
-window.setInterval(() => {
+/*
+ * 训练计时：每秒刷新已用时长。
+ *
+ * 必须在 onBeforeUnmount 里 clearInterval——原来没有清理，
+ * 每次进出训练界面就多一个每秒执行的定时器，且闭包持有 session。
+ * 在低端安卓上表现为训练越久越卡、电量异常。
+ */
+let elapsedTimer: number | null = null;
+elapsedTimer = window.setInterval(() => {
   const s = session.value;
   if (s) elapsed.value = (Date.now() - new Date(s.startedAt).getTime()) / 1000;
 }, 1000);
@@ -1058,6 +1072,7 @@ const progress = computed(() => {
   color: var(--text-2);
 }
 </style>
+
 
 
 
