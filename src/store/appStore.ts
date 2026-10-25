@@ -1,8 +1,9 @@
-import { computed, reactive, readonly, ref } from 'vue';
+import { computed, reactive, readonly, ref, toRaw } from 'vue';
 import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
 import { lastExerciseSets } from '../domain/metrics';
 import { validateGoal, type Goal } from '../domain/goals';
+import { stateFingerprint } from '../domain/ai-adopt';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
 import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
@@ -660,6 +661,26 @@ export const store = {
     schedulePersist();
   },
 
+  // ---------- AI 教练 ----------
+
+  /**
+   * 当前状态指纹，用于判断 AI 建议是否已过期。
+   *
+   * 由 domain/ai-adopt 定义"哪些字段算相关"，
+   * 商店只负责把当前状态交给它，不重复定义口径。
+   */
+  aiStateFingerprint(): string {
+    return stateFingerprint(toRaw(state) as AppState);
+  },
+
+  /** 采纳 AI 建议：只改周目标与训练目标，不直接写训练记录。 */
+  adoptAiWeeklyGoal(weeklyGoal: number): void {
+    if (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > 21) return;
+    state.weeklyGoal = weeklyGoal;
+    state.profile.weeklyTarget = weeklyGoal;
+    schedulePersist();
+  },
+
   // ---------- 导出 / 导入 / 备份 ----------
 
   /** 稳定数据集 ID：首次导出时生成并持久化，之后不变。 */
@@ -778,6 +799,8 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
+
 
 
 

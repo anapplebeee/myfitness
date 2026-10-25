@@ -43,6 +43,7 @@ npm run preview      # 预览 dist/（需先 build）
 | [Android 真机验证](docs/20-android-device-testing.md) | 一键冒烟脚本、设备准备、必须人工确认的项 |
 | [设计研究](docs/21-design-research.md) | 对照 Hevy/Strong/limelog 的差距清单与落地情况 |
 | [视觉审计](docs/22-visual-audit.md) | 多视口自动审计、致命/观察分级、局限 |
+| [AI 教练](docs/23-ai-coach.md) | BYOK 方案、密钥边界、草稿校验、采纳流程 |
 
 ## 实施计划
 
@@ -89,6 +90,7 @@ src/
 [01 openGym调研](docs/01-research-opengym.md)、[06旧缺口分析](docs/06-gap-analysis.md)、[08市场复核](docs/08-market-review.md)、[10产品架构评审](docs/10-product-architecture-review.md)保留为背景，不定义当前范围。原02/03/04/05/07/09已[归档](docs/archive/2026-10-23-pre-baseline/INDEX.md)。
 
 文档完成不等于业务实现完成；正式v1必须通过12号文档全部门禁。
+
 
 
 

@@ -4,6 +4,7 @@ import { store } from '../store/appStore';
 import { exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { suggestProgression } from '../domain/amend';
 import { formatLoad, formatVolume } from '../domain/units';
+import AiCoachPanel from '../components/AiCoachPanel.vue';
 import {
   bestSet,
   isValidCompleted,
@@ -112,6 +113,12 @@ function groupOf(id: string): string {
         <h1 class="h1">进步来自可比较的记录</h1>
       </div>
     </header>
+
+    <!--
+      AI 教练放最上面：这个标签叫"教练"，用户点进来首先应该看到教练。
+      下面的图表是"数据"，不是"教练"。
+    -->
+    <AiCoachPanel />
 
     <!-- 空状态：一次训练都没有时，不显示 0 kg 与空榜，直接给下一步 -->
     <section v-if="!sessions.length" class="card coach__blank">
@@ -358,6 +365,7 @@ function groupOf(id: string): string {
   min-width: 0;
 }
 </style>
+
 
 
 
