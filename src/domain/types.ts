@@ -80,7 +80,14 @@ export interface Session {
   goalCreditConfirmed?: boolean;
   /** 完成依据：逐组 / 本人补录 / 旧数据导入。 */
   completionBasis?: 'sets' | 'selfReported' | 'legacyReported';
-  /** 记账时区，用于跨时区不重归历史。 */
+  /**
+   * 记账时区。
+   *
+   * 目前**没有代码读取它**——业务日期由 units.ts 的 businessDate()
+   * 按设备本地时区计算。保留字段是为了兼容已有导出文件，
+   * 不要据此认为"跨时区问题已处理"：那需要真正实现时区感知的业务日期，
+   * 是独立工作量。快照层面的时区口径见 sync.ts 的 ACCOUNTING_TIMEZONE。
+   */
   accountingTimezone?: string;
   /** 补录时间，仅表示录入晚，不降低事实可信度。 */
   backfilledAt?: string;

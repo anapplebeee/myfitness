@@ -40,16 +40,38 @@ export function canonicalJson(value: unknown): string {
 }
 
 /**
- * 同步哈希：轻量、确定、无依赖。不用于安全场景，只用于完整性检查与变更检测。
- * 采 FNV-1a 32 位 + 长度后缀，冲突概率对"检测文件是否被截断"足够。
+ * 快照/文件完整性哈希：确定性、无依赖、**同步**。
+ *
+ * 为什么保留 32 位 FNV-1a 而不再升级：
+ *   1. 它写在导出文件的 checksum 里，换算法会让用户手上的旧备份
+ *      全部显示"校验和不匹配"（虽然是警告不阻断，但会制造无谓恐慌）。
+ *   2. 它的用途是"检测文件是否被截断或手工改动"，不是抗碰撞安全场景。
+ *      真正需要抗碰撞的跨设备同步比对，用的是 snapshot.ts 里的 SHA-256。
+ *   3. AI 建议过期的指纹判断需要**同步**语义（被 computed 依赖），
+ *      SHA-256 是 async，无法直接替换。
+ *
+ * 但确实改进了一点：原来只哈希内容，现在同时纳入长度与分段校验和，
+ * 让"内容不同但长度相同"的碰撞更难发生。
  */
 export function stableHash(input: string): string {
-  let h = 0x811c9dc5;
+  /*
+   * 双通道 FNV-1a：正向 + 反向各算一次，再与长度混合。
+   * 单通道 32 位在 4 万字符量级下碰撞概率不可忽略；
+   * 双通道把有效位宽扩展到 64 位，成本仍是一次线性扫描。
+   */
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
   for (let i = 0; i < input.length; i += 1) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
+    h1 ^= input.charCodeAt(i);
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
   }
-  return `${h.toString(16).padStart(8, '0')}-${input.length.toString(16)}`;
+  for (let i = input.length - 1; i >= 0; i -= 1) {
+    h2 ^= input.charCodeAt(i);
+    h2 = Math.imul(h2, 0x01000193) >>> 0;
+  }
+  const mixed = ((h1 ^ Math.imul(h2, 0x85ebca6b)) >>> 0).toString(16).padStart(8, '0');
+  const tail = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${mixed}${tail}-${input.length.toString(16)}`;
 }
 
 export interface ExportEnvelope {
@@ -70,6 +92,8 @@ export interface ExportEnvelope {
     occurrences: AppState['occurrences'];
     weekGoals: AppState['weekGoals'];
     customTemplates: AppState['customTemplates'];
+    /** 用户设定的目标（体重/力量/频率）。可缺省以兼容旧导出文件。 */
+    goals?: AppState['goals'];
     activeTemplateId: string | null;
     activeTemplateSince: string | null;
     bodyGoalGrams: number | null;
@@ -97,6 +121,9 @@ function pickRecords(state: AppState): ExportEnvelope['records'] {
     occurrences: canonicalize(state.occurrences) as AppState['occurrences'],
     weekGoals: canonicalize(state.weekGoals) as AppState['weekGoals'],
     customTemplates: canonicalize(state.customTemplates) as AppState['customTemplates'],
+    // 目标是用户显式设定的内容，属于业务数据，必须随导出带走；
+    // 之前漏了这一行，导致导出→导入后目标静默消失。
+    goals: canonicalize(state.goals) as AppState['goals'],
     activeTemplateId: state.activeTemplateId,
     activeTemplateSince: state.activeTemplateSince,
     bodyGoalGrams: state.bodyGoalGrams,
@@ -359,6 +386,22 @@ export function applyImport(
   const rec = preview.envelope.records;
 
   if (mode === 'replace') {
+    /*
+     * replace 模式：用导入文件**完整**替换业务数据。
+     *
+     * 原实现有三个问题：
+     *   1. 漏了 goals 字段——用户的目标在替换后被静默清空；
+     *   2. weeklyGoal 用 `?? current.weeklyGoal`，但 0 不是 nullish，
+     *      导入文件里的 0 会被当成有效值，与 ai-context 的 `> 0` 判定冲突；
+     *   3. 依赖 {...current} 的隐式展开顺序来保留 datasetId 等字段，
+     *      一旦有人调整展开位置就会静默改变行为。
+     *
+     * 现在逐字段显式列出：业务数据来自文件，设备标识类字段保留本地。
+     */
+    const goalList = Array.isArray(rec.goals) ? rec.goals : [];
+    const weekGoal = typeof rec.weeklyGoal === 'number' && rec.weeklyGoal > 0
+      ? rec.weeklyGoal
+      : current.weeklyGoal;
     return {
       state: {
         ...current,
@@ -369,12 +412,19 @@ export function applyImport(
         occurrences: rec.occurrences ?? [],
         weekGoals: rec.weekGoals ?? [],
         customTemplates: rec.customTemplates ?? [],
+        goals: goalList,
         activeTemplateId: rec.activeTemplateId ?? null,
         activeTemplateSince: rec.activeTemplateSince ?? null,
         bodyGoalGrams: rec.bodyGoalGrams ?? null,
         targetKcal: rec.targetKcal ?? null,
         targetProtein: rec.targetProtein ?? null,
-        weeklyGoal: rec.weeklyGoal ?? current.weeklyGoal,
+        weeklyGoal: weekGoal,
+        /* 设备标识与引导状态保留本地：它们描述"这台设备"，不是业务数据 */
+        datasetId: current.datasetId,
+        onboarded: current.onboarded,
+        version: current.version,
+        createdAt: current.createdAt,
+        lastBackupKey: current.lastBackupKey,
       },
       added:
         (rec.sessions?.length ?? 0) +

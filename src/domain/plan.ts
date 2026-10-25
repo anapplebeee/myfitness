@@ -252,7 +252,27 @@ export function runOccurrenceCommand(options: {
   const nextGoals = goals.map((g) => {
     if (g.weekStart !== target.weekStart) return g;
     const A = nextOcc.filter((o) => o.weekStart === g.weekStart && o.disposition === 'scheduled').length;
-    const clamped = Math.min(g.minimumTarget, A);
+
+    /*
+     * 重算存储的 minimumTarget。
+     *
+     * 要区分两种"K 小于 N"的原因，处理方式不同：
+     *
+     *  a) 用户主动调低（经 changeMinimumTarget，最近一次调整的 reason 不是"计划调整"）
+     *     —— 这是用户的明确意愿，恢复项目不应把它推回去。
+     *
+     *  b) 系统因 A 变小而压缩（豁免/取消触发，reason 以"计划调整"开头）
+     *     —— 这只是可执行项变少后的临时收缩，恢复后应当回升。
+     *
+     * 原实现一律用 Math.min，只能降不能升：用户豁免一次后目标永久卡在低值，
+     * 违反 09 号规范 L50"恢复 → A/K 重算"。
+     */
+    const lastAdj = g.adjustments[g.adjustments.length - 1];
+    const loweredBySystem = lastAdj ? /^计划调整/.test(lastAdj.reason) : false;
+    const ceiling = Math.min(g.originalPlannedCount, A);
+    const target2 = loweredBySystem ? Math.max(g.minimumTarget, ceiling) : g.minimumTarget;
+    const clamped = Math.min(target2, A);
+
     if (clamped === g.minimumTarget) return g;
     return {
       ...g,

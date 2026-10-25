@@ -11,6 +11,9 @@
 import { buildSnapshot, checkSnapshotSize, snapshotHash, type Snapshot } from './snapshot';
 import type { AppState } from './types';
 
+/** 记账时区：业务日期的唯一口径，固定值以避免跨时区假冲突。 */
+export const ACCOUNTING_TIMEZONE = 'Asia/Shanghai';
+
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'synced' | 'conflict' | 'blocked' | 'error';
 
 export interface SyncState {
@@ -371,10 +374,17 @@ export function makeConflictCopy(
   };
 }
 
-/** 构造快照的便捷入口，供 store 调用。 */
+/**
+ * 构造快照的便捷入口。
+ *
+ * 所有需要快照的地方都必须走这里，不要在别处再写一遍 buildSnapshot：
+ * 快照要跨设备逐字节比对，ruleVersion 或时区只要有一处不一致，
+ * 两台设备就会算出不同哈希，表现为"假冲突"。
+ *
+ * 时区固定用 ACCOUNTING_TIMEZONE，不跟随设备本地时区——
+ * 否则用户飞一趟国外，快照哈希就变了。
+ */
 export function snapshotFor(state: AppState, ruleVersion = 1): Snapshot {
-  return buildSnapshot(state, {
-    ruleVersion,
-    accountingTimezone: state.profile ? 'Asia/Shanghai' : 'Asia/Shanghai',
-  });
+  return buildSnapshot(state, { ruleVersion, accountingTimezone: ACCOUNTING_TIMEZONE });
 }
+
