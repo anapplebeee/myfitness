@@ -324,10 +324,18 @@ function startWorkout(): void {
 }
 
 .hero__title {
-  font-size: clamp(27px, 6vw, 38px);
-  line-height: 1.04;
-  letter-spacing: -0.045em;
+  /* 真机 369px 宽时 6vw≈22px 偏小，但 clamp 下限 27px 又会把
+     "把这一组，记下来" 顶成两行且断在词中间。用 8vw 让它在
+     窄屏略小、宽屏仍受 38px 上限约束。 */
+  font-size: clamp(24px, 7.6vw, 38px);
+  line-height: 1.08;
+  /* 中文不用负字距：负值会让行尾可断位置变怪，出现"记 / 下来" */
+  letter-spacing: -0.02em;
   font-weight: 700;
+  /* 优先在逗号处断行，别把词组拆开 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: balance;
 }
 
 .ring__inner {
@@ -567,6 +575,7 @@ function startWorkout(): void {
   min-width: 0;
 }
 </style>
+
 
 
 

@@ -360,12 +360,22 @@ function removeEntry(id: string): void {
 }
 
 .meal__del {
+  position: relative;
   width: 26px;
   height: 26px;
   border-radius: 9px;
   color: var(--text-3);
   font-size: 12px;
 }
+
+/* 视觉保持 26px，触控区扩到 44×44，避免真机上难点中 */
+.meal__del::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+
+
 
 .meal__del:hover {
   background: var(--clay-soft);
@@ -440,6 +450,10 @@ function removeEntry(id: string): void {
   line-height: 1.45;
 }
 </style>
+
+
+
+
 
 
 

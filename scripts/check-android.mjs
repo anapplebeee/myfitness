@@ -44,11 +44,35 @@ check('依赖含 @capacitor/android', Boolean(deps['@capacitor/android']), deps[
 check('依赖含 @capacitor/cli', Boolean(deps['@capacitor/cli']), deps['@capacitor/cli'] ?? '缺失');
 
 // 2. 配置
+/*
+ * 配置有两种可能：
+ * - capacitor.config.ts：推荐，可按构建类型切换（debug 才开 WebView 调试）
+ * - capacitor.config.json：静态，无法条件化
+ * 检查时优先读同步产物 android/app/src/main/assets/capacitor.config.json，
+ * 因为那才是真正进入 APK 的配置。
+ */
 let cfg = null;
+const syncedCfg = join(root, 'android', 'app', 'src', 'main', 'assets', 'capacitor.config.json');
+const tsCfg = join(root, 'capacitor.config.ts');
 try {
-  cfg = JSON.parse(await readFile(join(root, 'capacitor.config.json'), 'utf8'));
-} catch {
-  check('capacitor.config.json 可读', false);
+  if (await exists(syncedCfg)) {
+    cfg = JSON.parse(await readFile(syncedCfg, 'utf8'));
+    check('同步后的 capacitor.config.json 可读', true, '来自 android assets');
+  } else if (await exists(tsCfg)) {
+    // 未同步时只校验 ts 文件存在，字段从简单解析得到
+    const src = await readFile(tsCfg, 'utf8');
+    cfg = {
+      appId: /appId:\s*'([^']+)'/.exec(src)?.[1],
+      appName: /appName:\s*'([^']+)'/.exec(src)?.[1],
+      webDir: /webDir:\s*'([^']+)'/.exec(src)?.[1],
+      android: { backgroundColor: /backgroundColor:\s*'([^']+)'/.exec(src)?.[1] },
+    };
+    check('capacitor.config.ts 可读', true, '未同步，从 TS 解析');
+  } else {
+    check('Capacitor 配置存在', false, '既无 assets 配置也无 capacitor.config.ts');
+  }
+} catch (e) {
+  check('Capacitor 配置可读', false, String(e).slice(0, 80));
 }
 if (cfg) {
   check('appId 已设置', Boolean(cfg.appId), cfg.appId ?? '');
@@ -142,4 +166,5 @@ if (envWarn.length) {
   console.log(`环境缺失 ${envWarn.length} 项：无法在本机编译 APK，需安装 JDK 与 Android SDK`);
 }
 process.exit(0);
+
 

@@ -44,10 +44,22 @@ if (!existsSync(adb)) {
   process.exit(1);
 }
 
-/** 跑 adb，返回 stdout 文本。 */
+/**
+ * 跑 adb，返回 stdout 文本。
+ *
+ * maxBuffer 必须显式调大：logcat 动辄几 MB，
+ * 默认 1MB 会抛 ENOBUFS 把整个冒烟流程中断。
+ */
 function run(argv, opts = {}) {
-  const r = spawnSync(adb, argv, { encoding: 'utf8', timeout: opts.timeout ?? 60_000 });
-  if (r.error) throw r.error;
+  const r = spawnSync(adb, argv, {
+    encoding: 'utf8',
+    timeout: opts.timeout ?? 60_000,
+    maxBuffer: opts.maxBuffer ?? 32 * 1024 * 1024,
+  });
+  if (r.error) {
+    // ENOBUFS 等错误不应让整个流程崩掉，返回可读信息由调用方判断
+    return { out: '', err: String(r.error.message ?? r.error), code: -1 };
+  }
   return { out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim(), code: r.status ?? 0 };
 }
 
@@ -131,7 +143,7 @@ async function shot(name) {
 
 /** 按相对坐标点击（0–1），适配不同分辨率。 */
 function tap(rx, ry) {
-  run(['shell', 'input', 'tap', String(Math.round(screen.w * rx)), String.round(screen.h * ry)]);
+  run(['shell', 'input', 'tap', String(Math.round(screen.w * rx)), String(Math.round(screen.h * ry))]);
 }
 
 // ---------- 安装 ----------
@@ -177,18 +189,30 @@ await shot('01-launch');
 
 // ---------- 崩溃与错误日志 ----------
 
-const logcat = runOk(['logcat', '-d', '-v', 'brief']);
+// 只抓与崩溃/WebView 相关的 tag，全量 logcat 动辄数十 MB 且会拖慢流程
+const logcat = runOk(['logcat', '-d', '-v', 'brief', '-s', 'AndroidRuntime:E', 'chromium:E', 'Capacitor/Console:V', 'Capacitor:E', 'WebViewFactory:E']);
 const fatal = logcat
   .split('\n')
   .filter((l) => /FATAL EXCEPTION|AndroidRuntime.*FATAL|E\/AndroidRuntime/.test(l))
   .slice(0, 5);
 record('无 Java 崩溃', fatal.length === 0, fatal.join(' | ').slice(0, 200));
 
+/*
+ * 只关心**我们应用**产生的错误。
+ * chromium 的系统级噪音必须排除，否则永远误报：
+ *   variations_seed_loader  —— Chrome 变体种子，任何 WebView 应用都有
+ *   blocking_rule_matcher   —— 系统 AdBlock 规则解析
+ *   gpu_/vulkan_            —— 驱动探测
+ * 真正的应用错误通常带 "Uncaught"、我们自己的产物路径，或被 Capacitor/Console 标签记录。
+ */
+const SYSTEM_NOISE = /variations_seed_loader|blocking_rule_matcher|gpu_|vulkan_|GLES|eglCreate|cr_ChildProcessConnector|PartnerBookmarks/i;
 const webviewErrors = logcat
   .split('\n')
-  .filter((l) => /chromium.*(ERROR|Uncaught)|Console.*(Error|error)/i.test(l))
+  .filter((l) => /chromium|Console/i.test(l))
+  .filter((l) => /ERROR|Uncaught|error/i.test(l))
+  .filter((l) => !SYSTEM_NOISE.test(l))
   .slice(0, 5);
-record('无 WebView 控制台错误', webviewErrors.length === 0, webviewErrors.join(' | ').slice(0, 200));
+record('无应用级 WebView 错误', webviewErrors.length === 0, webviewErrors.join(' | ').slice(0, 200));
 
 const netErrors = logcat
   .split('\n')
@@ -263,3 +287,6 @@ if (failed.length) {
   process.exit(1);
 }
 console.log('\n冒烟通过。请人工查看截图确认视觉效果与安全区。');
+
+
+

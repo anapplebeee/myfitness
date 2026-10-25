@@ -30,7 +30,6 @@ const initial = loadSyncSettings();
 const endpoint = ref(initial.endpoint);
 const token = ref(initial.token);
 const sync = ref<SyncState>({ ...INITIAL_SYNC_STATE });
-refreshConflicts();
 const busy = ref(false);
 const lastMessage = ref<string | null>(null);
 const conflict = ref<{ kind: string; message: string; remoteRevision: number } | null>(null);
@@ -359,6 +358,7 @@ function restoreRemote(id: string): void {
   background: rgba(17, 20, 17, 0.03);
 }
 </style>
+
 
 
 

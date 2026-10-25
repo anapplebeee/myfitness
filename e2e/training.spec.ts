@@ -39,7 +39,7 @@ test.describe('训练主路径', () => {
     await reps.fill('5');
 
     // 完成后应出现"已保存"标记
-    await page.locator('.set .btn--lime, .set__row .btn--lime').first().click();
+    await page.locator('.set__check').first().click();
     await page.waitForTimeout(700);
     await expect(page.getByText('已保存').first()).toBeVisible();
   });
@@ -79,7 +79,7 @@ test.describe('训练主路径', () => {
 
     // 填入 45 秒并完成
     await page.locator('.set__input').first().fill('45');
-    await page.locator('.set .btn--lime').first().click();
+    await page.locator('.set__check').first().click();
     await page.waitForTimeout(700);
     await expect(page.getByText('0:45').first()).toBeVisible();
   });
@@ -117,5 +117,6 @@ test.describe('数据持久化', () => {
     expect(after?.datasetId).toBe(before?.datasetId);
   });
 });
+
 
 

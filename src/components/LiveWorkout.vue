@@ -176,6 +176,26 @@ function lastHint(exId: string): string {
   return `上次 ${formatLoad(top.loadGrams, unit.value)} × ${top.reps}`;
 }
 
+/**
+ * 逐组的「上次」参照。
+ *
+ * 为什么按索引取而不是只显示最佳组：
+ * 真实训练里同一动作各组重量不同（热身 60、工作 80、85），
+ * 只给一个"上次最佳"会让用户不知道该组该打多少。
+ * 标杆产品（Hevy / Strong）都在每一行给该组的历史值。
+ */
+function prevFor(exId: string, index: number): string {
+  const last = lastExerciseSets([...store.state.sessions], exId, props.sessionId);
+  const rec = last[index];
+  if (!rec) return '—';
+  if (rec.loadGrams !== null && rec.reps !== null) {
+    return `${formatLoad(rec.loadGrams, unit.value)} × ${rec.reps}`;
+  }
+  if (rec.reps !== null) return `自重 × ${rec.reps}`;
+  if (rec.durationSeconds !== null) return formatRest(rec.durationSeconds);
+  return '—';
+}
+
 function finish(): void {
   const s = session.value;
   if (!s) return;
@@ -360,12 +380,12 @@ const progress = computed(() => {
       <div class="sets">
         <div v-for="(set, idx) in activeExercise.sets" :key="set.id" class="set" :class="`set--${set.status}`">
           <span class="set__idx">{{ idx + 1 }}</span>
+          <span class="set__prev">{{ prevFor(activeExercise.exerciseId, idx) }}</span>
           <template v-if="set.status === 'completed'">
             <span class="set__done">
               <strong>{{ completedSummary(activeExercise.exerciseId, set) }}</strong>
+              <span v-if="set.rpe" class="set__rpe">RPE {{ set.rpe }}</span>
             </span>
-            <span v-if="set.rpe" class="chip chip--sm">RPE {{ set.rpe }}</span>
-            <span class="chip chip--lime chip--sm">已保存</span>
           </template>
           <template v-else-if="set.status === 'skipped'">
             <span class="set__skip">已跳过</span>
@@ -437,8 +457,20 @@ const progress = computed(() => {
                 <span class="set__unit">秒</span>
               </template>
             </div>
-            <button class="btn btn--lime btn--sm" @click="complete(activeExercise.exerciseId, set)">完成</button>
-            <button class="set__skipbtn" aria-label="跳过本组" @click="skip(set.id)">跳过</button>
+            <button
+              class="set__check"
+              :aria-label="`完成第 ${idx + 1} 组`"
+              @click="complete(activeExercise.exerciseId, set)"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+            </button>
+            <button class="set__skipbtn" aria-label="跳过本组" title="跳过" @click="skip(set.id)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           </template>
         </div>
 
@@ -631,14 +663,24 @@ const progress = computed(() => {
   gap: 8px;
 }
 
+/*
+ * 组行用 CSS Grid，不用 flex。
+ *
+ * 为什么：flex + min-width 在 360px 宽时会溢出，
+ * 导致勾选框压在"次数"输入框上面（实测截图确认，完全无法点击）。
+ * Grid 的列是"分配制"而非"竞争制"：列宽加起来等于容器宽，
+ * 不可能互相压盖，这是这里最需要的性质。
+ *
+ * 列：组号 / 上次 / 输入区 / 勾选 / 跳过
+ */
 .set {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px 44px minmax(0, 1fr) 40px 16px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 10px;
   border-radius: 16px;
   background: rgba(17, 20, 17, 0.028);
-  flex-wrap: wrap;
 }
 
 .set--completed {
@@ -687,17 +729,30 @@ const progress = computed(() => {
 }
 
 .set__inputs {
-  display: flex;
+  display: grid;
+  /* 两个输入框等分，中间的乘号固定宽度，绝不重叠 */
+  grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 150px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .set__input {
   height: 46px;
-  font-size: 19px;
+  font-size: 18px;
   border-radius: 12px;
+  min-width: 0;
+  width: 100%;
+  /*
+   * 等宽数字：9 变 10 时列宽不跳动。
+   * 训练中反复改重量，比例数字会让整行左右抖，非常干扰。
+   */
+  font-variant-numeric: tabular-nums;
+  /* 数字在格子里居中，扫读时两列数字能对齐成一条竖线 */
+  text-align: center;
+  /* 覆盖 .input 的默认内边距：居中后需要左右等宽留白，否则数字偏左 */
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .set__x {
@@ -705,10 +760,118 @@ const progress = computed(() => {
   font-size: 13px;
 }
 
+/*
+ * 跳过改成图标（✕）。
+ * 原来竖排"跳过"两字要占 16px 且视觉很吵，
+ * 图标同样可识别、宽度更小，且不干扰组表扫读。
+ * 触控区仍保持 40px 高（按钮本身撑开）。
+ */
 .set__skipbtn {
-  font-size: 11.5px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--text-3);
-  padding: 4px 6px;
+  opacity: 0.55;
+  cursor: pointer;
+  position: relative;
+}
+
+/*
+ * 视觉宽 16px，但触控区向外扩到 44×44，
+ * 否则在真机上很难点中，且容易误触到旁边输入框。
+ */
+.set__skipbtn::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: -14px;
+  right: -14px;
+}
+
+.set__skipbtn:active {
+  opacity: 1;
+}
+
+/*
+ * 「上次」列：每组的上一场实际值。
+ * 这是训练记录类产品的核心价值——知道这一组该打多少。
+ * 用等宽数字 + 弱化颜色，避免和本次输入抢注意力。
+ */
+.set__prev {
+  flex: 0 0 auto;
+  min-width: 52px;
+  font-size: 11.5px;
+  line-height: 1.15;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * 勾选框：替代原来的「完成」文字按钮。
+ * 原来那个按钮一行里最宽，真机 369px 宽时把「跳过」挤到下一行；
+ * 换成 40px 方形后整行结构稳定，且能一眼扫出完成进度。
+ */
+.set__check {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1.6px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.set__check:active {
+  background: rgba(17, 20, 17, 0.06);
+}
+
+/* 已完成的组整行染绿（对齐标杆产品的"扫一眼就知道进度"） */
+.set--completed .set__check {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--ink);
+}
+
+/*
+ * 已完成的行没有输入框，用 grid-column 让它跨过输入区+勾选+跳过的位置，
+ * 否则后续元素会挤到错误的列上。
+ */
+.set--completed .set__done,
+.set--skipped .set__skip {
+  grid-column: 3 / -1;
+}
+
+.set__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.set__done strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.set__rpe {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.set--completed .set__prev {
+  color: var(--text-3);
+  opacity: 0.7;
 }
 
 .addset {
@@ -865,6 +1028,17 @@ const progress = computed(() => {
   color: var(--text-2);
 }
 </style>
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -272,6 +272,19 @@
   padding: 0 14px;
   font-size: 13px;
   border-radius: 12px;
+  /*
+   * 视觉高度 36px 符合设计稿的紧凑感，但触控区需要 44px（HIG / WCAG 2.5.5）。
+   * 用透明伪元素向外扩 4px，视觉不变、触控达标——比直接放大按钮更合适，
+   * 因为这类小按钮大量出现在卡片头部，放大会破坏排版节奏。
+   */
+  position: relative;
+}
+
+.btn--sm::after {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+  border-radius: 14px;
 }
 
 .btn--lg {
@@ -708,3 +721,4 @@
   text-transform: none;
   letter-spacing: 0.08em;
 }
+

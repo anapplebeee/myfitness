@@ -68,6 +68,19 @@ jobs:
           # 覆盖 playwright.config.ts 里的 channel: 'msedge'
           E2E_CHANNEL: 'chromium'
 
+      - name: 多视口视觉审计
+        run: node scripts/visual-audit.mjs
+        env:
+          CI: '1'
+
+      - name: 上传审计截图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-audit
+          path: shots/audit/
+          retention-days: 7
+
       - name: 上传失败痕迹
         if: failure()
         uses: actions/upload-artifact@v4
@@ -112,3 +125,4 @@ jobs:
           name: app-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 7
+

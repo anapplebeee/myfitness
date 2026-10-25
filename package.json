@@ -22,7 +22,9 @@
     "android:check": "node scripts/check-android.mjs",
     "android:sync": "npm run build && npx cap sync android",
     "android:build": "node scripts/build-android.mjs",
-    "android:smoke": "node scripts/android-smoke.mjs"
+    "android:smoke": "node scripts/android-smoke.mjs",
+    "audit:visual": "node scripts/visual-audit.mjs",
+    "android:e2e": "node scripts/android-cdp.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
