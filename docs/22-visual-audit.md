@@ -110,3 +110,47 @@ node scripts/visual-audit.mjs
 ```bash
 npm run audit:visual
 ```
+
+## 9. 关于 AVD 模拟器（已移除）
+
+曾尝试用 AVD 替代真机，**结论是不可用**，组件已卸载。
+
+| 尝试 | 结果 |
+|---|---|
+| 安装 emulator + system-image | 成功 |
+| 创建 AVD 并调至 1200×2670 | 成功 |
+| 直接启动 | `x86_64 emulation requires hardware acceleration` |
+| 安装 aehd 内核驱动 | 需要管理员提权，本会话审批禁用 |
+| 启用 Hyper-V | 需要管理员且需重启 |
+| `-accel off` 软件模拟 | 启动后 10 分钟仅消耗 1 秒 CPU，卡在 `offline` |
+
+**根因是权限，不是配置**：
+
+```
+用户: DESKTOP-5ELPQ91\hqm
+是否管理员组: False
+BUILTIN\Administrators  Group used for deny only
+```
+
+该账户不在管理员组，无法安装内核级虚拟化驱动。
+
+### 卸载后保留了什么
+
+| 保留 | 用途 |
+|---|---|
+| JDK 21（Temurin） | 编译必需 |
+| platforms/android-35 | 编译必需 |
+| build-tools/35.0.0 | 编译与 aapt 校验必需 |
+| platform-tools（adb） | 真机安装与调试必需 |
+| cmdline-tools | sdkmanager / avdmanager |
+
+**APK 编译能力未受影响**：卸载后重新执行 `node scripts/build-android.mjs`，18/18 通过。
+
+### 释放空间
+
+约 **8.8 GB**（9300 MB → 536 MB）。
+
+### 所以真机验证怎么做
+
+1. **有 Android 手机**：`npm run android:smoke`（见 [20 真机验证](20-android-device-testing.md)）
+2. **没有手机**：用本文档的多视口视觉审计覆盖布局问题，但它替代不了触控手感与软键盘行为
