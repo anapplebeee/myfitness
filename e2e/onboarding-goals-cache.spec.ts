@@ -165,7 +165,7 @@ test.describe('清理缓存', () => {
   test('清理缓存不影响 AI Key', async ({ page }) => {
     await page.evaluate(() => {
       localStorage.setItem(
-        'tieguan.ai.settings',
+        'lianji.ai.settings',
         JSON.stringify({ provider: 'deepseek', endpoint: 'https://x', model: 'm', apiKey: 'sk-keep', egressConfirmed: true, confirmedEndpoint: 'https://x' }),
       );
     });
@@ -176,10 +176,11 @@ test.describe('清理缓存', () => {
     await page.waitForTimeout(1500);
 
     const key = await page.evaluate(() => {
-      const raw = localStorage.getItem('tieguan.ai.settings');
+      const raw = localStorage.getItem('lianji.ai.settings');
       return raw ? JSON.parse(raw).apiKey : null;
     });
     expect(key).toBe('sk-keep');
   });
 });
+
 

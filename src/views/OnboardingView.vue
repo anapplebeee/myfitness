@@ -64,13 +64,13 @@ function finish(): void {
 <template>
   <div class="onb">
     <div class="onb__card">
-      <div class="onb__mark">铁</div>
+      <div class="onb__mark">练</div>
 
       <template v-if="step === 0">
         <p class="label">第一次使用</p>
         <h1 class="onb__title">先把一件事<br />记下来</h1>
         <p class="onb__text">
-          铁馆只做三件事：快速记下一组、可靠留住每次训练、让你看见进步。
+          练迹只做三件事：快速记下一组、可靠留住每次训练、让你看见进步。
           数据存在本机，不需要账号。
         </p>
         <div class="onb__demo">
@@ -335,6 +335,8 @@ function finish(): void {
   margin-top: 6px;
 }
 </style>
+
+
 
 
 

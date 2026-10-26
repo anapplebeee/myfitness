@@ -1,3 +1,4 @@
+import { backupKey as makeBackupKey, syncBackupKey as makeSyncBackupKey } from './storageKeys';
 import { computed, reactive, readonly, ref, toRaw } from 'vue';
 import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
@@ -890,7 +891,7 @@ export const store = {
     let backupKey: string | null = null;
     if (result.backup) {
       // 替换模式：先把旧状态另存为备份，失败可回滚
-      backupKey = `tieguan.backup.${Date.now()}`;
+      backupKey = makeBackupKey(Date.now());
       try {
         localStorage.setItem(backupKey, JSON.stringify(result.backup));
         state.lastBackupKey = backupKey;
@@ -925,7 +926,7 @@ export const store = {
     records: Record<string, unknown>;
   }): string | null {
     const r = snapshot.records as Record<string, unknown>;
-    const backupKey = `tieguan.syncbackup.${Date.now()}`;
+    const backupKey = makeSyncBackupKey(Date.now());
     try {
       localStorage.setItem(backupKey, JSON.stringify(state));
       state.lastBackupKey = backupKey;
@@ -993,6 +994,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

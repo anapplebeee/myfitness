@@ -56,7 +56,7 @@ const errorText = ref('');
 let controller: AbortController | null = null;
 
 const SYSTEM_PROMPT = [
-  '你是力量训练助手。你只能基于给定数据回答，不要编造数字。',
+  '你是训练与身体数据助手。只基于给定数据回答，不要编造数字。',
   '数据分【实际数据】与【计划数据】两部分；计划不等于已完成。',
   '标注为"未知"或列在【数据缺失】里的项目，你必须明确说不知道，不能用估计值替代。',
   '当用户要求调整训练安排时，用如下 JSON 输出建议（不要输出别的内容）：',
@@ -603,6 +603,7 @@ onBeforeUnmount(() => controller?.abort());
   color: var(--text);
 }
 </style>
+
 
 
 

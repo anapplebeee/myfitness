@@ -159,7 +159,7 @@ try {
   process.exit(1);
 }
 
-const PKG = 'com.tieguan.fit';
+const PKG = 'app.lianji.fit';
 
 // 清空旧数据，保证是首次启动（会看到引导）
 run(['shell', 'pm', 'clear', PKG]);
@@ -180,7 +180,7 @@ const pidOut = runOk(['shell', 'pidof', PKG]);
 record('进程存活', Boolean(pidOut.trim()), pidOut.trim() ? `pid=${pidOut.trim()}` : '进程不存在');
 
 const topActivity = runOk(['shell', 'dumpsys', 'activity', 'activities']);
-const resumed = /ResumedActivity.*com\.tieguan\.fit/m.test(topActivity) || topActivity.includes('com.tieguan.fit');
+const resumed = /ResumedActivity.*app\.lianji\.fit/m.test(topActivity) || topActivity.includes('app.lianji.fit');
 record('Activity 处于前台', resumed);
 
 // ---------- 截图：首次启动应显示引导 ----------
@@ -287,6 +287,8 @@ if (failed.length) {
   process.exit(1);
 }
 console.log('\n冒烟通过。请人工查看截图确认视觉效果与安全区。');
+
+
 
 
 

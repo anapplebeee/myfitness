@@ -14,8 +14,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const isDebug = process.env.CAP_BUILD_TYPE === 'debug';
 
 const config: CapacitorConfig = {
-  appId: 'com.tieguan.fit',
-  appName: '铁馆',
+  appId: 'app.lianji.fit',
+  appName: '练迹',
   webDir: 'dist',
   android: {
     backgroundColor: '#F2F0EA',
@@ -28,3 +28,4 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+

@@ -137,7 +137,7 @@ describe('AC-S03 · 冲突解决标记', () => {
 
 describe('AC-S03 · 存储容错', () => {
   it('损坏数据返回空列表而非抛错', () => {
-    storage.setItem('tieguan.sync.conflicts', 'not json');
+    storage.setItem('lianji.sync.conflicts', 'not json');
     expect(listConflicts()).toEqual([]);
   });
 
@@ -159,4 +159,5 @@ describe('AC-S03 · 存储容错', () => {
     expect(listConflicts()).toEqual([]);
   });
 });
+
 

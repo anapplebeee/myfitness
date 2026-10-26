@@ -139,7 +139,7 @@ if (existsSync(aapt)) {
 
     const badging = execFileSync(aapt, ['dump', 'badging', apkPath], { encoding: 'utf8' });
     const pkg = /package: name='([^']+)'/.exec(badging)?.[1];
-    record('包名为 com.tieguan.fit', pkg === 'com.tieguan.fit', pkg ?? '');
+    record('包名为 app.lianji.fit', pkg === 'app.lianji.fit', pkg ?? '');
     const label = /application-label:'([^']+)'/.exec(badging)?.[1];
     record('应用名为 铁馆', label === '铁馆', label ?? '');
     const target = /targetSdkVersion:'(\d+)'/.exec(badging)?.[1];
@@ -154,7 +154,7 @@ if (existsSync(aapt)) {
     record('备份排除规则已配置', tree.includes('fullBackupContent') && tree.includes('dataExtractionRules'));
 
     /*
-     * 固定签名：测试包也必须用 android/tieguan-release.keystore 签。
+     * 固定签名：测试包也必须用 android/lianji-release.keystore 签。
      * 用默认 debug keystore 的话，换一台机器签名就变，覆盖安装会被系统拒绝
      * （INSTALL_FAILED_UPDATE_INCOMPATIBLE），只能卸载重装、数据全丢。
      */
@@ -168,7 +168,7 @@ if (existsSync(aapt)) {
           shell: process.platform === 'win32',
         });
         const dn = /certificate DN: (.+)/.exec(certs)?.[1]?.trim() ?? '';
-        record('使用固定签名（可覆盖升级）', dn.includes('CN=TieGuan'), dn || '未读取到证书');
+        record('使用固定签名（可覆盖升级）', dn.includes('CN=LianJi'), dn || '未读取到证书');
       } catch (e) {
         record('使用固定签名（可覆盖升级）', false, String(e).slice(0, 100));
       }
@@ -184,6 +184,7 @@ const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} 通过`);
 console.log(`APK: ${apkPath}`);
 if (failed.length) process.exit(1);
+
 
 
 

@@ -1,3 +1,5 @@
+import { KEYS } from './storageKeys';
+
 /**
  * 设备配置：只存本机、绝不上传、绝不进快照。
  *
@@ -13,7 +15,7 @@ export interface SyncSettings {
   token: string;
 }
 
-const KEY = 'tieguan.sync.settings';
+const KEY = KEYS.syncSettings;
 
 const EMPTY: SyncSettings = { endpoint: '', token: '' };
 
@@ -51,3 +53,4 @@ export function clearSyncSettings(): void {
 export function isConfigured(s: SyncSettings): boolean {
   return s.endpoint.trim().length > 0 && s.token.trim().length > 0;
 }
+

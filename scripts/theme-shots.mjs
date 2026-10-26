@@ -43,13 +43,13 @@ async function skipOnboarding() {
   const onb = page.locator('.onb');
   if ((await onb.count()) === 0) return;
   await page.evaluate(async () => {
-    const raw = localStorage.getItem('tieguan.v2.state');
+    const raw = localStorage.getItem('lianji.v2.state');
     if (!raw) return;
     const state = JSON.parse(raw);
     state.onboarded = true;
-    localStorage.setItem('tieguan.v2.state', JSON.stringify(state));
+    localStorage.setItem('lianji.v2.state', JSON.stringify(state));
     await new Promise((resolve, reject) => {
-      const req = indexedDB.open('tieguan', 1);
+      const req = indexedDB.open('lianji', 1);
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction('state', 'readwrite');
@@ -68,7 +68,7 @@ async function shot(theme) {
   // 先设偏好，再重载，确保首屏就是目标主题
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.evaluate((t) => {
-    localStorage.setItem('tieguan.theme', t);
+    localStorage.setItem('lianji.theme', t);
   }, theme);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
@@ -102,5 +102,6 @@ await shot('dark');
 
 await browser.close();
 console.log(`\n截图已保存: shots/theme/`);
+
 
 

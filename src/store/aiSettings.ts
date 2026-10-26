@@ -1,3 +1,5 @@
+import { KEYS } from './storageKeys';
+
 /**
  * AI 模型配置：用户自带 Key（BYOK）。
  *
@@ -29,7 +31,7 @@ export interface AiSettings {
   confirmedEndpoint: string;
 }
 
-const KEY = 'tieguan.ai.settings';
+const KEY = KEYS.aiSettings;
 
 /** 各家的默认配置，减少用户填错。 */
 export const PROVIDER_PRESETS: Record<AiProvider, { endpoint: string; model: string; label: string }> = {
@@ -137,3 +139,4 @@ export function endpointHost(endpoint: string): string {
     return endpoint;
   }
 }
+

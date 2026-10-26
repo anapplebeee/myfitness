@@ -289,7 +289,7 @@ const sessionCount = computed(() => store.state.sessions.length);
       <div class="card">
         <p class="label">外观</p>
         <p class="small" style="margin-top: 8px">
-          深色模式适合健身房低光环境，也更省电。
+          深色模式适合夜间或低光环境，也更省电。
         </p>
         <div class="seg" style="margin-top: 12px">
           <button
@@ -610,6 +610,7 @@ const sessionCount = computed(() => store.state.sessions.length);
   line-height: 1.5;
 }
 </style>
+
 
 
 

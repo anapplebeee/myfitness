@@ -9,9 +9,10 @@
  * 冲突副本是本机调试/恢复用的，不应再次同步出去。
  */
 
+import { KEYS } from './storageKeys';
 import type { Snapshot } from '../domain/snapshot';
 
-const KEY = 'tieguan.sync.conflicts';
+const KEY = KEYS.conflicts;
 const MAX_KEPT = 5;
 
 export interface StoredConflict {
@@ -87,3 +88,4 @@ export function clearConflicts(): void {
 export function conflictSnapshot(item: StoredConflict, side: 'local' | 'remote'): Snapshot {
   return side === 'local' ? item.localSnapshot : item.remoteSnapshot;
 }
+

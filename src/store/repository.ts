@@ -1,11 +1,12 @@
 /** 本地持久化：固定快照、双副本新旧判定、失败可观察。 */
 import type { AppState } from '../domain/types';
+import { KEYS, LEGACY_DB_NAME } from './storageKeys';
 
-const DB_NAME = 'tieguan';
+const DB_NAME = KEYS.db;
 const DB_VERSION = 1;
 const STORE = 'state';
 const KEY = 'app';
-const LS_KEY = 'tieguan.v2.state';
+const LS_KEY = KEYS.state;
 type StoredState = AppState & { __persistedAt?: number };
 let lastStamp = 0;
 let writeQueue: Promise<void> = Promise.resolve();
@@ -65,6 +66,61 @@ async function idbPut(snapshot: StoredState): Promise<void> {
   } finally { db.close(); }
 }
 
+/**
+ * 从旧品牌（铁馆）的 IndexedDB 库读取一次，成功后立刻搬到新库。
+ *
+ * 为什么必须做：改品牌时把库名从 tieguan 换成 lianji，
+ * 浏览器把它们当成两个完全不同的数据库——不迁移的话，
+ * 老用户打开应用会看到"空白"，以为记录全没了。
+ *
+ * 只在旧库确实存在时读取，避免 open() 顺手创建一个空库。
+ */
+async function idbGetLegacy(thenPersist: (s: StoredState) => Promise<void>): Promise<StoredState | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  try {
+    const dbs = await indexedDB.databases?.();
+    if (dbs && !dbs.some((d) => d.name === LEGACY_DB_NAME)) return null;
+  } catch {
+    // databases() 不支持时只能尝试打开，下面的 open 对不存在的库会建空库，
+    // 但读出来是 null，不会造成误判。
+  }
+  const legacy = await new Promise<StoredState | null>((resolve) => {
+    const req = indexedDB.open(LEGACY_DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      try {
+        const tx = db.transaction(STORE, 'readonly');
+        const get = tx.objectStore(STORE).get(KEY);
+        get.onsuccess = () => {
+          db.close();
+          resolve((get.result as StoredState | undefined) ?? null);
+        };
+        get.onerror = () => {
+          db.close();
+          resolve(null);
+        };
+      } catch {
+        db.close();
+        resolve(null);
+      }
+    };
+    req.onerror = () => resolve(null);
+    req.onblocked = () => resolve(null);
+  });
+  if (legacy) {
+    // 搬到新库；失败不影响本次读取，下次启动会再试
+    try {
+      await thenPersist(legacy);
+    } catch {
+      /* 忽略 */
+    }
+  }
+  return legacy;
+}
+
 export async function loadState(): Promise<AppState | null> {
   const results = await Promise.allSettled([
     idbGet(),
@@ -72,6 +128,8 @@ export async function loadState(): Promise<AppState | null> {
       const raw = localStorage.getItem(LS_KEY);
       return raw === null ? null : JSON.parse(raw) as StoredState;
     }),
+    // 旧品牌库作为候选之一，读到即自动搬到新库
+    idbGetLegacy((s) => idbPut(s)),
   ]);
   const candidates = results.flatMap((r) => r.status === 'fulfilled' && r.value !== null ? [r.value] : []);
   if (!candidates.length) {
@@ -123,3 +181,4 @@ export function clearState(): void {
     tx.oncomplete = tx.onabort = () => db.close();
   }).catch(() => undefined);
 }
+

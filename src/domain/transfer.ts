@@ -13,7 +13,15 @@ import type { AppState } from './types';
 import type { Goal } from './goals';
 import { EXERCISE_BY_ID } from '../content/exercises';
 
-export const EXPORT_FORMAT = 'tieguan-export';
+export const EXPORT_FORMAT = 'lianji-export';
+
+/**
+ * 旧品牌时期的格式标记。
+ *
+ * 仍然接受：用户手上的旧备份文件不能因为改个名字就导不进来。
+ * 新导出一律写 lianji-export。
+ */
+export const LEGACY_EXPORT_FORMAT = 'tieguan-export';
 export const EXPORT_SCHEMA_VERSION = 1;
 /** 导入大小上限：16 MiB，超过直接拒绝，避免解析大文件卡死。 */
 export const MAX_IMPORT_BYTES = 16 * 1024 * 1024;
@@ -119,9 +127,9 @@ export interface ExportEnvelope {
 }
 
 const CONTENT_REFS = [
-  { packageId: 'tieguan-exercises', version: 1 },
-  { packageId: 'tieguan-templates', version: 1 },
-  { packageId: 'tieguan-foods', version: 1 },
+  { packageId: 'lianji-exercises', version: 1 },
+  { packageId: 'lianji-templates', version: 1 },
+  { packageId: 'lianji-foods', version: 1 },
 ];
 
 /** 从导出内容里剔除设备私有数据（密钥、同步状态、草稿等），11:118-127。 */
@@ -249,8 +257,8 @@ export function previewImport(
   // 3. 信封
   if (!parsed || typeof parsed !== 'object') return fail('not_envelope', '文件内容不是对象');
   const env = parsed as Partial<ExportEnvelope>;
-  if (env.format !== EXPORT_FORMAT) {
-    return fail('not_envelope', '这不是铁馆导出的文件（缺少 format 标记）');
+  if (env.format !== EXPORT_FORMAT && env.format !== LEGACY_EXPORT_FORMAT) {
+    return fail('not_envelope', '这不是练迹导出的文件（缺少 format 标记）');
   }
   if (typeof env.schemaVersion !== 'number') {
     return fail('not_envelope', '缺少 schemaVersion');
@@ -605,7 +613,9 @@ export function exportFileName(datasetId: string, at = new Date()): string {
   const d = String(at.getDate()).padStart(2, '0');
   const hh = String(at.getHours()).padStart(2, '0');
   const mm = String(at.getMinutes()).padStart(2, '0');
-  return `tieguan-${datasetId}-${y}${m}${d}-${hh}${mm}.json`;
+  return `lianji-${datasetId}-${y}${m}${d}-${hh}${mm}.json`;
 }
+
+
 
 

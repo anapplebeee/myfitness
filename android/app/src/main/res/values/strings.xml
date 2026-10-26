@@ -1,7 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">铁馆</string>
+    <string name="app_name">练迹</string>
     <string name="title_activity_main">铁馆</string>
-    <string name="package_name">com.tieguan.fit</string>
-    <string name="custom_url_scheme">com.tieguan.fit</string>
+    <string name="package_name">app.lianji.fit</string>
+    <string name="custom_url_scheme">app.lianji.fit</string>
 </resources>
+
+

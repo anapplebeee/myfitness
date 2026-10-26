@@ -33,7 +33,7 @@ test.describe('导入导出', () => {
 
     expect(json).toBeTruthy();
     const env = JSON.parse(json as string);
-    expect(env.format).toBe('tieguan-export');
+    expect(env.format).toBe('lianji-export');
     expect(env.schemaVersion).toBe(1);
     expect(env.datasetId).toMatch(/^ds_/);
     expect(env.checksum).toMatch(/^[a-f0-9-]+$/);
@@ -70,7 +70,7 @@ test.describe('导入导出', () => {
     const beforeCount = (state?.sessions as unknown[]).length;
 
     const envelope = {
-      format: 'tieguan-export',
+      format: 'lianji-export',
       schemaVersion: 1,
       exportedAt: new Date().toISOString(),
       datasetId: state?.datasetId,
@@ -121,4 +121,5 @@ test.describe('导入导出', () => {
     expect((state?.sessions as unknown[]).length).toBeGreaterThan(0);
   });
 });
+
 

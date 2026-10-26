@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
 import { seedState } from './seed';
 
-const KEY = 'tieguan.v2.state';
+const KEY = 'lianji.v2.state';
 function storage() {
   const map = new Map<string, string>();
   return { map, getItem: (k: string) => map.get(k) ?? null,
@@ -103,3 +103,4 @@ describe('保存回归 · AC-D01/D02/D03', () => {
     expect((await loadState())?.profile.name).toBe('last');
   });
 });
+

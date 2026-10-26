@@ -347,7 +347,8 @@ describe('AC-I04 · 替换导入与备份', () => {
 describe('AC-I01 · 导出文件名', () => {
   it('含数据集与时间戳', () => {
     const name = exportFileName('ds_abc', new Date(2026, 9, 24, 20, 5));
-    expect(name).toBe('tieguan-ds_abc-20261024-2005.json');
+    expect(name).toBe('lianji-ds_abc-20261024-2005.json');
   });
 });
+
 

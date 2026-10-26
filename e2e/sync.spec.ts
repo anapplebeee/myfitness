@@ -31,7 +31,7 @@ async function freePort(): Promise<number> {
 }
 
 test.beforeAll(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), 'tieguan-e2e-sync-'));
+  dataDir = await mkdtemp(join(tmpdir(), 'lianji-e2e-sync-'));
   const port = await freePort();
   endpoint = `http://127.0.0.1:${port}`;
   srv = spawn(process.execPath, ['scripts/sync-server.mjs'], {
@@ -113,3 +113,4 @@ test.describe('同步', () => {
     expect(msg).not.toContain('已上传');
   });
 });
+

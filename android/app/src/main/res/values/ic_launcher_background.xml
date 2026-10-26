@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0E7A63</color>
+    <!--
+      自适应图标的背景层。
+      原来是 Capacitor 默认的青绿 #0E7A63，与品牌黑完全冲突，
+      图标出现在桌面上会像另一个应用。
+    -->
+    <color name="ic_launcher_background">#111411</color>
 </resources>

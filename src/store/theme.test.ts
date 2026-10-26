@@ -47,7 +47,7 @@ describe('偏好存取', () => {
   });
 
   it('存储里是垃圾值时回到 system，不崩溃', () => {
-    storage.setItem('tieguan.theme', 'rainbow');
+    storage.setItem('lianji.theme', 'rainbow');
     expect(loadThemePref()).toBe('system');
   });
 
@@ -70,7 +70,7 @@ describe('偏好存取', () => {
   it('存独立键，不碰 AppState', () => {
     saveThemePref('dark');
     const keys = [...storage._map.keys()];
-    expect(keys).toContain('tieguan.theme');
+    expect(keys).toContain('lianji.theme');
     expect(keys.some((k) => k.includes('v2.state'))).toBe(false);
   });
 });
@@ -135,3 +135,4 @@ describe('applyTheme 写 DOM', () => {
     expect(root._attrs.has('data-theme')).toBe(false);
   });
 });
+

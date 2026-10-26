@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const UPSTREAM_URL = 'https://github.com/yuhonas/free-exercise-db';
-const PACKAGE_ID = 'tieguan-exercises-ext';
+const PACKAGE_ID = 'lianji-exercises-ext';
 const PACKAGE_VERSION = 1;
 
 /** 人工确认的映射：上游 id → [中文名, 肌群, 模式]。 */
@@ -210,6 +210,7 @@ console.log('模式分布: ' + JSON.stringify(pack.modeDistribution));
 console.log('重名: ' + dupes.length + (dupes.length ? ' → ' + dupes.map((d) => d[0]).join(', ') : ''));
 if (missing.length) console.log('上游缺失: ' + missing.join(', '));
 console.log('checksum: ' + pack.checksum.slice(0, 16) + '…');
+
 
 
 

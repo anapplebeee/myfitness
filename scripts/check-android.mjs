@@ -109,7 +109,7 @@ if (await exists(gradleProps)) {
 const settingsGradle = join(root, 'android', 'capacitor.settings.gradle');
 check('capacitor.settings.gradle 存在', await exists(settingsGradle));
 
-const mainActivity = join(root, 'android', 'app', 'src', 'main', 'java', 'com', 'tieguan', 'fit', 'MainActivity.java');
+const mainActivity = join(root, 'android', 'app', 'src', 'main', 'java', 'app', 'lianji', 'fit', 'MainActivity.java');
 check('MainActivity 存在', await exists(mainActivity));
 if (await exists(mainActivity)) {
   const src = await readFile(mainActivity, 'utf8');
@@ -166,5 +166,6 @@ if (envWarn.length) {
   console.log(`环境缺失 ${envWarn.length} 项：无法在本机编译 APK，需安装 JDK 与 Android SDK`);
 }
 process.exit(0);
+
 
 

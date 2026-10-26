@@ -1,3 +1,5 @@
+import { KEYS } from './storageKeys';
+
 /**
  * 主题偏好：浅色 / 深色 / 跟随系统。
  *
@@ -16,7 +18,7 @@
 export type ThemePref = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 
-const KEY = 'tieguan.theme';
+const KEY = KEYS.theme;
 
 /** 与 tokens.css 里的 --paper 保持一致，用于状态栏取色。 */
 const THEME_COLOR: Record<ResolvedTheme, string> = {
@@ -96,3 +98,4 @@ export function initTheme(pref: ThemePref = loadThemePref()): () => void {
   mq.addEventListener('change', onChange);
   return () => mq.removeEventListener('change', onChange);
 }
+

@@ -52,7 +52,7 @@ describe('同步状态持久化', () => {
   it('存独立键，不污染 AppState 的键', () => {
     saveSyncState({ ...INITIAL_SYNC_STATE, remoteRevision: 3 });
     const keys = [...storage._map.keys()];
-    expect(keys).toContain('tieguan.sync.state');
+    expect(keys).toContain('lianji.sync.state');
     expect(keys.some((k) => k.includes('v2.state'))).toBe(false);
   });
 
@@ -63,7 +63,7 @@ describe('同步状态持久化', () => {
   });
 
   it('存储损坏时回到初始值且不抛错', () => {
-    storage.setItem('tieguan.sync.state', '{broken');
+    storage.setItem('lianji.sync.state', '{broken');
     expect(() => loadSyncState()).not.toThrow();
     expect(loadSyncState().remoteRevision).toBe(0);
   });
@@ -108,3 +108,4 @@ describe('是否同步过', () => {
     expect(hasSyncedBefore({ ...INITIAL_SYNC_STATE, ackedGeneration: 3 })).toBe(true);
   });
 });
+

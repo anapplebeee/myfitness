@@ -320,7 +320,7 @@ for (const vp of RUNS) {
 
     // 浅色是默认，只在深色轮次里写入偏好并重载
     if (vp.theme === 'dark') {
-      await ev(`(() => { localStorage.setItem('tieguan.theme', 'dark'); return 1; })()`);
+      await ev(`(() => { localStorage.setItem('lianji.theme', 'dark'); return 1; })()`);
       await cdp.send('Page.reload', { ignoreCache: true });
       await sleep(2500);
     }
@@ -398,6 +398,7 @@ cdp.ws.close();
 browser.kill();
 server.close();
 process.exit(fatalIssues.length > 0 ? 1 : 0);
+
 
 
 

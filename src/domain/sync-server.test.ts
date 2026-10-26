@@ -57,7 +57,7 @@ async function call(method: string, path: string, { body, headers = {} }: CallOp
 }
 
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), 'tieguan-sync-'));
+  dataDir = await mkdtemp(join(tmpdir(), 'lianji-sync-'));
   srv = createSyncServer({ dataDir, token: 'secret-token', maxSnapshotBytes: 1024 * 1024 });
   await srv.load();
   const addr = await srv.listen(0, '127.0.0.1');
@@ -429,6 +429,7 @@ describe('持久化', () => {
     void port;
   });
 });
+
 
 
 

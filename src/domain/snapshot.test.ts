@@ -120,9 +120,9 @@ describe('契约 · SHA-256 正确性', () => {
   });
 
   it('中文按 UTF-8 字节计算', async () => {
-    const h = await sha256Hex('铁馆');
+    const h = await sha256Hex('练迹');
     expect(h).toHaveLength(64);
-    expect(h).not.toBe(await sha256Hex('铁馆 '));
+    expect(h).not.toBe(await sha256Hex('练迹 '));
   });
 });
 
@@ -268,6 +268,7 @@ describe('canonical 与哈希稳定性', () => {
     expect(await snapshotHash(round)).toBe(await snapshotHash(snap));
   });
 });
+
 
 
 

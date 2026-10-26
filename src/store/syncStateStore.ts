@@ -16,9 +16,10 @@
  * SyncState 含"这台设备同步到哪了"，不属于业务数据，绝不进 AppState/快照。
  */
 
+import { KEYS } from './storageKeys';
 import { INITIAL_SYNC_STATE, type SyncState } from '../domain/sync';
 
-const KEY = 'tieguan.sync.state';
+const KEY = KEYS.syncState;
 
 /** 只持久化"跨会话有意义"的字段；瞬时状态（busy/error）不进存储。 */
 const PERSISTED = [
@@ -88,3 +89,4 @@ export function clearSyncState(): void {
 export function hasSyncedBefore(s: SyncState): boolean {
   return s.lastSyncedHash !== null || s.remoteRevision > 0 || s.ackedGeneration > 0;
 }
+

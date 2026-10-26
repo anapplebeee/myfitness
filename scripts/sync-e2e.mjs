@@ -24,7 +24,7 @@ function canonicalize(v) {
 }
 
 async function main() {
-  const dataDir = await mkdtemp(join(tmpdir(), 'tieguan-e2e-'));
+  const dataDir = await mkdtemp(join(tmpdir(), 'lianji-e2e-'));
   const srv = createSyncServer({ dataDir, token: 'tk', maxSnapshotBytes: 512 * 1024 });
   await srv.load();
   const addr = await srv.listen(0, '127.0.0.1');
@@ -135,3 +135,4 @@ main().catch((e) => {
   console.error('E2E FAILED:', e);
   process.exit(1);
 });
+

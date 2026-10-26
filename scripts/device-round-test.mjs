@@ -151,9 +151,9 @@ const CLEANUP_JS = [
 ].join(String.fromCharCode(10));
 await ev(CLEANUP_JS);
 cdp.ws.close();
-run(['shell', 'am', 'force-stop', 'com.tieguan.fit']);
+run(['shell', 'am', 'force-stop', 'app.lianji.fit']);
 await sleep(1500);
-run(['shell', 'am', 'start', '-n', 'com.tieguan.fit/.MainActivity']);
+run(['shell', 'am', 'start', '-n', 'app.lianji.fit/.MainActivity']);
 await sleep(5000);
 cdp = await connect();
 await cdp.send('Page.enable');
@@ -192,7 +192,7 @@ await shot('03-after-onboarding');
 
 // 验证目标落库
 const goalsOk = await ev(`(() => {
-  const raw = localStorage.getItem('tieguan.v2.state');
+  const raw = localStorage.getItem('lianji.v2.state');
   if (!raw) return { ok: false };
   const s = JSON.parse(raw);
   return { ok: true, goals: (s.goals || []).map(g => g.kind) };
@@ -277,13 +277,13 @@ await sleep(2000);
 // ---------- 6. 刷新后持久化 ----------
 console.log('\n=== 6. 持久化 ===');
 const before = await ev(`(() => {
-  const s = JSON.parse(localStorage.getItem('tieguan.v2.state'));
+  const s = JSON.parse(localStorage.getItem('lianji.v2.state'));
   return { sessions: s.sessions.length, datasetId: s.datasetId, goals: (s.goals||[]).length };
 })()`);
 await cdp.send('Page.reload');
 await sleep(3500);
 const after = await ev(`(() => {
-  const raw = localStorage.getItem('tieguan.v2.state');
+  const raw = localStorage.getItem('lianji.v2.state');
   if (!raw) return null;
   const s = JSON.parse(raw);
   return { sessions: s.sessions.length, datasetId: s.datasetId, goals: (s.goals||[]).length, tabbar: !!document.querySelector('.tabbar') };
@@ -297,7 +297,7 @@ await shot('12-after-reload');
 console.log('\n=== 7. 饮食 ===');
 await click('.tabbar__item', '饮食');
 await sleep(900);
-const foodBefore = await ev(`JSON.parse(localStorage.getItem('tieguan.v2.state')).foods.length`);
+const foodBefore = await ev(`JSON.parse(localStorage.getItem('lianji.v2.state')).foods.length`);
 (await click('button', '添加')) ? ok('打开添加面板') : fail('打开添加面板');
 await sleep(900);
 
@@ -316,7 +316,7 @@ if (foodPicked) {
     return true;
   })()`);
   await sleep(1200);
-  const foodAfter = await ev(`JSON.parse(localStorage.getItem('tieguan.v2.state')).foods.length`);
+  const foodAfter = await ev(`JSON.parse(localStorage.getItem('lianji.v2.state')).foods.length`);
   foodAfter > foodBefore ? ok('饮食记录已写入', `${foodBefore} → ${foodAfter}`) : fail('饮食记录已写入', `${foodBefore} → ${foodAfter}`);
 } else {
   fail('打开添加面板', '面板内无食物项');
@@ -332,7 +332,7 @@ await sleep(800);
 (await has('.cache')) ? ok('设置页有清理缓存卡片') : fail('设置页有清理缓存卡片');
 await shot('14-cache-card');
 
-const dataBefore = await ev(`JSON.parse(localStorage.getItem('tieguan.v2.state')).sessions.length`);
+const dataBefore = await ev(`JSON.parse(localStorage.getItem('lianji.v2.state')).sessions.length`);
 await ev(`(async () => { const c = await caches.open('round-test'); await c.put('/x', new Response('y')); return 1; })()`);
 await ev(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.includes('清理缓存')); if(b)b.click(); return 1; })()`);
 await sleep(3500);
@@ -340,7 +340,7 @@ cdp.ws.close();
 cdp = await connect();
 await cdp.send('Page.enable');
 await cdp.send('Runtime.enable');
-const dataAfter = await ev(`JSON.parse(localStorage.getItem('tieguan.v2.state')).sessions.length`);
+const dataAfter = await ev(`JSON.parse(localStorage.getItem('lianji.v2.state')).sessions.length`);
 const cacheLeft = await ev(`(async () => (await caches.keys()).length)()`);
 dataAfter === dataBefore ? ok('清缓存后数据未丢', `${dataAfter} 场`) : fail('清缓存后数据未丢', `${dataBefore} → ${dataAfter}`);
 cacheLeft === 0 ? ok('缓存已清空') : fail('缓存已清空', `剩 ${cacheLeft}`);
@@ -354,7 +354,7 @@ await click('.tabbar__item', '训练');
 await sleep(900);
 run(['shell', 'input', 'keyevent', 'KEYCODE_BACK']);
 await sleep(1500);
-const stillAlive = run(['shell', 'pidof', 'com.tieguan.fit']).trim();
+const stillAlive = run(['shell', 'pidof', 'app.lianji.fit']).trim();
 stillAlive ? ok('按返回键应用未被直接杀死', `pid=${stillAlive}`) : fail('按返回键应用被杀死');
 
 // ---------- 10. 控制台错误 ----------
@@ -382,4 +382,5 @@ console.log(`\n截图与结果: shots/round-tests/`);
 
 cdp.ws.close();
 process.exit(failed.length ? 1 : 0);
+
 

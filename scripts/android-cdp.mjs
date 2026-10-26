@@ -269,7 +269,7 @@ await shot('08-live');
 // ---------- 7. 持久化 ----------
 
 const before = await ev(`(() => {
-  const raw = localStorage.getItem('tieguan.v2.state');
+  const raw = localStorage.getItem('lianji.v2.state');
   if (!raw) return null;
   const s = JSON.parse(raw);
   return { sessions: s.sessions.length, datasetId: s.datasetId };
@@ -279,7 +279,7 @@ record('数据已落盘', Boolean(before), JSON.stringify(before));
 await cdp.send('Page.reload');
 await sleep(3000);
 const after = await ev(`(() => {
-  const raw = localStorage.getItem('tieguan.v2.state');
+  const raw = localStorage.getItem('lianji.v2.state');
   if (!raw) return null;
   const s = JSON.parse(raw);
   return { sessions: s.sessions.length, datasetId: s.datasetId, tabbar: !!document.querySelector('.tabbar') };
@@ -312,4 +312,5 @@ if (failed.length) {
 }
 cdp.ws.close();
 process.exit(failed.length ? 1 : 0);
+
 

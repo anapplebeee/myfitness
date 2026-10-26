@@ -52,10 +52,10 @@ gradle.taskGraph.whenReady { graph ->
 }
 
 android {
-    namespace "com.tieguan.fit"
+    namespace "app.lianji.fit"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.tieguan.fit"
+        applicationId "app.lianji.fit"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3
@@ -135,4 +135,5 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
 

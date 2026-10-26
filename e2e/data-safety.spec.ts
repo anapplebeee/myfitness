@@ -3,7 +3,7 @@ import { goSeg, goTab, openDataPage, readState, resetApp } from './helpers';
 
 async function idbState(page: Page): Promise<Record<string, unknown> | null> {
   return page.evaluate(() => new Promise((resolve, reject) => {
-    const req = indexedDB.open('tieguan', 1);
+    const req = indexedDB.open('lianji', 1);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => {
       const db = req.result;
@@ -18,7 +18,7 @@ test('保存真实写入IndexedDB，移除LS副本后仍能恢复', async ({ pag
   await resetApp(page);
   const before = await readState(page);
   expect((await idbState(page))?.datasetId).toBe(before?.datasetId);
-  await page.evaluate(() => localStorage.removeItem('tieguan.v2.state'));
+  await page.evaluate(() => localStorage.removeItem('lianji.v2.state'));
   await page.reload();
   await expect(page.locator('.tabbar')).toBeVisible();
   expect((await idbState(page))?.datasetId).toBe(before?.datasetId);
@@ -35,7 +35,7 @@ test('双存储写失败时录组不报成功，输入保留并可重试', async
     const set = Storage.prototype.setItem;
     const tx = IDBDatabase.prototype.transaction;
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'tieguan.v2.state') throw new DOMException('full', 'QuotaExceededError');
+      if (key === 'lianji.v2.state') throw new DOMException('full', 'QuotaExceededError');
       return set.call(this, key, value);
     };
     IDBDatabase.prototype.transaction = function (...args: Parameters<typeof tx>) {
@@ -61,12 +61,12 @@ test('双存储写失败时录组不报成功，输入保留并可重试', async
 test('未来版本启动阻塞，原始记录不被种子覆盖', async ({ page }) => {
   await resetApp(page);
   const raw = await page.evaluate(async () => {
-    const state = JSON.parse(localStorage.getItem('tieguan.v2.state')!) as Record<string, unknown>;
+    const state = JSON.parse(localStorage.getItem('lianji.v2.state')!) as Record<string, unknown>;
     state.version = 999;
     const value = JSON.stringify(state);
-    localStorage.setItem('tieguan.v2.state', value);
+    localStorage.setItem('lianji.v2.state', value);
     await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open('tieguan', 1);
+      const req = indexedDB.open('lianji', 1);
       req.onsuccess = () => {
         const db = req.result, tx = db.transaction('state', 'readwrite');
         tx.objectStore('state').put(state, 'app');
@@ -79,7 +79,7 @@ test('未来版本启动阻塞，原始记录不被种子覆盖', async ({ page 
   await page.reload();
   await expect(page.locator('.boot-error')).toContainText('不支持的版本');
   await expect(page.locator('.tabbar')).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('tieguan.v2.state'))).toBe(raw);
+  expect(await page.evaluate(() => localStorage.getItem('lianji.v2.state'))).toBe(raw);
   expect((await idbState(page))?.version).toBe(999);
 });
 
@@ -117,7 +117,7 @@ test('首次连接已有远端必须选择，确认之前不覆盖本地', async
 
 test('已同步远端被删除后不复活，只有独立确认才可重建', async ({ page }) => {
   await resetApp(page);
-  await page.evaluate(() => localStorage.setItem('tieguan.sync.state', JSON.stringify({
+  await page.evaluate(() => localStorage.setItem('lianji.sync.state', JSON.stringify({
     generation: 3, ackedGeneration: 3, remoteRevision: 7, lastSyncedHash: 'known-baseline', serviceEndpoint: 'http://sync.test',
   })));
   let puts = 0;
@@ -199,9 +199,11 @@ test('上传期间新增本地变更，旧响应不能确认新generation', asyn
   await expect.poll(async () => (await readState(page))?.weeklyGoal).toBe(6);
   release();
   await expect.poll(async () => page.evaluate(() => {
-    const checkpoint = JSON.parse(localStorage.getItem('tieguan.sync.state') ?? '{}') as { remoteRevision?: number };
+    const checkpoint = JSON.parse(localStorage.getItem('lianji.sync.state') ?? '{}') as { remoteRevision?: number };
     return checkpoint.remoteRevision;
   })).toBe(1);
-  const checkpoint = await page.evaluate(() => JSON.parse(localStorage.getItem('tieguan.sync.state')!) as { generation: number; ackedGeneration: number });
+  const checkpoint = await page.evaluate(() => JSON.parse(localStorage.getItem('lianji.sync.state')!) as { generation: number; ackedGeneration: number });
   expect(checkpoint.generation).toBeGreaterThan(checkpoint.ackedGeneration);
 });
+
+

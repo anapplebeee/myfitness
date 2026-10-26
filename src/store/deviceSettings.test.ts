@@ -42,7 +42,7 @@ describe('设备配置：不污染业务状态', () => {
   it('使用独立键，不与业务状态混用', () => {
     saveSyncSettings({ endpoint: 'http://a:1', token: 'tk' });
     const keys = [...storage._map.keys()];
-    expect(keys).toContain('tieguan.sync.settings');
+    expect(keys).toContain('lianji.sync.settings');
     expect(keys.some((k) => k.includes('v2.state'))).toBe(false);
   });
 
@@ -55,17 +55,17 @@ describe('设备配置：不污染业务状态', () => {
 
 describe('设备配置：损坏数据容错', () => {
   it('非法 JSON 返回默认值而非抛错', () => {
-    storage.setItem('tieguan.sync.settings', 'not json');
+    storage.setItem('lianji.sync.settings', 'not json');
     expect(loadSyncSettings()).toEqual({ endpoint: '', token: '' });
   });
 
   it('字段类型错误时逐字段兜底', () => {
-    storage.setItem('tieguan.sync.settings', JSON.stringify({ endpoint: 123, token: null }));
+    storage.setItem('lianji.sync.settings', JSON.stringify({ endpoint: 123, token: null }));
     expect(loadSyncSettings()).toEqual({ endpoint: '', token: '' });
   });
 
   it('缺字段时补默认', () => {
-    storage.setItem('tieguan.sync.settings', JSON.stringify({ endpoint: 'http://a' }));
+    storage.setItem('lianji.sync.settings', JSON.stringify({ endpoint: 'http://a' }));
     expect(loadSyncSettings()).toEqual({ endpoint: 'http://a', token: '' });
   });
 
@@ -93,3 +93,4 @@ describe('配置可用性判定', () => {
     expect(isConfigured({ endpoint: '   ', token: 't' })).toBe(false);
   });
 });
+

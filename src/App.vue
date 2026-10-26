@@ -127,9 +127,9 @@ useEdgeSwipeBack(() => {
       <header class="topbar">
         <!-- 标题可点：回到今日页；已经在今日页时滚到顶部 -->
         <button class="brand" type="button" aria-label="回到今日" @click="tapBrand">
-          <span class="brand__mark">铁</span>
+          <span class="brand__mark">练</span>
           <span class="brand__text">
-            <span class="brand__name">铁馆</span>
+            <span class="brand__name">练迹</span>
             <span class="brand__sub">{{ dateLabel }}</span>
           </span>
         </button>
@@ -177,7 +177,7 @@ useEdgeSwipeBack(() => {
       </main>
 
       <div v-else-if="!booted" class="boot">
-        <div class="boot__mark">铁</div>
+        <div class="boot__mark">练</div>
         <p class="small">正在读取本地数据…</p>
       </div>
     </div>
@@ -214,6 +214,9 @@ useEdgeSwipeBack(() => {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
+
+
 
 
 

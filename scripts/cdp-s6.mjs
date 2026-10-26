@@ -80,7 +80,7 @@ async function main() {
   // 生成导出 JSON（不真正下载，直接读内容）
   const exported = await evaluate(`(() => {
     // 通过剪贴板路径不可靠，这里直接重新构造：读 localStorage 校验信封结构
-    const raw = localStorage.getItem('tieguan.v2.state');
+    const raw = localStorage.getItem('lianji.v2.state');
     return raw ? 'HAS_STATE' : 'NO_STATE';
   })()`);
   console.log('STATE:', exported);
@@ -99,12 +99,12 @@ async function main() {
 
   // 构造一个合法文件并导入（通过 DataTransfer 注入文件）
   const importResult = await evaluate(`(async () => {
-    const raw = localStorage.getItem('tieguan.v2.state');
+    const raw = localStorage.getItem('lianji.v2.state');
     if (!raw) return 'NO_STATE';
     const state = JSON.parse(raw);
     // 造一个最小合法信封（schemaVersion 1）
     const env = {
-      format: 'tieguan-export',
+      format: 'lianji-export',
       schemaVersion: 1,
       exportedAt: new Date().toISOString(),
       datasetId: state.datasetId || 'ds_test',
@@ -170,3 +170,4 @@ main().catch((e) => {
   console.error('FAILED:', e.message);
   process.exit(1);
 });
+

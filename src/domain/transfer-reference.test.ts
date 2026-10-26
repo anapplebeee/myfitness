@@ -50,7 +50,7 @@ function baseState(): AppState {
 function envelopeWithExercise(exerciseId: string): string {
   const state: AppState = baseState();
   return JSON.stringify({
-    format: 'tieguan-export',
+    format: 'lianji-export',
     schemaVersion: 1,
     exportedAt: '2026-10-25T00:00:00.000Z',
     datasetId: state.datasetId,
@@ -143,4 +143,5 @@ describe('导入引用校验（#5）', () => {
     expect(r.issues.filter((i) => i.code === 'bad_reference')).toHaveLength(0);
   });
 });
+
 

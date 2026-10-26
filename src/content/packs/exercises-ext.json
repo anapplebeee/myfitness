@@ -1,7 +1,7 @@
 {
-  "packageId": "tieguan-exercises-ext",
+  "packageId": "lianji-exercises-ext",
   "version": 1,
-  "title": "铁馆扩展动作包",
+  "title": "练迹扩展动作包",
   "description": "基于 free-exercise-db（公有领域）精选的动作子集，仅收录已确认中文名的动作，并按本项目模式标注。",
   "license": {
     "id": "Unlicense",
@@ -1067,3 +1067,4 @@
   ],
   "checksum": "4aac1601ed9de4167ae862cc611558bb7ca917ed81a63bd491a8ccd8d25f5df5"
 }
+

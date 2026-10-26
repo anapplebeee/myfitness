@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { seedState } from './seed';
 import { cloneTemplate } from '../domain/template';
-const KEY = 'tieguan.v2.state';
+const KEY = 'lianji.v2.state';
 let data: Map<string, string>;
 let failWrites: boolean;
 beforeEach(() => {
@@ -73,3 +73,4 @@ describe('数据安全与模板执行回归', () => {
     expect(JSON.stringify(store.state.sessions.slice(0, -1))).toBe(historical); await store.flush();
   });
 });
+

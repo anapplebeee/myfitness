@@ -37,14 +37,14 @@ export async function skipOnboarding(page: Page): Promise<void> {
   const onb = page.locator('.onb');
   if (await onb.count()) {
     await page.evaluate(async () => {
-      const raw = localStorage.getItem('tieguan.v2.state');
+      const raw = localStorage.getItem('lianji.v2.state');
       if (!raw) return;
       const state = JSON.parse(raw) as Record<string, unknown>;
       state.onboarded = true;
-      localStorage.setItem('tieguan.v2.state', JSON.stringify(state));
+      localStorage.setItem('lianji.v2.state', JSON.stringify(state));
       // IDB已真实启用，测试前置状态必须更新两个副本，不能只改回退存储。
       await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open('tieguan', 1);
+        const req = indexedDB.open('lianji', 1);
         req.onsuccess = () => {
           const db = req.result;
           const tx = db.transaction('state', 'readwrite');
@@ -103,7 +103,7 @@ export async function goSeg(page: Page, label: string): Promise<void> {
 /** 读取 localStorage 中的应用状态快照。 */
 export async function readState(page: Page): Promise<Record<string, unknown> | null> {
   return page.evaluate(() => {
-    const raw = localStorage.getItem('tieguan.v2.state');
+    const raw = localStorage.getItem('lianji.v2.state');
     return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
   });
 }
@@ -125,6 +125,7 @@ export async function openDataPage(page: Page): Promise<void> {
 export async function expectDataPage(page: Page): Promise<void> {
   await page.waitForSelector('.data__count', { timeout: 10_000 });
 }
+
 
 
 

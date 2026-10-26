@@ -49,7 +49,7 @@ async function main() {
 
   // 读 localStorage 里的真实数据，直接算容量
   const calc = await evaluate(`(() => {
-    const raw = localStorage.getItem('tieguan.v2.state');
+    const raw = localStorage.getItem('lianji.v2.state');
     if (!raw) return 'NO_STATE';
     const st = JSON.parse(raw);
     const s = st.sessions.find((x) => x.exercises && x.exercises.length);
@@ -78,3 +78,4 @@ async function main() {
   process.exit(0);
 }
 main().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });
+

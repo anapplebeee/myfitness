@@ -4,6 +4,16 @@ import './styles/base.css';
 import './styles/components.css';
 import './styles/views.css';
 import { initTheme } from './store/theme';
+import { migrateLegacyStorage } from './store/storageKeys';
+
+/*
+ * 品牌从「铁馆」改为「练迹」，存储键前缀随之从 tieguan.* 换成 lianji.*。
+ *
+ * 迁移必须在读任何 store 之前跑：store 模块在导入时就会读 localStorage，
+ * 晚一步就会读到空值、把人当成新用户、直接进引导页——老数据看起来"丢了"。
+ * 所以这一行要在所有 store 导入之前执行。
+ */
+migrateLegacyStorage();
 
 /*
  * 主题必须在挂载前应用。

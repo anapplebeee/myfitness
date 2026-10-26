@@ -67,7 +67,7 @@ if (!apk) {
   process.exit(1);
 }
 
-const pkg = 'com.tieguan.fit';
+const pkg = 'app.lianji.fit';
 console.log(`设备 ${serial}，安装 ${apk}`);
 
 if (wantBackup) {
@@ -119,3 +119,4 @@ if (restoreTar) {
 console.log('→ 启动');
 a('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 console.log('完成。');
+

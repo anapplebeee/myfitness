@@ -139,7 +139,7 @@ test.describe('AI 教练', () => {
   test('Key 存在独立 localStorage 键，不进 AppState', async ({ page }) => {
     await configure(page);
     const keys = await page.evaluate(() => Object.keys(localStorage));
-    expect(keys).toContain('tieguan.ai.settings');
+    expect(keys).toContain('lianji.ai.settings');
     const state = await readState(page);
     expect(JSON.stringify(state)).not.toContain(TOKEN);
   });
@@ -239,6 +239,7 @@ test.describe('AI 教练', () => {
     }
   });
 });
+
 
 
 

@@ -50,7 +50,7 @@ describe('补充 · sha256Hex 回落实现与 node:crypto 一致', () => {
     'x'.repeat(128),
     'x'.repeat(1000),
     'x'.repeat(4096),
-    '铁馆力量训练',
+    '练迹力量训练',
     'é'.repeat(300),
     '{"a":1,"b":[1,2,3],"c":{"d":null}}',
   ];
@@ -104,3 +104,4 @@ describe('补充 · snapshotHash 走回落仍稳定', () => {
     expect(a).toHaveLength(64);
   });
 });
+

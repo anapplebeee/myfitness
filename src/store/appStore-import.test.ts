@@ -52,7 +52,7 @@ afterEach(() => {
 /** 造一份最小但合法的导出信封。 */
 function envelope(datasetId: string, sessionId: string, opts: { omitGoals?: boolean } = {}): string {
   return JSON.stringify({
-    format: 'tieguan-export',
+    format: 'lianji-export',
     schemaVersion: 1,
     exportedAt: '2026-10-25T00:00:00.000Z',
     datasetId,
@@ -223,5 +223,6 @@ describe('applyImportPreview · 目标不丢失（CRITICAL）', () => {
     expect(store.state.goals.length).toBeGreaterThanOrEqual(before);
   });
 });
+
 
 

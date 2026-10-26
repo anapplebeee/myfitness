@@ -54,13 +54,13 @@ describe('AC-AI01 · 密钥存储边界', () => {
   it('密钥存在独立键，不在 AppState 使用的键里', () => {
     saveAiSettings(valid());
     const keys = [...storage._map.keys()];
-    expect(keys).toContain('tieguan.ai.settings');
-    // AppState 的键是 tieguan.v2.state，密钥绝不能出现在那里
+    expect(keys).toContain('lianji.ai.settings');
+    // AppState 的键是 lianji.v2.state，密钥绝不能出现在那里
     expect(keys.some((k) => k.includes('v2.state'))).toBe(false);
   });
 
   it('存储损坏时回到空配置且不抛错', () => {
-    storage.setItem('tieguan.ai.settings', '{bad json');
+    storage.setItem('lianji.ai.settings', '{bad json');
     expect(() => loadAiSettings()).not.toThrow();
     expect(loadAiSettings().apiKey).toBe('');
   });
@@ -146,7 +146,7 @@ describe('AC-AI01 · 预设', () => {
   });
 
   it('未知 provider 回落到 deepseek 预设', () => {
-    storage.setItem('tieguan.ai.settings', JSON.stringify({ provider: 'unknown', apiKey: 'k' }));
+    storage.setItem('lianji.ai.settings', JSON.stringify({ provider: 'unknown', apiKey: 'k' }));
     expect(loadAiSettings().provider).toBe('deepseek');
   });
 });
@@ -158,3 +158,4 @@ describe('AC-AI01 · 清除', () => {
     expect(loadAiSettings().apiKey).toBe('');
   });
 });
+

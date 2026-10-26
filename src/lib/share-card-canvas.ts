@@ -75,12 +75,12 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData): v
   ctx.font = font(52, 700);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('铁', left + 48, y - 24);
+  ctx.fillText('练', left + 48, y - 24);
 
   ctx.textAlign = 'left';
   ctx.fillStyle = COLORS.text;
   ctx.font = font(40, 700);
-  ctx.fillText('铁馆', left + 120, y - 26);
+  ctx.fillText('练迹', left + 120, y - 26);
 
   // 日期
   y += 110;
@@ -227,7 +227,7 @@ export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled' | 'unsupported'
  *
  * 返回结果而不是抛错：用户主动取消分享是正常行为，不该报"分享失败"。
  */
-export async function shareCard(data: ShareCardData, fileName = 'tieguan-workout.png'): Promise<ShareOutcome> {
+export async function shareCard(data: ShareCardData, fileName = 'lianji-workout.png'): Promise<ShareOutcome> {
   const blob = await renderShareCardBlob(data);
   const file = new File([blob], fileName, { type: 'image/png' });
 
@@ -257,4 +257,7 @@ export async function shareCard(data: ShareCardData, fileName = 'tieguan-workout
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   return 'downloaded';
 }
+
+
+
 

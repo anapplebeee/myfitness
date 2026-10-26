@@ -1,10 +1,10 @@
-package com.tieguan.fit;
+package app.lianji.fit;
 
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 /**
- * 铁馆主 Activity。
+ * 练迹主 Activity。
  *
  * 只做一件事：让 Android 返回键符合 Web 应用的习惯。
  *
@@ -29,3 +29,4 @@ public class MainActivity extends BridgeActivity {
         super.onBackPressed();
     }
 }
+
