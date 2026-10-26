@@ -207,7 +207,7 @@
 
 .card--lime {
   background: var(--lime);
-  color: var(--text);
+  color: var(--on-lime);
   border-color: transparent;
 }
 
@@ -264,7 +264,7 @@
 
 .btn--lime {
   background: var(--lime);
-  color: var(--text);
+  color: var(--on-lime);
   box-shadow: var(--shadow-lime);
 }
 
@@ -427,7 +427,7 @@
 
 .tabbar__item.is-active {
   background: var(--lime);
-  color: var(--text);
+  color: var(--on-lime);
 }
 
 .tabbar__label {

@@ -921,7 +921,7 @@ const progress = computed(() => {
 .set--completed .set__check {
   background: var(--lime);
   border-color: var(--lime);
-  color: var(--text);
+  color: var(--on-lime);
 }
 
 /*

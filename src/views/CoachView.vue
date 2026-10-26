@@ -6,6 +6,7 @@ import { exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { suggestProgression } from '../domain/amend';
 import { formatLoad, formatVolume } from '../domain/units';
 import AiCoachPanel from '../components/AiCoachPanel.vue';
+import WeeklyReportCard from '../components/WeeklyReportCard.vue';
 import {
   bestSet,
   isValidCompleted,
@@ -120,6 +121,17 @@ function groupOf(id: string): string {
       下面的图表是"数据"，不是"教练"。
     -->
     <AiCoachPanel />
+
+      <!--
+        周报放在 AI 之后、总容量之前：
+        总容量是"至今累计"，回答不了"我最近有没有进步"；
+        周报给的正是这个问题。
+      -->
+      <!--
+        完全没有记录时不显示周报：空状态页已经在解释"先练一次"，
+        再叠一张全是 0 的卡片等于重复劝退。
+      -->
+      <WeeklyReportCard v-if="sessions.length" />
 
     <!-- 空状态：一次训练都没有时，不显示 0 kg 与空榜，直接给下一步 -->
     <section v-if="!sessions.length" class="card coach__blank">
@@ -264,7 +276,7 @@ function groupOf(id: string): string {
 
 .coach__unit .seg__item.is-on {
   background: var(--lime);
-  color: var(--text);
+  color: var(--on-lime);
 }
 
 .prs {
