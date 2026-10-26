@@ -92,3 +92,26 @@
   line-height: 1.25;
   letter-spacing: -0.025em;
 }
+
+/* ---------- 崩溃兜底页 ---------- */
+
+/*
+ * 渲染出错时的兜底界面。
+ * 目的不是好看，是让用户看懂"数据没丢"，并且手上有两个可点的出口。
+ */
+.crash__inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 80dvh;
+  gap: 12px;
+}
+
+.crash__msg {
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+
+.crash__detail {
+  margin: 8px 0 16px;
+}

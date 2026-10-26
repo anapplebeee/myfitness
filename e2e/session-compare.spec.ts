@@ -44,7 +44,7 @@ test.describe('训练后对比', () => {
     // 用空白训练保证没有可比的同 dayId 记录
     await goTab(page, '训练');
     await goSeg(page, '计划');
-    await page.locator('.train .btn--block.btn--lg', { hasText: '空白训练' }).click();
+    await page.locator('.train .btn--block', { hasText: '空白训练' }).click();
     await page.waitForTimeout(1000);
 
     await page.locator('.chip', { hasText: '加动作' }).first().click();
@@ -75,4 +75,5 @@ test.describe('训练后对比', () => {
     expect(body).not.toContain('+0%');
   });
 });
+
 

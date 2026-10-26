@@ -243,9 +243,11 @@ onBeforeUnmount(() => controller?.abort());
         <p class="label">AI 教练</p>
         <p class="tiny ai__sub">用你自己的 Key，直接连模型服务。数据不经过我们。</p>
       </div>
-      <button class="btn btn--ghost btn--sm" @click="openConfig">
-        {{ configured ? '设置' : '配置' }}
-      </button>
+      <!--
+        未配置时不在这里显示按钮：下方已有一个「配置模型」主按钮，
+        同一个动作放两个入口（其中一个还是主色）会让用户犹豫该点哪个。
+      -->
+      <button v-if="configured" class="btn btn--ghost btn--sm" @click="openConfig">设置</button>
     </div>
 
     <!-- 未配置：说清楚为什么可选，以及不配置也能用 -->

@@ -48,8 +48,9 @@ test.describe('训练主路径', () => {
     await goTab(page, '训练');
     await goSeg(page, '计划');
 
-    // 训练页的"空白训练"是粗体大按钮；今日页也有同名按钮，必须限定作用域
-    const blank = page.locator('.train .btn--block.btn--lg', { hasText: '空白训练' });
+    // 今日页也有同名按钮，必须限定作用域到 .train
+    // 按钮已降级为描边（不再是 btn--lg），这里只按作用域 + 文字定位
+  const blank = page.locator('.train .btn--block', { hasText: '空白训练' });
     await expect(blank).toBeVisible();
     await blank.click();
     await page.waitForTimeout(1000);
@@ -87,7 +88,7 @@ test.describe('训练主路径', () => {
   test('动作选择面板可搜到排在后面的动作', async ({ page }) => {
     await goTab(page, '训练');
     await goSeg(page, '计划');
-    await page.locator('.train .btn--block.btn--lg', { hasText: '空白训练' }).click();
+    await page.locator('.train .btn--block', { hasText: '空白训练' }).click();
     await page.waitForTimeout(1000);
     await page.locator('.chip', { hasText: '加动作' }).first().click();
     await page.waitForTimeout(600);
@@ -117,6 +118,7 @@ test.describe('数据持久化', () => {
     expect(after?.datasetId).toBe(before?.datasetId);
   });
 });
+
 
 
 

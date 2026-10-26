@@ -171,9 +171,11 @@ function dayChip(dayId: string): { text: string; cls: string } | null {
   const info = store.planStateForDay(dayId);
   if (info.status === 'done') return { text: '已完成', cls: 'chip--lime' };
   if (info.status === 'moved') return { text: `顺延至 ${shortDate(info.movedTo ?? '')}`, cls: '' };
-  if (info.status === 'open') return { text: '今天', cls: 'chip--sky' };
+  // 今天 = 可执行、要去点它，用主色；已豁免 = 本周不做了，用中性灰。
+    // 两者原来都用 chip--sky，颜色一样语义相反，用户分不出哪个该动。
+    if (info.status === 'open') return { text: '今天', cls: 'chip--on' };
   if (info.status === 'later') return { text: shortDate(info.movedTo ?? ''), cls: '' };
-  if (info.status === 'excused') return { text: '已豁免', cls: 'chip--sky' };
+  if (info.status === 'excused') return { text: '已豁免', cls: '' };
   if (info.status === 'cancelled') return { text: '已取消', cls: '' };
   return null;
 }
@@ -331,7 +333,12 @@ function sessionDuration(startedAt: string): string {
 
       <!-- plan mode -->
       <template v-if="mode === 'plan'">
-        <button class="btn btn--primary btn--block btn--lg start" @click="startBlank">
+        <!--
+        空白训练是低频操作（有计划的人点下面那天的行就开始练），
+        原来是全宽黑底大按钮，视觉权重压过了真正的主动作。
+        降级为描边按钮：仍然好找，但不再抢戏。
+      -->
+      <button class="btn btn--ghost btn--block start" @click="startBlank">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -342,7 +349,6 @@ function sessionDuration(startedAt: string): string {
           <div class="section__head">
             <h2 class="h2">{{ currentTemplate.title }}</h2>
             <div class="row gap-6">
-              <span class="chip chip--sm">v{{ currentTemplate.version }}</span>
               <button class="btn btn--ghost btn--sm" @click="openTemplateEditor(currentTemplate.id)">编辑</button>
             </div>
           </div>
@@ -355,10 +361,14 @@ function sessionDuration(startedAt: string): string {
               class="card day"
               @click="startFromTemplate(day.id)"
             >
-              <span class="day__badge">{{ day.exercises.length }}</span>
+              <span class="day__badge" :aria-label="`${day.exercises.length} 个动作`">{{ day.exercises.length }}</span>
               <span class="day__body">
                 <span class="h3">{{ day.title }}</span>
-                <span class="tiny">{{ day.exercises.map((e) => exerciseName(e.exerciseId)).slice(0, 3).join(' · ') }}</span>
+                <span class="tiny">
+                  {{ day.exercises.map((e) => exerciseName(e.exerciseId)).slice(0, 3).join(' · ') }}
+                  <!-- 只列前三个；超过时说明总数，否则用户以为这个动作只有 3 个 -->
+                  <template v-if="day.exercises.length > 3"> · 等 {{ day.exercises.length }} 个动作</template>
+                </span>
               </span>
               <span v-if="dayChip(day.id)" class="chip chip--sm" :class="dayChip(day.id)!.cls">
                 {{ dayChip(day.id)!.text }}
@@ -872,6 +882,10 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
+
+
+
 
 
 

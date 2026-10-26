@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onErrorCaptured, onMounted, ref } from 'vue';
 import TodayView from './views/TodayView.vue';
 import TrainView from './views/TrainView.vue';
 import CoachView from './views/CoachView.vue';
@@ -146,13 +146,55 @@ setBackFallback(() => {
 });
 
 // 边缘滑动返回：系统手势之外的补充（iOS 独立 PWA、桌面浏览器）
+
+/*
+ * 全局错误边界。
+ *
+ * 没有它时，任何一个视图在渲染中抛错都会让整个应用白屏——
+ * 用户既看不到错误，也无法导出数据（导出入口在「我的」里），
+ * 等于把本地数据锁死在白屏后面。
+ *
+ * 这里捕获后显示一个可操作的兜底页：至少能导出备份、能回到今日重试。
+ */
+const crashMessage = ref<string | null>(null);
+onErrorCaptured((err) => {
+  crashMessage.value = err instanceof Error ? err.message : String(err);
+  // 返回 false 阻止继续向上冒泡，避免重复记录
+  return false;
+});
+
+function recoverFromCrash(): void {
+  crashMessage.value = null;
+  go('today');
+}
 useEdgeSwipeBack(() => {
   requestBack();
 });
 </script>
 
 <template>
-  <div class="shell" :class="{ 'shell--immersive': immersive }">
+  <!--
+    崩溃兜底：渲染出错时不白屏，至少能导出数据或回今日重试。
+    用 v-if/v-else 而不是覆盖层，避免坏掉的树继续参与渲染。
+  -->
+  <div v-if="crashMessage" class="shell crash">
+    <div class="shell__inner crash__inner">
+      <p class="label">出了点问题</p>
+      <h1 class="h1">这一页没能显示出来</h1>
+      <p class="small crash__msg">
+        你的训练记录还在本机，没有丢。可以先导出备份，再回到今日继续。
+      </p>
+      <div class="card crash__detail">
+        <p class="label">错误信息</p>
+        <p class="tiny">{{ crashMessage }}</p>
+      </div>
+      <button class="btn btn--lime btn--block btn--lg" @click="recoverFromCrash">回到今日</button>
+      <button class="btn btn--ghost btn--block" style="margin-top: 10px" @click="go('data')">
+        打开数据与备份
+      </button>
+    </div>
+  </div>
+  <div v-else class="shell" :class="{ 'shell--immersive': immersive }">
     <div class="shell__inner">
       <header class="topbar">
         <!-- 标题可点：回到今日页；已经在今日页时滚到顶部 -->
@@ -244,6 +286,7 @@ useEdgeSwipeBack(() => {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 
