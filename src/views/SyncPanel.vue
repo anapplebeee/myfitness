@@ -372,8 +372,8 @@ async function restoreRemote(id: string): Promise<void> {
   margin-top: 12px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: #fdf6e3;
-  color: #8a6d1f;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
 }
 .syn__saved {
   margin-top: 14px;
@@ -389,9 +389,12 @@ async function restoreRemote(id: string): Promise<void> {
   margin-top: 8px;
   padding: 8px 10px;
   border-radius: 12px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 </style>
+
+
+
 
 
 

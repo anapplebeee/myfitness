@@ -620,7 +620,7 @@ function sessionDuration(startedAt: string): string {
   border-radius: 11px;
   display: grid;
   place-items: center;
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--lime);
   font-size: 14px;
   font-weight: 700;
@@ -688,7 +688,7 @@ function sessionDuration(startedAt: string): string {
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--lime);
   display: grid;
   place-items: center;
@@ -720,14 +720,14 @@ function sessionDuration(startedAt: string): string {
 }
 
 .tpl.is-on {
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--text-inverse);
   border-color: transparent;
 }
 
 .tpl.is-on .label,
 .tpl.is-on .tiny {
-  color: rgba(244, 246, 238, 0.55);
+  color: rgba(var(--inv-rgb), 0.55);
 }
 
 .history__summary {
@@ -809,7 +809,7 @@ function sessionDuration(startedAt: string): string {
   width: 26px;
   height: 26px;
   border-radius: 9px;
-  background: rgba(17, 20, 17, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -832,14 +832,14 @@ function sessionDuration(startedAt: string): string {
   cursor: pointer;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .credit__box {
   width: 20px;
   height: 20px;
   margin-top: 1px;
-  accent-color: var(--ink);
+  accent-color: var(--text);
   flex: none;
 }
 
@@ -858,6 +858,10 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
+
+
+
 
 
 

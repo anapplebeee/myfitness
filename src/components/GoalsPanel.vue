@@ -319,7 +319,7 @@ const groups = computed(() => [
   border-radius: 7px;
   display: grid;
   place-items: center;
-  background: rgba(17, 20, 17, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
   font-size: 13px;
   font-weight: 700;
   color: var(--text-2);
@@ -335,14 +335,14 @@ const groups = computed(() => [
 .goalslot__cta {
   font-size: 12px;
   font-weight: 640;
-  color: var(--ink);
+  color: var(--text);
 }
 
 .goal {
   margin-top: 14px;
   padding: 13px 15px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .goal__head {
@@ -358,7 +358,7 @@ const groups = computed(() => [
 }
 
 .goal__status.is-done {
-  color: #4a7a1f;
+  color: var(--lime-ink);
 }
 
 .goal__status.is-late {
@@ -373,7 +373,7 @@ const groups = computed(() => [
 .goal__bar {
   height: 8px;
   border-radius: 999px;
-  background: rgba(17, 20, 17, 0.08);
+  background: rgba(var(--ink-rgb), 0.08);
   margin-top: 12px;
   overflow: hidden;
 }
@@ -381,7 +381,7 @@ const groups = computed(() => [
 .goal__fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--surface-ink);
   transition: width 0.3s ease;
 }
 
@@ -420,8 +420,12 @@ const groups = computed(() => [
 }
 
 .goals__exitem.is-on {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--surface-ink);
+  border-color: var(--text);
   color: var(--paper);
 }
 </style>
+
+
+
+

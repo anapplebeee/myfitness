@@ -282,8 +282,19 @@ const AUDIT_FN = `
 const FATAL = new Set(['元素越界', '行内错位', '横向溢出', '文字被截断']);
 const totalIssues = [];
 
-for (const vp of VIEWPORTS) {
-  console.log(`\n=== ${vp.name} (${vp.w}×${vp.h}) ===`);
+/*
+ * 深色模式也要审计：主题换错最容易出的是"黑底黑字"这类不可见问题，
+ * 而它不会体现在浅色截图里。
+ * 深色只跑 390 一个视口——布局问题在浅色四个视口已覆盖，
+ * 深色要抓的是配色，不是尺寸。
+ */
+const RUNS = [
+  ...VIEWPORTS.map((v) => ({ ...v, theme: 'light' })),
+  { ...VIEWPORTS[1], name: '390x844-dark', theme: 'dark' },
+];
+
+for (const vp of RUNS) {
+  console.log(`\n=== ${vp.name} (${vp.w}×${vp.h}, ${vp.theme}) ===`);
 
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width: vp.w,
@@ -305,7 +316,14 @@ for (const vp of VIEWPORTS) {
     return 1;
   })()`);
   await cdp.send('Page.reload', { ignoreCache: true });
-  await sleep(2500);
+    await sleep(2500);
+
+    // 浅色是默认，只在深色轮次里写入偏好并重载
+    if (vp.theme === 'dark') {
+      await ev(`(() => { localStorage.setItem('tieguan.theme', 'dark'); return 1; })()`);
+      await cdp.send('Page.reload', { ignoreCache: true });
+      await sleep(2500);
+    }
 
   // 走引导
   await ev(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.includes('知道了')); if(b)b.click(); return 1; })()`);
@@ -380,6 +398,7 @@ cdp.ws.close();
 browser.kill();
 server.close();
 process.exit(fatalIssues.length > 0 ? 1 : 0);
+
 
 
 

@@ -9,10 +9,30 @@ import { shortDate, weekdayLabel } from '../domain/units';
 import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
 import { clearCacheAndReload, listCacheNames } from '../store/cacheControl';
+import { applyTheme, loadThemePref, saveThemePref, type ThemePref } from '../store/theme';
 
 import { ALLERGEN_CODES } from '../content/allergens';
 
 const { push } = useToast();
+
+/*
+ * 外观偏好。
+ *
+ * 存 localStorage 而不是 AppState：这是设备私有偏好。
+ * 进 AppState 会被物化进同步快照，两台设备主题不同就会算出不同哈希，
+ * 表现为"明明数据一样却提示冲突"。
+ */
+const themePref = ref<ThemePref>(loadThemePref());
+const THEME_OPTIONS: Array<{ value: ThemePref; label: string }> = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+];
+function pickTheme(next: ThemePref): void {
+  themePref.value = next;
+  saveThemePref(next);
+  applyTheme(next);
+}
 
 /* 缓存清理状态 */
 const clearingCache = ref(false);
@@ -267,6 +287,24 @@ const sessionCount = computed(() => store.state.sessions.length);
         </div>
       </div>
       <div class="card">
+        <p class="label">外观</p>
+        <p class="small" style="margin-top: 8px">
+          深色模式适合健身房低光环境，也更省电。
+        </p>
+        <div class="seg" style="margin-top: 12px">
+          <button
+            v-for="opt in THEME_OPTIONS"
+            :key="opt.value"
+            class="seg__item"
+            :class="{ 'is-on': themePref === opt.value }"
+            @click="pickTheme(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
         <p class="label">内容来源与授权</p>
         <p class="small" style="margin-top: 8px">{{ packText }}</p>
         <div v-for="p in packInfo" :key="p.packageId" class="lic">
@@ -401,7 +439,7 @@ const sessionCount = computed(() => store.state.sessions.length);
 
 .weight {
   padding: 20px;
-  background: radial-gradient(120% 100% at 100% 0%, #26301f 0%, var(--ink) 58%);
+  background: radial-gradient(120% 100% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 58%);
 }
 
 .weight__top {
@@ -422,7 +460,7 @@ const sessionCount = computed(() => store.state.sessions.length);
 
 .weight__value span {
   font-size: 15px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
   margin-left: 4px;
   letter-spacing: 0;
 }
@@ -437,7 +475,7 @@ const sessionCount = computed(() => store.state.sessions.length);
 }
 
 .weight__delta.is-up {
-  color: #ffb59a;
+  color: var(--on-ink-warn);
 }
 
 .weight__goal {
@@ -511,7 +549,7 @@ const sessionCount = computed(() => store.state.sessions.length);
   margin-top: 12px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .lic__row {
@@ -543,8 +581,8 @@ const sessionCount = computed(() => store.state.sessions.length);
 }
 
 .aller__chip.is-on {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--surface-ink);
+  border-color: var(--text);
   color: var(--paper);
 }
 .cache__safe {
@@ -558,7 +596,7 @@ const sessionCount = computed(() => store.state.sessions.length);
 
 .cache__safe strong {
   font-weight: 700;
-  color: var(--ink);
+  color: var(--text);
 }
 
 .cache__list {
@@ -572,6 +610,13 @@ const sessionCount = computed(() => store.state.sessions.length);
   line-height: 1.5;
 }
 </style>
+
+
+
+
+
+
+
 
 
 

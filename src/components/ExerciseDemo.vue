@@ -96,7 +96,7 @@ const best = computed(() => {
   margin-top: 4px;
   border-radius: 18px;
   overflow: hidden;
-  background: rgba(17, 20, 17, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
   aspect-ratio: 3 / 2;
   display: grid;
   place-items: center;
@@ -144,7 +144,7 @@ const best = computed(() => {
 }
 
 .demo__list li::marker {
-  color: var(--ink);
+  color: var(--text);
 }
 
 .demo__nocue {
@@ -158,3 +158,5 @@ const best = computed(() => {
   color: var(--text-3);
 }
 </style>
+
+

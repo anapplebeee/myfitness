@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 与 Web 端 CSS 变量保持一致（css/app.css :root） -->
-    <color name="colorPrimary">#0E7A63</color>
-    <color name="colorPrimaryDark">#0A5C4B</color>
-    <color name="colorAccent">#E9762F</color>
+    <!--
+      与 Web 端 src/styles/tokens.css 保持一致。
 
-    <color name="splash_background">#0E7A63</color>
-    <color name="window_background">#F2F5F2</color>
+      这里曾经是旧设计的青绿（#0E7A63）与橙（#E9762F），改版后没跟着换，
+      导致启动瞬间闪一块青绿，和界面里的酸橙完全冲突。
+      原生启动屏是用户看到的第一帧，配色不一致比没有启动屏更糟。
+
+      splash_background 用页面底色而非品牌色：酸橙太亮，满屏铺开会刺眼，
+      也会让随后出现的界面显得偏暗。
+    -->
+    <color name="colorPrimary">#C9F53F</color>
+    <color name="colorPrimaryDark">#111411</color>
+    <color name="colorAccent">#C9F53F</color>
+
+    <color name="splash_background">#F2F0EA</color>
+    <color name="window_background">#F2F0EA</color>
 </resources>

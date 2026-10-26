@@ -548,7 +548,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 
 .goalcard {
   padding: 20px;
-  background: radial-gradient(120% 100% at 100% 0%, #26301f 0%, var(--ink) 58%);
+  background: radial-gradient(120% 100% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 58%);
 }
 
 .goalcard__top {
@@ -568,13 +568,13 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 
 .goalcard__value span {
   font-size: 20px;
-  color: rgba(244, 246, 238, 0.45);
+  color: rgba(var(--inv-rgb), 0.45);
   font-weight: 600;
 }
 
 .goalcard__narr {
   font-size: 12px;
-  color: rgba(244, 246, 238, 0.55);
+  color: rgba(var(--inv-rgb), 0.55);
 }
 
 .goalcard__badge {
@@ -606,13 +606,13 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 }
 
 .goalcard__stats .tiny {
-  color: rgba(244, 246, 238, 0.45);
+  color: rgba(var(--inv-rgb), 0.45);
   font-size: 10.5px;
 }
 
 .goalcard__sub {
   font-size: 12px;
-  color: rgba(244, 246, 238, 0.45);
+  color: rgba(var(--inv-rgb), 0.45);
 }
 
 .goalcard__num {
@@ -623,7 +623,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 
 .goalcard__edit {
   margin-top: 14px;
-  background: rgba(244, 246, 238, 0.1);
+  background: rgba(var(--inv-rgb), 0.1);
   color: var(--text-inverse);
 }
 
@@ -672,7 +672,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   line-height: 1;
   padding: 3px 5px;
   border-radius: 6px;
-  background: rgba(17, 20, 17, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -685,7 +685,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 }
 
 .day.is-done {
-  background: var(--ink);
+  background: var(--surface-ink);
   border-color: transparent;
   color: var(--lime);
 }
@@ -710,11 +710,11 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 }
 
 .day.is-live .day__badge {
-  background: rgba(17, 20, 17, 0.1);
+  background: rgba(var(--ink-rgb), 0.1);
 }
 
 .day.is-partial {
-  background: #fdf1e9;
+  background: var(--clay-soft);
   border-color: rgba(226, 87, 44, 0.24);
 }
 
@@ -740,11 +740,11 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 
 .day.is-excused .day__badge {
   background: rgba(79, 125, 240, 0.16);
-  color: #2c4fae;
+  color: var(--sky-ink);
 }
 
 .day.is-today {
-  box-shadow: 0 0 0 1.5px var(--ink);
+  box-shadow: 0 0 0 1.5px var(--text);
 }
 
 .plan__legend {
@@ -826,12 +826,12 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   gap: 2px;
   padding: 13px 15px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
   text-align: left;
 }
 
 .act:hover {
-  background: rgba(17, 20, 17, 0.07);
+  background: rgba(var(--ink-rgb), 0.07);
 }
 
 .act__title {
@@ -843,6 +843,13 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   margin-top: 8px;
 }
 </style>
+
+
+
+
+
+
+
 
 
 

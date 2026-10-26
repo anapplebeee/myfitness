@@ -176,14 +176,14 @@ function finish(): void {
   background: var(--paper-card);
   border-radius: 24px;
   padding: 26px 22px 24px;
-  box-shadow: 0 24px 60px rgba(17, 20, 17, 0.12);
+  box-shadow: 0 24px 60px rgba(var(--ink-rgb), 0.12);
 }
 
 .onb__mark {
   width: 44px;
   height: 44px;
   border-radius: 13px;
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--lime);
   display: grid;
   place-items: center;
@@ -210,8 +210,8 @@ function finish(): void {
 .onb__demo {
   padding: 13px 15px;
   border-radius: 16px;
-  background: #fdf6e3;
-  color: #7a5f14;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
   margin-bottom: 18px;
   display: flex;
   flex-direction: column;
@@ -239,8 +239,8 @@ function finish(): void {
 }
 
 .onb__tpl.is-on {
-  border-color: var(--ink);
-  background: rgba(17, 20, 17, 0.04);
+  border-color: var(--text);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .onb__tpl-meta {
@@ -267,8 +267,8 @@ function finish(): void {
 }
 
 .onb__goal.is-on {
-  border-color: var(--ink);
-  background: var(--ink);
+  border-color: var(--text);
+  background: var(--surface-ink);
   color: var(--paper);
 }
 
@@ -283,7 +283,7 @@ function finish(): void {
   gap: 10px;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
   cursor: pointer;
 }
 
@@ -297,14 +297,14 @@ function finish(): void {
   width: 20px;
   height: 20px;
   margin-top: 1px;
-  accent-color: var(--ink);
+  accent-color: var(--text);
   flex: none;
 }
 .onb__optional {
   margin-top: 16px;
   padding: 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .onb__opt-hint {
@@ -335,6 +335,11 @@ function finish(): void {
   margin-top: 6px;
 }
 </style>
+
+
+
+
+
 
 
 

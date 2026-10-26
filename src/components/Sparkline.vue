@@ -38,7 +38,7 @@ const areaPath = computed(() => {
 const stroke = computed(() => {
   if (props.tone === 'lime') return 'var(--lime)';
   if (props.tone === 'clay') return 'var(--clay)';
-  return 'var(--ink)';
+  return 'var(--text)';
 });
 
 const gradId = computed(() => `spark-${props.tone}-${props.height}`);
@@ -56,3 +56,4 @@ const gradId = computed(() => `spark-${props.tone}-${props.height}`);
     <path :d="path" fill="none" :stroke="stroke" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 </template>
+

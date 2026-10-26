@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      深色模式下的原生配色。
+
+      没有这个文件时，系统深色模式下启动会先闪一帧 #F2F0EA 的浅色，
+      再切到 Web 端的深色界面——用户看到的是"白闪"，很廉价。
+      Android 会按系统设置自动选用 values-night。
+    -->
+    <color name="colorPrimary">#C9F53F</color>
+    <color name="colorPrimaryDark">#0D0F0C</color>
+    <color name="colorAccent">#C9F53F</color>
+
+    <color name="splash_background">#0D0F0C</color>
+    <color name="window_background">#0D0F0C</color>
+</resources>

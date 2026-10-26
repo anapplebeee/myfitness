@@ -709,7 +709,7 @@ const progress = computed(() => {
 }
 
 .rest__btn {
-  background: rgba(244, 246, 238, 0.1);
+  background: rgba(var(--inv-rgb), 0.1);
   color: var(--text-inverse);
 }
 
@@ -761,7 +761,7 @@ const progress = computed(() => {
   gap: 8px;
   padding: 10px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.028);
+  background: rgba(var(--ink-rgb), 0.028);
 }
 
 .set--completed {
@@ -776,7 +776,7 @@ const progress = computed(() => {
   width: 24px;
   height: 24px;
   border-radius: 8px;
-  background: rgba(17, 20, 17, 0.07);
+  background: rgba(var(--ink-rgb), 0.07);
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -914,14 +914,14 @@ const progress = computed(() => {
 }
 
 .set__check:active {
-  background: rgba(17, 20, 17, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
 }
 
 /* 已完成的组整行染绿（对齐标杆产品的"扫一眼就知道进度"） */
 .set--completed .set__check {
   background: var(--lime);
   border-color: var(--lime);
-  color: var(--ink);
+  color: var(--text);
 }
 
 /*
@@ -1005,7 +1005,7 @@ const progress = computed(() => {
   margin-top: 14px;
   padding: 13px 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .credit__row {
@@ -1026,7 +1026,7 @@ const progress = computed(() => {
   width: 20px;
   height: 20px;
   margin-top: 1px;
-  accent-color: var(--ink);
+  accent-color: var(--text);
   flex: none;
 }
 
@@ -1067,7 +1067,7 @@ const progress = computed(() => {
   width: 26px;
   height: 26px;
   border-radius: 9px;
-  background: rgba(17, 20, 17, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -1087,7 +1087,7 @@ const progress = computed(() => {
   margin-top: 14px;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .cmp--first {
@@ -1126,7 +1126,7 @@ const progress = computed(() => {
 }
 
 .cmp__delta.up {
-  color: #4a7a1f;
+  color: var(--lime-ink);
 }
 
 .cmp__delta.down {
@@ -1138,6 +1138,10 @@ const progress = computed(() => {
   color: var(--text-2);
 }
 </style>
+
+
+
+
 
 
 

@@ -1,15 +1,19 @@
 apply plugin: 'com.android.application'
 
 /*
- * 固定签名。
+ * 签名：调试密钥与发布密钥分开。
  *
- * 之前 debug 包用的是每台机器各不相同的 debug keystore：换台机器打包，
- * 签名就变了，`adb install -r` 必然报 INSTALL_FAILED_UPDATE_INCOMPATIBLE，
- * 只能卸载重装（数据全丢）。测试包也统一用这份固定密钥签名，
- * 以后在哪台机器构建都能直接覆盖升级。
+ * 背景：之前 release 复用 debug 用的 stable 密钥。自己装测试包没问题，
+ * 但上架不行——Play 要求发布密钥唯一且长期保管，
+ * 用 debug 密钥上传的包会在后续更新时无法更换密钥。
  *
- * 密钥与口令在 android/keystore.properties（已被 .gitignore 排除，不进仓库）。
- * 文件缺失时回退到默认 debug 签名，保证别人 clone 下来仍能编译。
+ * 现在两套配置：
+ *   android/keystore.properties          → stable（本地安装、真机测试）
+ *   android/release-keystore.properties  → release（上架）
+ *
+ * 关键安全约束：assembleRelease / bundleRelease 在缺少发布密钥时**直接失败**。
+ * 不能静默回退到 debug 签名——那种包传到 Play 会被拒，
+ * 更糟的是如果误传成功，这个应用就永久绑定了错误的密钥。
  */
 def keystorePropsFile = rootProject.file('keystore.properties')
 def keystoreProps = new Properties()
@@ -18,6 +22,35 @@ if (keystorePropsFile.exists()) {
 }
 def hasStableKey = keystorePropsFile.exists() && keystoreProps.getProperty('storeFile')
 
+def releasePropsFile = rootProject.file('release-keystore.properties')
+def releaseProps = new Properties()
+if (releasePropsFile.exists()) {
+    releasePropsFile.withInputStream { releaseProps.load(it) }
+}
+def hasReleaseKey = releasePropsFile.exists() && releaseProps.getProperty('storeFile')
+
+/*
+ * 发布构建前置检查。
+ *
+ * 用 taskGraph 而不是在 buildTypes 里判断，是因为后者只能静默跳过签名，
+ * 最终产出一个未签名（或 debug 签名）的 APK，而构建过程显示"成功"。
+ */
+gradle.taskGraph.whenReady { graph ->
+    def wantsRelease = graph.allTasks.any { t ->
+        (t.name == 'assembleRelease' || t.name == 'bundleRelease' || t.name == 'assembleReleaseBundle')
+    }
+    if (wantsRelease && !hasReleaseKey) {
+        throw new GradleException(
+            '缺少发布签名配置。请在 android/release-keystore.properties 中提供：\n' +
+            '  storeFile=release.keystore\n' +
+            '  storePassword=...\n' +
+            '  keyAlias=...\n' +
+            '  keyPassword=...\n' +
+            '发布包不能用调试密钥签名，构建已中止。'
+        )
+    }
+}
+
 android {
     namespace "com.tieguan.fit"
     compileSdk rootProject.ext.compileSdkVersion
@@ -25,8 +58,8 @@ android {
         applicationId "com.tieguan.fit"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -35,12 +68,22 @@ android {
         }
     }
     signingConfigs {
+        // 本地安装与真机测试用；换机器也能覆盖升级
         stable {
             if (hasStableKey) {
                 storeFile file(keystoreProps.getProperty('storeFile'))
                 storePassword keystoreProps.getProperty('storePassword')
                 keyAlias keystoreProps.getProperty('keyAlias')
                 keyPassword keystoreProps.getProperty('keyPassword')
+            }
+        }
+        // 上架用；密钥不入库，由发布者自行保管
+        release {
+            if (hasReleaseKey) {
+                storeFile file(releaseProps.getProperty('storeFile'))
+                storePassword releaseProps.getProperty('storePassword')
+                keyAlias releaseProps.getProperty('keyAlias')
+                keyPassword releaseProps.getProperty('keyPassword')
             }
         }
     }
@@ -51,10 +94,15 @@ android {
             }
         }
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (hasStableKey) {
-                signingConfig signingConfigs.stable
+            /*
+             * 开启 R8：商业包应该缩体积、去无用代码。
+             * 之前是 false，APK 里带着整份未裁剪的 WebView 桥接代码。
+             */
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseKey) {
+                signingConfig signingConfigs.release
             }
         }
     }

@@ -16,6 +16,8 @@ import { computeWeek } from '../domain/week';
 import { mondayOf } from '../domain/plan';
 import { useToast } from '../composables/useToast';
 import { useBackLayer, useSheetBack } from '../composables/useBackLayer';
+import { buildShareCardData } from '../domain/share-card';
+import { shareCard } from '../lib/share-card-canvas';
 import type { SetRecord } from '../domain/types';
 
 const props = defineProps<{ sessionId: string }>();
@@ -30,6 +32,28 @@ const editLoad = ref('');
 const editReps = ref('');
 const editExId = ref('');
 const confirmDelete = ref(false);
+const sharing = ref(false);
+
+/**
+ * 生成并分享训练卡片。
+ *
+ * 用户取消系统分享面板不是错误，所以只有真正失败才提示。
+ * 生成过程可能耗时（canvas 绘制 + toBlob），期间禁用按钮避免重复点击。
+ */
+async function doShare(): Promise<void> {
+  const s = session.value;
+  if (!s || sharing.value) return;
+  sharing.value = true;
+  try {
+    const outcome = await shareCard(buildShareCardData(s, unit.value));
+    if (outcome === 'downloaded') push('图片已保存', 'success');
+    else if (outcome === 'unsupported') push('当前环境不支持分享，已尝试保存', 'error');
+  } catch {
+    push('生成分享图失败', 'error');
+  } finally {
+    sharing.value = false;
+  }
+}
 
 // 返回键/边缘返回先关详情，而不是跳回上一个页面
 useBackLayer(() => emit('close'));
@@ -222,6 +246,18 @@ function lastHint(exerciseId: string): string {
 
     <div class="row gap-8 wrap">
       <button class="btn btn--ghost btn--sm" @click="openDateSheet">更正日期</button>
+      <!--
+        已删除的场次不给分享入口：分享出去等于把用户主动删掉的记录又传播一次。
+        未完成的场次也不给，卡片上的数字会很难看且没有意义。
+      -->
+      <button
+        v-if="!isDeleted && session.status === 'completed'"
+        class="btn btn--lime btn--sm"
+        :disabled="sharing"
+        @click="doShare"
+      >
+        {{ sharing ? '生成中…' : '分享' }}
+      </button>
       <button v-if="pending > 0 && !isDeleted" class="btn btn--ghost btn--sm" @click="skipRest">
         标记剩余为跳过
       </button>
@@ -437,7 +473,7 @@ function lastHint(exerciseId: string): string {
 
 .detail__summary {
   padding: 18px;
-  background: radial-gradient(120% 100% at 100% 0%, #26301f 0%, var(--ink) 58%);
+  background: radial-gradient(120% 100% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 58%);
 }
 
 .detail__stats {
@@ -453,7 +489,7 @@ function lastHint(exerciseId: string): string {
 }
 
 .detail__stats .tiny {
-  color: rgba(244, 246, 238, 0.45);
+  color: rgba(var(--inv-rgb), 0.45);
 }
 
 .detail__num {
@@ -464,7 +500,7 @@ function lastHint(exerciseId: string): string {
 
 .detail__note {
   margin-top: 12px;
-  color: rgba(244, 246, 238, 0.55);
+  color: rgba(var(--inv-rgb), 0.55);
 }
 
 .ex {
@@ -491,7 +527,7 @@ function lastHint(exerciseId: string): string {
   gap: 10px;
   padding: 9px 10px;
   border-radius: 13px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
   text-align: left;
   width: 100%;
 }
@@ -502,7 +538,7 @@ function lastHint(exerciseId: string): string {
 
 /* 热身组不计入容量，视觉上要与工作组区分 */
 .set--completed:has(.chip:not(.chip--lime)) {
-  background: rgba(17, 20, 17, 0.045);
+  background: rgba(var(--ink-rgb), 0.045);
 }
 
 .set--skipped,
@@ -514,7 +550,7 @@ function lastHint(exerciseId: string): string {
   width: 22px;
   height: 22px;
   border-radius: 7px;
-  background: rgba(17, 20, 17, 0.07);
+  background: rgba(var(--ink-rgb), 0.07);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -565,13 +601,17 @@ function lastHint(exerciseId: string): string {
   align-items: center;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .creditrow.is-on {
   background: rgba(201, 245, 63, 0.18);
 }
 </style>
+
+
+
+
 
 
 

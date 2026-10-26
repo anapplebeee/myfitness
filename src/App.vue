@@ -200,7 +200,7 @@ useEdgeSwipeBack(() => {
   width: 58px;
   height: 58px;
   border-radius: 20px;
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--lime);
   display: grid;
   place-items: center;
@@ -214,6 +214,7 @@ useEdgeSwipeBack(() => {
   50% { opacity: 0.72; transform: scale(0.96); }
 }
 </style>
+
 
 
 

@@ -16,13 +16,13 @@ const list = computed(() => toasts.value);
 
 <style scoped>
 .toast--success {
-  background: #1f3d1a;
-  color: #e9ffd6;
+  background: var(--toast-ok-bg);
+  color: var(--toast-ok-ink);
 }
 
 .toast--error {
-  background: #4a1d10;
-  color: #ffe3d8;
+  background: var(--toast-bad-bg);
+  color: var(--toast-bad-ink);
 }
 
 .toast-move,
@@ -37,3 +37,7 @@ const list = computed(() => toasts.value);
   transform: translateY(8px) scale(0.96);
 }
 </style>
+
+
+
+

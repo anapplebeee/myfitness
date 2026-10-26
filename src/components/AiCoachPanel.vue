@@ -449,7 +449,7 @@ onBeforeUnmount(() => controller?.abort());
   margin-top: 12px;
   padding: 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .ai__note {
@@ -502,7 +502,7 @@ onBeforeUnmount(() => controller?.abort());
   margin-top: 14px;
   padding: 13px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .ai__summary {
@@ -548,7 +548,7 @@ onBeforeUnmount(() => controller?.abort());
   padding: 13px;
   border-radius: 14px;
   background: rgba(201, 245, 63, 0.14);
-  border: 1px solid rgba(17, 20, 17, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .ai__consent strong {
@@ -593,16 +593,18 @@ onBeforeUnmount(() => controller?.abort());
 .ai__code {
   padding: 1px 5px;
   border-radius: 5px;
-  background: rgba(17, 20, 17, 0.07);
+  background: rgba(var(--ink-rgb), 0.07);
   font-family: var(--mono);
   font-size: 12.5px;
 }
 
 .ai__text strong {
   font-weight: 700;
-  color: var(--ink);
+  color: var(--text);
 }
 </style>
+
+
 
 
 

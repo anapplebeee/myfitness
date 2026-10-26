@@ -1,21 +1,30 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# R8 规则。
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# release 构建已开启 minifyEnabled + shrinkResources，必须有这些 keep，
+# 否则 Capacitor 的 JS 桥接会被裁剪，表现为"界面能开但所有原生调用静默失效"
+# ——这类问题在 debug 构建里完全看不到，只在发布包里出现。
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Capacitor 通过反射调用 @JavascriptInterface 标注的方法
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor 插件与桥接类
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keep class com.getcapacitor.plugin.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 插件通过类名反射实例化
+-keepnames class * extends com.getcapacitor.Plugin
+
+# WebView 的 JS 接口对象（Capacitor 会按名字查找）
+-keepclassmembers class com.getcapacitor.Bridge {
+    public *;
+}
+
+# 保留行号，便于线上崩溃定位；同时隐藏原始文件名
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# 不打印第三方库的配置警告噪声，但保留错误
+-dontwarn com.getcapacitor.**

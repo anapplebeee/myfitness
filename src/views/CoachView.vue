@@ -228,7 +228,7 @@ function groupOf(id: string): string {
 
 .coach__hero {
   padding: 20px;
-  background: radial-gradient(120% 100% at 100% 0%, #26301f 0%, var(--ink) 58%);
+  background: radial-gradient(120% 100% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 58%);
 }
 
 .coach__hero-top {
@@ -248,22 +248,22 @@ function groupOf(id: string): string {
 
 .coach__hero-sub {
   margin-top: 8px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
 }
 
 .coach__unit {
   max-width: 140px;
   margin-top: 16px;
-  background: rgba(244, 246, 238, 0.1);
+  background: rgba(var(--inv-rgb), 0.1);
 }
 
 .coach__unit .seg__item {
-  color: rgba(244, 246, 238, 0.6);
+  color: rgba(var(--inv-rgb), 0.6);
 }
 
 .coach__unit .seg__item.is-on {
   background: var(--lime);
-  color: var(--ink);
+  color: var(--text);
 }
 
 .prs {
@@ -336,7 +336,7 @@ function groupOf(id: string): string {
 .lift__bar {
   flex: 1;
   border-radius: 5px 5px 3px 3px;
-  background: linear-gradient(180deg, var(--ink) 0%, rgba(17, 20, 17, 0.35) 100%);
+  background: linear-gradient(180deg, var(--surface-ink) 0%, rgba(var(--ink-rgb), 0.35) 100%);
   transition: height 0.5s var(--ease-out);
 }
 
@@ -354,7 +354,7 @@ function groupOf(id: string): string {
 
 .suggest .dot {
   margin-top: 6px;
-  background: var(--ink);
+  background: var(--surface-ink);
 }
 
 .recent__body {
@@ -365,6 +365,12 @@ function groupOf(id: string): string {
   min-width: 0;
 }
 </style>
+
+
+
+
+
+
 
 
 

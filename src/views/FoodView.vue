@@ -343,7 +343,7 @@ function removeEntry(id: string): void {
 }
 
 .nutrition {
-  background: radial-gradient(120% 100% at 100% 0%, #26301f 0%, var(--ink) 58%);
+  background: radial-gradient(120% 100% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 58%);
   padding: 20px;
 }
 
@@ -363,7 +363,7 @@ function removeEntry(id: string): void {
 
 .nutrition__kcal span {
   font-size: 14px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
   font-weight: 500;
   letter-spacing: 0;
   margin-left: 4px;
@@ -382,7 +382,7 @@ function removeEntry(id: string): void {
 
 .ring__num span {
   font-size: 12px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
 }
 
 .nutrition__macro {
@@ -414,7 +414,7 @@ function removeEntry(id: string): void {
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  background: rgba(17, 20, 17, 0.055);
+  background: rgba(var(--ink-rgb), 0.055);
   display: grid;
   place-items: center;
   font-size: 13px;
@@ -529,12 +529,18 @@ function removeEntry(id: string): void {
   margin: 8px 2px;
   padding: 9px 12px;
   border-radius: 12px;
-  background: #fdf6e3;
-  color: #8a6d1f;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
   font-size: 12.5px;
   line-height: 1.45;
 }
 </style>
+
+
+
+
+
+
 
 
 

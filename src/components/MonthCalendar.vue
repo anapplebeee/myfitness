@@ -130,7 +130,7 @@ function dayNum(date: string): number {
 
 /* 完成 */
 .mcal__cell.is-done {
-  background: var(--ink);
+  background: var(--surface-ink);
   border-color: transparent;
   color: var(--lime);
 }
@@ -156,7 +156,7 @@ function dayNum(date: string): number {
 }
 
 .mcal__cell.is-scheduled .mcal__dot {
-  background: var(--ink);
+  background: var(--surface-ink);
   opacity: 0.5;
 }
 
@@ -173,7 +173,7 @@ function dayNum(date: string): number {
 }
 
 .mcal__cell.is-partial {
-  background: #fdf1e9;
+  background: var(--clay-soft);
 }
 
 /* 豁免 */
@@ -183,11 +183,11 @@ function dayNum(date: string): number {
 }
 
 .mcal__cell.is-excused .mcal__dot {
-  background: #2c4fae;
+  background: var(--sky-ink);
 }
 
 .mcal__cell.is-today {
-  box-shadow: inset 0 0 0 1.6px var(--ink);
+  box-shadow: inset 0 0 0 1.6px var(--text);
 }
 
 /* 补位格最后覆盖一次，确保上面的状态色不会漏出来 */
@@ -229,7 +229,7 @@ function dayNum(date: string): number {
 }
 
 .lg--done {
-  background: var(--ink);
+  background: var(--surface-ink);
 }
 
 .lg--scheduled {
@@ -241,6 +241,10 @@ function dayNum(date: string): number {
 }
 
 .lg--excused {
-  background: #2c4fae;
+  background: var(--sky-ink);
 }
 </style>
+
+
+
+

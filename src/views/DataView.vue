@@ -281,7 +281,7 @@ const totalRecords = computed(() => {
 
 .data__count span {
   font-size: 13px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
   margin-left: 6px;
   font-weight: 500;
   letter-spacing: 0;
@@ -302,7 +302,7 @@ const totalRecords = computed(() => {
 }
 
 .data__grid .tiny {
-  color: rgba(244, 246, 238, 0.45);
+  color: rgba(var(--inv-rgb), 0.45);
 }
 
 .data__num {
@@ -313,7 +313,7 @@ const totalRecords = computed(() => {
 
 .data__id {
   margin-top: 14px;
-  color: rgba(244, 246, 238, 0.35);
+  color: rgba(var(--inv-rgb), 0.35);
   font-family: var(--mono);
   font-size: 10.5px;
 }
@@ -345,7 +345,7 @@ const totalRecords = computed(() => {
 }
 
 .upload:hover .upload__box {
-  border-color: var(--ink);
+  border-color: var(--text);
   color: var(--text);
 }
 
@@ -364,8 +364,8 @@ const totalRecords = computed(() => {
 }
 
 .issues--warn {
-  background: #fdf6e3;
-  color: #8a6d1f;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
 }
 
 .preview {
@@ -383,14 +383,14 @@ const totalRecords = computed(() => {
   cursor: pointer;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(17, 20, 17, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .credit__box {
   width: 20px;
   height: 20px;
   margin-top: 1px;
-  accent-color: var(--ink);
+  accent-color: var(--text);
   flex: none;
 }
 
@@ -400,5 +400,10 @@ const totalRecords = computed(() => {
   gap: 3px;
 }
 </style>
+
+
+
+
+
 
 

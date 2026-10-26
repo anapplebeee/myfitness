@@ -8,6 +8,18 @@
   --ink-2: #1b201a;
   --ink-3: #2a3028;
 
+  /*
+   * 深色强调面板的底色（.card--ink、底部标签栏、深色按钮）。
+   *
+   * 必须和 --ink 分开。--ink 用在"前景"上（文字、描边、进度填充），
+   * 深色主题下要翻成浅色；而强调面板两种主题下都应该是深色——
+   * 合成一个变量的话，深色模式会冒出刺眼的白卡和白标签栏。
+   */
+  --surface-ink: #111411;
+  --surface-ink-2: #1b201a;
+  /* 深色面板的 RGB 三元组，供需要透明度的面板底色使用（如标签栏） */
+  --surface-ink-rgb: 17, 20, 17;
+
   --text: #161a15;
   --text-2: #5b6256;
   --text-3: #8b9185;
@@ -23,6 +35,30 @@
   --clay-soft: #fde7de;
   --sky: #4f7df0;
   --sky-soft: #e6ecfd;
+  --sky-ink: #2c4fae;
+
+  /* 提示条：深底浅字，两种主题下都成立，深色下略微提亮以保证层次 */
+  --toast-ok-bg: #1f3d1a;
+  --toast-ok-ink: #e9ffd6;
+  --toast-bad-bg: #4a1d10;
+  --toast-bad-ink: #ffe3d8;
+
+  /* 页面顶部的柔光。深色下必须换掉，否则顶部会出现一块白雾 */
+  --paper-glow: #fbfaf6;
+  --paper-glow-0: rgba(251, 250, 246, 0);
+
+  /* 警告类提示（导入问题、待确认项）：浅米底 + 褐字 */
+  --warn-soft: #fdf6e3;
+  --warn-ink: #8a6d1f;
+
+  /*
+   * .card--ink 是"反色卡片"：浅色主题下深底浅字，深色主题下浅底深字。
+   * 这个渐变是它的左上角高光，必须跟着一起反相，否则深色下会出现
+   * 一块突兀的墨绿。
+   */
+  --ink-glow: #26301f;
+  /* 反色卡片上的强调色（如体重上升）：浅色下浅鲑，深色下深鲑 */
+  --on-ink-warn: #ffb59a;
 
   --radius-xl: 30px;
   --radius-lg: 24px;
@@ -39,4 +75,98 @@
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 由主题脚本写入，供需要感知明暗的组件使用（如头像、图表网格线） */
+  --is-dark: 0;
+
+  /*
+   * 阴影/描边大量使用"墨色 + 透明度"（rgba(墨, α)）。
+   * 深色主题下墨色本身要反过来，但 rgba() 里没法直接塞十六进制变量，
+   * 所以额外提供 RGB 三元组，配合 rgba(var(--ink-rgb), α) 使用。
+   *
+   * 同理 --inv-rgb 用于反色卡片上的浅色描边（原本 rgba(244,246,238,α)）。
+   * 直接写死会让深色主题下的反色卡片变成"浅底浅描边"，边界全丢。
+   */
+  --ink-rgb: 17, 20, 17;
+  --inv-rgb: 244, 246, 238;
 }
+
+/*
+ * 深色主题。
+ *
+ * 设计取向是"铁"：纸感的白换成哑光黑铁，酸橙主色保持不变——
+ * 品牌色如果在深色下换掉，用户会觉得是两个 app。
+ *
+ * 注意几个不是简单反相的变量：
+ *   --ink / --ink-2 / --ink-3  在浅色下是"深色块"（按钮底色、进度条），
+ *                              深色下必须变成浅色块，否则黑底黑块看不见。
+ *   --lime-soft / --clay-soft  浅色下是实体浅色，深色下改成半透明，
+ *                              否则一块亮绿在暗界面里会刺眼。
+ *   --lime-ink                 是"在浅绿底上的文字色"，深色下底变暗，文字要提亮。
+ *   --shadow-*                 浅色阴影靠黑色透出层次，深色下几乎不可见，
+ *                              必须加深并加大扩散。
+ */
+[data-theme='dark'] {
+  --paper: #0d0f0c;
+  --paper-deep: #080a07;
+  --paper-card: #171a15;
+  --card: #1d211b;
+
+  --ink: #eef1e8;
+  --ink-2: #dfe3d6;
+  --ink-3: #c8cec0;
+
+  /* 强调面板在深色下抬升一档：仍属深色，但和页面底色能分开 */
+  --surface-ink: #1a1e16;
+  --surface-ink-2: #232819;
+  --surface-ink-rgb: 26, 30, 22;
+
+  --text: #edf0e7;
+  --text-2: #a4ac98;
+  --text-3: #767e6c;
+  --text-inverse: #f4f6ee;
+
+  --line: rgba(238, 241, 232, 0.09);
+  --line-strong: rgba(238, 241, 232, 0.17);
+
+  --lime: #c9f53f;
+  --lime-soft: rgba(201, 245, 63, 0.15);
+  --lime-ink: #d8fa78;
+  --clay: #ff7f52;
+  --clay-soft: rgba(255, 127, 82, 0.16);
+  --sky: #82a4ff;
+  --sky-soft: rgba(130, 164, 255, 0.17);
+  --sky-ink: #a8c0ff;
+
+  --toast-ok-bg: #2a4d22;
+  --toast-ok-ink: #ecffdc;
+  --toast-bad-bg: #5a2413;
+  --toast-bad-ink: #ffe6dc;
+
+  --paper-glow: #14170f;
+  --paper-glow-0: rgba(20, 23, 15, 0);
+
+  --warn-soft: rgba(232, 196, 80, 0.14);
+  --warn-ink: #e8c450;
+
+  --ink-glow: #2b3220;
+  --on-ink-warn: #8a3a1c;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 20px 36px -26px rgba(0, 0, 0, 0.9);
+  --shadow-float: 0 10px 24px -8px rgba(0, 0, 0, 0.7), 0 30px 60px -30px rgba(0, 0, 0, 0.95);
+  --shadow-lime: 0 10px 24px -12px rgba(160, 205, 30, 0.55);
+
+  --is-dark: 1;
+
+  --ink-rgb: 238, 241, 232;
+  --inv-rgb: 244, 246, 238;
+}
+
+/* 跟随系统时，脚本不写 data-theme，交给媒体查询兜底 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+

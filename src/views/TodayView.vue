@@ -396,7 +396,7 @@ function openRecent(id: string): void {
 
 .hero {
   padding: 22px;
-  background: radial-gradient(120% 90% at 100% 0%, #26301f 0%, var(--ink) 55%);
+  background: radial-gradient(120% 90% at 100% 0%, var(--ink-glow) 0%, var(--surface-ink) 55%);
   overflow: hidden;
 }
 
@@ -410,7 +410,7 @@ function openRecent(id: string): void {
 .hero__eyebrow {
   font-size: 12px;
   letter-spacing: 0.06em;
-  color: rgba(244, 246, 238, 0.56);
+  color: rgba(var(--inv-rgb), 0.56);
   margin-bottom: 10px;
 }
 
@@ -444,14 +444,14 @@ function openRecent(id: string): void {
 
 .ring__num span {
   font-size: 13px;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
   font-weight: 560;
 }
 
 .ring__cap {
   font-size: 10.5px;
   letter-spacing: 0.1em;
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
 }
 
 .hero__live {
@@ -478,8 +478,8 @@ function openRecent(id: string): void {
   margin-top: 18px;
   padding: 14px;
   border-radius: 18px;
-  background: rgba(244, 246, 238, 0.055);
-  border: 1px solid rgba(244, 246, 238, 0.08);
+  background: rgba(var(--inv-rgb), 0.055);
+  border: 1px solid rgba(var(--inv-rgb), 0.08);
 }
 
 .hero__plan-head {
@@ -502,7 +502,7 @@ function openRecent(id: string): void {
 
 .hero__plan-note {
   margin-top: 8px;
-  color: rgba(244, 246, 238, 0.55);
+  color: rgba(var(--inv-rgb), 0.55);
   line-height: 1.5;
 }
 
@@ -510,8 +510,8 @@ function openRecent(id: string): void {
   margin-top: 14px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(244, 246, 238, 0.07);
-  color: rgba(244, 246, 238, 0.7);
+  background: rgba(var(--inv-rgb), 0.07);
+  color: rgba(var(--inv-rgb), 0.7);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -527,8 +527,8 @@ function openRecent(id: string): void {
   font-size: 11.5px;
   padding: 4px 9px;
   border-radius: 999px;
-  background: rgba(244, 246, 238, 0.08);
-  color: rgba(244, 246, 238, 0.72);
+  background: rgba(var(--inv-rgb), 0.08);
+  color: rgba(var(--inv-rgb), 0.72);
 }
 
 .hero__actions {
@@ -542,12 +542,12 @@ function openRecent(id: string): void {
 }
 
 .hero__ghost {
-  background: rgba(244, 246, 238, 0.08);
+  background: rgba(var(--inv-rgb), 0.08);
   color: var(--text-inverse);
 }
 
 .hero .label {
-  color: rgba(244, 246, 238, 0.5);
+  color: rgba(var(--inv-rgb), 0.5);
 }
 
 .week__narr {
@@ -572,20 +572,20 @@ function openRecent(id: string): void {
   gap: 7px;
   padding: 9px 0;
   border-radius: 14px;
-  background: rgba(17, 20, 17, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .week__day.is-done {
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--lime);
 }
 
 .week__day.is-today {
-  box-shadow: inset 0 0 0 1.5px var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
 .week__day.is-plan:not(.is-done) .week__dot {
-  background: rgba(17, 20, 17, 0.12);
+  background: rgba(var(--ink-rgb), 0.12);
 }
 
 .week__label {
@@ -605,7 +605,7 @@ function openRecent(id: string): void {
   display: grid;
   place-items: center;
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
 }
 
 .week__day.is-done .week__dot {
@@ -682,6 +682,13 @@ function openRecent(id: string): void {
   min-width: 0;
 }
 </style>
+
+
+
+
+
+
+
 
 
 
