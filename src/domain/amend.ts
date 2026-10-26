@@ -109,6 +109,13 @@ export function changeSessionDate(
   today = businessDate(),
 ): DateChangeResult {
   if (!nextDate) return { issue: '请选择日期', clearedOccurrence: false, weekChanged: false };
+  // 未结束/已放弃的场次改日期会让 activeSession 与周归属错乱，与 canDispose 同口径
+  if (session.status === 'active' || session.status === 'paused') {
+    return { issue: '这场训练还没结束，先结束或解除关联再改日期', clearedOccurrence: false, weekChanged: false };
+  }
+  if (session.status === 'discarded') {
+    return { issue: '已放弃的训练不能改日期', clearedOccurrence: false, weekChanged: false };
+  }
   if (isFutureDate(nextDate, today)) {
     return { issue: '不能把训练改到未来', clearedOccurrence: false, weekChanged: false };
   }
@@ -150,16 +157,30 @@ export function isLive(session: Session): boolean {
   return !session.deletedAt;
 }
 
-/** 过滤掉 tombstone，供所有统计与列表使用。 */
+/**
+ * 过滤掉 tombstone，供所有统计与列表使用。
+ *
+ * 同时排除已放弃场次：放弃是显式的"这场不算"，
+ * store.visibleSessions() 直接用它驱动可编辑列表，
+ * 留着 discarded 会让用户编辑一场自己已放弃的训练。
+ */
 export function liveSessions(sessions: Session[]): Session[] {
-  return sessions.filter(isLive);
+  return sessions.filter((s) => isLive(s) && s.status !== 'discarded');
 }
 
 export interface SetEditIssue {
   message: string;
 }
 
-/** 更正单组数据；已删除场次不允许编辑。 */
+/**
+ * 更正单组数据；已删除或已放弃场次不允许编辑。
+ *
+ * 校验口径必须覆盖全部可填字段：
+ * 原来只查 loadGrams/reps，于是 durationSeconds: -5、distanceMeters: 2.5
+ * 都能通过 updateSet，却在 tracking.validateSetForExercise 处判为无效，
+ * 出现"两套合法标准"。同时 isWorkingSet 只看 kind+status，
+ * 这些脏数据照样计入 completedWorkingSets 与周统计。
+ */
 export function updateSet(
   session: Session,
   exerciseId: string,
@@ -167,6 +188,7 @@ export function updateSet(
   patch: Partial<SetRecord>,
 ): { session?: Session; issue?: string } {
   if (session.deletedAt) return { issue: '这场训练已删除，先恢复再编辑' };
+  if (session.status === 'discarded') return { issue: '这场训练已放弃，不能编辑' };
   const ex = session.exercises.find((e) => e.exerciseId === exerciseId);
   if (!ex) return { issue: '找不到该动作' };
   const set = ex.sets.find((s) => s.id === setId);
@@ -179,6 +201,20 @@ export function updateSet(
     if (!Number.isInteger(patch.reps) || patch.reps < 1 || patch.reps > 100) {
       return { issue: '次数需在 1–100 之间' };
     }
+  }
+  if (patch.durationSeconds !== undefined && patch.durationSeconds !== null) {
+    if (!Number.isFinite(patch.durationSeconds) || patch.durationSeconds <= 0) {
+      return { issue: '时长需大于 0' };
+    }
+  }
+  if (patch.distanceMeters !== undefined && patch.distanceMeters !== null) {
+    if (!Number.isFinite(patch.distanceMeters) || patch.distanceMeters <= 0) {
+      return { issue: '距离需大于 0' };
+    }
+  }
+  // 不允许把已完成组改回未完成状态而保留旧的 completedAt
+  if (patch.status === 'planned' && set.status === 'completed') {
+    return { issue: '已完成的组不能改回未完成' };
   }
 
   const next: Session = {
@@ -204,13 +240,21 @@ export function updateSet(
   return { session: next };
 }
 
-/** 把某一组标记为跳过（结束前处理未录组的显式操作）。 */
+/**
+ * 把某一组标记为跳过（结束前处理未录组的显式操作）。
+ *
+ * 与 updateSet 一致：已删除/已放弃场次不可改，且写入 editedAt 留痕
+ * ——批量跳过同样是事实变更，不能无声无息。
+ */
 export function skipRemainingSets(session: Session): Session {
+  if (session.deletedAt) return session;
+  if (session.status === 'discarded') return session;
+  const now = new Date().toISOString();
   return {
     ...session,
     exercises: session.exercises.map((e) => ({
       ...e,
-      sets: e.sets.map((s) => (s.status === 'planned' ? { ...s, status: 'skipped' as const } : s)),
+      sets: e.sets.map((s) => (s.status === 'planned' ? { ...s, status: 'skipped' as const, editedAt: now } : s)),
     })),
   };
 }
@@ -240,7 +284,9 @@ export interface TrendPoint {
 export function loadTrend(sessions: Session[], exerciseId: string): TrendPoint[] {
   const points: TrendPoint[] = [];
   for (const s of liveSessions(sessions)) {
-    if (s.businessDate && s.status !== 'completed') continue;
+    // 只认已完成场次；businessDate 缺失的脏数据直接跳过，
+    // 不能用 `businessDate && ...` 短路——那会让空日期的未完成场次混进趋势
+    if (s.status !== 'completed' || !s.businessDate) continue;
     const ex = s.exercises.find((e) => e.exerciseId === exerciseId);
     if (!ex) continue;
     const top = ex.sets
@@ -305,7 +351,10 @@ export function suggestProgression(
     };
   }
   if (last.anyBelowMin && prev?.anyBelowMin && last.top > 0) {
-    const next = Math.round((last.top * 0.9) / 2500) * 2500;
+    // 按该动作自己的最小配重取整，不能写死 2500——
+    // 配重 5000 的动作会被 round 到 2500 的倍数，建议值比实际可用重量低一档
+    const step = incrementGrams > 0 ? incrementGrams : 2500;
+    const next = Math.round((last.top * 0.9) / step) * step;
     return {
       exerciseId,
       action: 'deload',

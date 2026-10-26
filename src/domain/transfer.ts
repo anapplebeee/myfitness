@@ -10,12 +10,25 @@
  */
 
 import type { AppState } from './types';
+import type { Goal } from './goals';
 import { EXERCISE_BY_ID } from '../content/exercises';
 
 export const EXPORT_FORMAT = 'tieguan-export';
 export const EXPORT_SCHEMA_VERSION = 1;
 /** 导入大小上限：16 MiB，超过直接拒绝，避免解析大文件卡死。 */
 export const MAX_IMPORT_BYTES = 16 * 1024 * 1024;
+
+/**
+ * 用户目标的去重键。
+ *
+ * bodyweight/strength 在语义上同一周/同一动作只应有一个目标，
+ * frequency 同理；用 kind + 作用域作键，避免导入时堆叠出重复目标。
+ */
+function goalKey(g: Goal): string {
+  if (g.kind === 'strength') return `strength:${g.exerciseId}`;
+  if (g.kind === 'frequency') return 'frequency';
+  return 'bodyweight';
+}
 
 /**
  * 规范化序列化：键按字典序递归排列，数组保持原序（数组顺序本身有语义）。
@@ -252,8 +265,36 @@ export function previewImport(
     return fail('not_envelope', '缺少 records');
   }
 
+  /*
+   * records 的每个字段都必须是数组。
+   *
+   * 原来只校验 records 是对象，就逐一 for...of：
+   * 一个 records.sessions = {} 或 5 的文件会让 previewImport 抛
+   * TypeError，而 DataView 的读取回调没有 catch，
+   * busy 永远停在"正在读取…"，用户只能刷新页面。
+   * 这里统一拦成 not_envelope，让上层能给出可恢复的错误提示。
+   */
+  const rec = env.records as Record<string, unknown>;
+  const RECORD_ARRAY_KEYS = ['sessions', 'weights', 'foods', 'occurrences', 'weekGoals', 'customTemplates', 'goals'] as const;
+  for (const key of RECORD_ARRAY_KEYS) {
+    const v = rec[key];
+    if (v !== undefined && v !== null && !Array.isArray(v)) {
+      return fail('not_envelope', `records.${key} 不是数组，文件可能已损坏`);
+    }
+  }
+  const records = rec as ExportEnvelope['records'];
+
   // 4. checksum（完整性，不阻断合并，但要提示）
-  if (typeof env.checksum === 'string') {
+  /*
+   * 字段缺失与非字符串同样算"校验不过"。
+   *
+   * 原来只在 typeof === 'string' 时校验，没有 else：
+   * 把 checksum 键整个删掉，文件就能带着 ok:true 通过，
+   * 等于给"手工改动过的文件"留了一条免检通道。
+   */
+  if (typeof env.checksum !== 'string') {
+    issues.push(issue('checksum_mismatch', '文件缺少校验和，无法确认完整性', false));
+  } else {
     const { checksum, ...rest } = env as ExportEnvelope;
     const expected = stableHash(canonicalJson(rest));
     if (expected !== checksum) {
@@ -273,7 +314,6 @@ export function previewImport(
   }
 
   // 6. 引用与单位
-  const rec = env.records as ExportEnvelope['records'];
   /*
    * 引用校验：动作 ID 必须存在于内容库。
    *
@@ -286,7 +326,7 @@ export function previewImport(
    * 该动作的容量被静默跳过，用户在统计页莫名少数据。
    */
   const checkedExercises = new Set<string>();
-  for (const session of rec.sessions ?? []) {
+  for (const session of records.sessions ?? []) {
     for (const ex of session.exercises ?? []) {
       if (checkedExercises.has(ex.exerciseId)) continue;
       checkedExercises.add(ex.exerciseId);
@@ -301,7 +341,7 @@ export function previewImport(
       }
     }
   }
-  for (const session of rec.sessions ?? []) {
+  for (const session of records.sessions ?? []) {
     for (const ex of session.exercises ?? []) {
       for (const set of ex.sets ?? []) {
         if (set.loadGrams !== null && set.loadGrams !== undefined && set.loadGrams < 0) {
@@ -313,7 +353,7 @@ export function previewImport(
       }
     }
   }
-  for (const w of rec.weights ?? []) {
+  for (const w of records.weights ?? []) {
     if (!Number.isFinite(w.grams) || w.grams <= 0 || w.grams > 400000) {
       issues.push(issue('bad_unit', `体重记录 ${w.id} 数值不合理`, true));
     }
@@ -323,7 +363,7 @@ export function previewImport(
   const conflicts: ImportPreview['conflicts'] = [];
   const current = options.currentState;
   const currentSessions = new Map(current.sessions.map((s) => [s.id, s]));
-  for (const incoming of rec.sessions ?? []) {
+  for (const incoming of records.sessions ?? []) {
     const existing = currentSessions.get(incoming.id);
     if (!existing) continue;
     if (canonicalJson(existing) !== canonicalJson(incoming)) {
@@ -331,14 +371,14 @@ export function previewImport(
     }
   }
   const currentWeights = new Map(current.weights.map((w) => [w.date, w]));
-  for (const incoming of rec.weights ?? []) {
+  for (const incoming of records.weights ?? []) {
     const existing = currentWeights.get(incoming.date);
     if (existing && canonicalJson(existing) !== canonicalJson(incoming)) {
       conflicts.push({ entity: 'weight', id: incoming.id, reason: `同日体重冲突（${incoming.date}）` });
     }
   }
   const currentGoals = new Map(current.weekGoals.map((g) => [g.weekStart, g]));
-  for (const incoming of rec.weekGoals ?? []) {
+  for (const incoming of records.weekGoals ?? []) {
     const existing = currentGoals.get(incoming.weekStart);
     if (existing && canonicalJson(existing) !== canonicalJson(incoming)) {
       conflicts.push({ entity: 'weekGoal', id: incoming.id, reason: `同周目标冲突（${incoming.weekStart}）` });
@@ -351,12 +391,12 @@ export function previewImport(
     issues,
     envelope: env as ExportEnvelope,
     stats: {
-      sessions: rec.sessions?.length ?? 0,
-      weights: rec.weights?.length ?? 0,
-      foods: rec.foods?.length ?? 0,
-      occurrences: rec.occurrences?.length ?? 0,
-      weekGoals: rec.weekGoals?.length ?? 0,
-      templates: rec.customTemplates?.length ?? 0,
+      sessions: records.sessions?.length ?? 0,
+      weights: records.weights?.length ?? 0,
+      foods: records.foods?.length ?? 0,
+      occurrences: records.occurrences?.length ?? 0,
+      weekGoals: records.weekGoals?.length ?? 0,
+      templates: records.customTemplates?.length ?? 0,
     },
     conflicts,
   };
@@ -398,7 +438,11 @@ export function applyImport(
      *
      * 现在逐字段显式列出：业务数据来自文件，设备标识类字段保留本地。
      */
-    const goalList = Array.isArray(rec.goals) ? rec.goals : [];
+    /*
+     * goals：文件带 goals 数组才采用；旧版导出没有这个字段时保留本地，
+     * 不能因为一次导入就把用户的目标清空。
+     */
+    const goalList = Array.isArray(rec.goals) ? (rec.goals as Goal[]) : current.goals;
     const weekGoal = typeof rec.weeklyGoal === 'number' && rec.weeklyGoal > 0
       ? rec.weeklyGoal
       : current.weeklyGoal;
@@ -440,11 +484,19 @@ export function applyImport(
   let added = 0;
   let skipped = 0;
 
+  /*
+   * merge 去重：必须同时覆盖"本地已有"和"本文件内部重复"。
+   *
+   * 原来每个集合只从 current.* 构建、循环里也不插入，
+   * 于是一个自相矛盾的文件（两条同 id 会话、两条同日体重）会被全部追加，
+   * latestWeight 之后任取一条，用户看到的数据与文件不符。
+   */
   const sessionById = new Map(current.sessions.map((s) => [s.id, s]));
   const nextSessions = [...current.sessions];
   for (const incoming of rec.sessions ?? []) {
     const existing = sessionById.get(incoming.id);
     if (!existing) {
+      sessionById.set(incoming.id, incoming);
       nextSessions.push(incoming);
       added += 1;
     } else if (canonicalJson(existing) === canonicalJson(incoming)) {
@@ -458,6 +510,7 @@ export function applyImport(
   for (const incoming of rec.weights ?? []) {
     const existing = weightByDate.get(incoming.date);
     if (!existing) {
+      weightByDate.set(incoming.date, incoming);
       nextWeights.push(incoming);
       added += 1;
     } else if (canonicalJson(existing) === canonicalJson(incoming)) {
@@ -469,6 +522,7 @@ export function applyImport(
   const nextFoods = [...current.foods];
   for (const incoming of rec.foods ?? []) {
     if (!foodIds.has(incoming.id)) {
+      foodIds.add(incoming.id);
       nextFoods.push(incoming);
       added += 1;
     } else {
@@ -479,32 +533,65 @@ export function applyImport(
   const occIds = new Set(current.occurrences.map((o) => o.id));
   const nextOcc = [...current.occurrences];
   for (const incoming of rec.occurrences ?? []) {
-    if (!occIds.has(incoming.id)) nextOcc.push(incoming);
+    if (!occIds.has(incoming.id)) {
+      occIds.add(incoming.id);
+      nextOcc.push(incoming);
+    }
   }
 
   const goalWeeks = new Set(current.weekGoals.map((g) => g.weekStart));
   const nextGoals = [...current.weekGoals];
   for (const incoming of rec.weekGoals ?? []) {
-    if (!goalWeeks.has(incoming.weekStart)) nextGoals.push(incoming);
+    if (!goalWeeks.has(incoming.weekStart)) {
+      goalWeeks.add(incoming.weekStart);
+      nextGoals.push(incoming);
+    }
   }
 
   const tplIds = new Set(current.customTemplates.map((t) => t.id));
   const nextTpl = [...current.customTemplates];
   for (const incoming of rec.customTemplates ?? []) {
-    if (!tplIds.has(incoming.id)) nextTpl.push(incoming);
+    if (!tplIds.has(incoming.id)) {
+      tplIds.add(incoming.id);
+      nextTpl.push(incoming);
+    }
+  }
+
+  /*
+   * goals 的处理：
+   * - 文件带 goals 数组 → 按目标类型去重后合并（用户目标是持久意图，不是派生值）
+   * - 文件没有 goals 字段（旧版导出）→ 保留本地，不能因为升级就把用户的目标清空
+   */
+  const incomingGoals = Array.isArray(rec.goals) ? (rec.goals as Goal[]) : null;
+  let nextUserGoals = [...current.goals];
+  if (incomingGoals) {
+    const seen = new Set(current.goals.map(goalKey));
+    for (const g of incomingGoals) {
+      const key = goalKey(g);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      nextUserGoals.push(g);
+    }
   }
 
   return {
     state: {
       ...current,
       sessions: nextSessions,
-      weights: nextWeights.sort((a, b) => (a.date < b.date ? -1 : 1)),
+      weights: nextWeights.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
       foods: nextFoods,
       occurrences: nextOcc,
-      weekGoals: nextGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),
+      weekGoals: nextGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : a.weekStart > b.weekStart ? 1 : 0)),
       customTemplates: nextTpl,
+      goals: nextUserGoals,
     },
-    added,
+    // 统计口径必须覆盖全部实体类型，否则导入 10 条安排会显示"新增 0"
+    added:
+      added +
+      (nextOcc.length - current.occurrences.length) +
+      (nextGoals.length - current.weekGoals.length) +
+      (nextTpl.length - current.customTemplates.length) +
+      (nextUserGoals.length - current.goals.length),
     skipped,
     conflicts: preview.conflicts.length,
     backup: null,
@@ -520,4 +607,5 @@ export function exportFileName(datasetId: string, at = new Date()): string {
   const mm = String(at.getMinutes()).padStart(2, '0');
   return `tieguan-${datasetId}-${y}${m}${d}-${hh}${mm}.json`;
 }
+
 

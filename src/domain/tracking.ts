@@ -65,7 +65,9 @@ export const MODE_META: Record<TrackingMode, ModeMeta> = {
     primaryUnit: 'm',
     secondaryUnit: '秒',
     countsVolume: false,
-    countsStrength: true,
+    // 距离/时长不构成力量 PR：bestSet 对该模式一律返回 null（metrics.ts:106），
+    // 这里必须与之一致，否则同一概念出现两个答案
+    countsStrength: false,
   },
 };
 

@@ -780,9 +780,10 @@ export const store = {
 
   applyImportPreview(preview: ImportPreview, mode: ImportMode): string | null {
     const result = applyImport(preview, state, mode);
+    let backupKey: string | null = null;
     if (result.backup) {
       // 替换模式：先把旧状态另存为备份，失败可回滚
-      const backupKey = `tieguan.backup.${Date.now()}`;
+      backupKey = `tieguan.backup.${Date.now()}`;
       try {
         localStorage.setItem(backupKey, JSON.stringify(result.backup));
         state.lastBackupKey = backupKey;
@@ -790,7 +791,16 @@ export const store = {
         return '无法写入备份（存储空间不足），已取消替换';
       }
     }
+    /*
+     * 先记下备份键，再整体替换。
+     *
+     * result.state 是从 current 派生的，其中的 lastBackupKey 还是替换前的旧值；
+     * 若无条件 Object.assign，刚写好的备份键会被旧值覆盖掉，
+     * localStorage 里明明有备份，latestBackup() 却永远返回 null，
+     * "恢复到替换前"入口从此消失（备份写了却找不回来）。
+     */
     Object.assign(state, result.state);
+    if (backupKey) state.lastBackupKey = backupKey;
     schedulePersist();
     return null;
   },
@@ -876,6 +886,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

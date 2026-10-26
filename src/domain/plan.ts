@@ -104,7 +104,9 @@ export interface PlanChangeResult {
 
 function hasStartedSession(o: PlannedOccurrence, sessions: Session[]): boolean {
   return sessions.some(
-    (s) => s.occurrenceId === o.id && (s.status === 'active' || s.status === 'paused' || s.status === 'completed'),
+    (s) =>
+      !s.deletedAt &&
+      s.occurrenceId === o.id && (s.status === 'active' || s.status === 'paused' || s.status === 'completed'),
   );
 }
 

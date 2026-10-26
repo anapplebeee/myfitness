@@ -58,6 +58,7 @@ export const RULE_VERSION = 1;
 
 /** 有效完成会话：completed 且至少一个完成工作组；或显式确认的补录。 */
 export function isValidCompletedSession(session: Session): boolean {
+  if (session.deletedAt) return false;
   if (session.status !== 'completed') return false;
   if (session.completionBasis === 'selfReported' || session.completionBasis === 'legacyReported') {
     return true;
@@ -147,10 +148,14 @@ export function computeWeek(input: WeekInput): WeekResult {
   const cancelledCount = set.filter((o) => o.disposition === 'cancelled').length;
 
   // 本周有效会话（去重）
+  // tombstone 不参与统计：删除是显式事实（types.ts:88、amend.ts:140）。
+  // 这里显式过滤而不只依赖 isValidCompletedSession，避免将来有人
+  // 给有效性判定加新口径时把删除的会话重新放回统计。
   const weekSessions: Session[] = [];
   const sessionSeen = new Set<string>();
   for (const s of sessions) {
     if (sessionSeen.has(s.id)) continue;
+    if (s.deletedAt) continue;
     if (!inWeek(s.businessDate, weekStart)) continue;
     if (!isValidCompletedSession(s)) continue;
     sessionSeen.add(s.id);
@@ -318,10 +323,11 @@ export function applyMinimumTargetChange(
 export const EXCUSE_REASONS = ['生病', '伤病', '出差', '工作', '主动休息', '其他'] as const;
 export type ExcuseReason = (typeof EXCUSE_REASONS)[number];
 
-/** 有 active/paused 会话关联时不能直接顺延/取消/豁免。 */
+/** 有 active/paused 会话关联时不能直接顺延/取消/豁免。已删除的会话不算。 */
 export function canDispose(occurrence: PlannedOccurrence, sessions: Session[]): TargetChangeCheck {
   const live = sessions.find(
     (s) =>
+      !s.deletedAt &&
       s.occurrenceId === occurrence.id && (s.status === 'active' || s.status === 'paused'),
   );
   if (live) return { ok: false, reason: '这场训练还没结束，先结束或解除关联再改计划' };
@@ -370,7 +376,8 @@ export function dayState(
   today: string,
 ): DayCell {
   const dayOcc = occurrences.filter((o) => o.weekStart === result.weekStart && o.scheduledDate === date);
-  const daySessions = sessions.filter((s) => s.businessDate === date);
+  // 已删除的场次不参与日历状态
+  const daySessions = sessions.filter((s) => s.businessDate === date && !s.deletedAt);
 
   const validDone = daySessions.filter(isValidCompletedSession);
   const live = daySessions.filter((s) => s.status === 'active' || s.status === 'paused');

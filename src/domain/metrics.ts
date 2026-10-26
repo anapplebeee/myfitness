@@ -22,8 +22,13 @@ export function isEmptySession(session: Session): boolean {
   return session.exercises.every((ex) => ex.sets.every((s) => s.status !== 'completed'));
 }
 
-/** 有效完成：completed 且至少一个完成工作组；放弃/仅热身不算。 */
+/**
+ * 有效完成：completed 且至少一个完成工作组；放弃/仅热身不算。
+ * tombstone（deletedAt 非空）一律不算——删除是显式事实，不参与任何统计
+ * （amend.ts:140、types.ts:88）。
+ */
 export function isValidCompleted(session: Session): boolean {
+  if (session.deletedAt) return false;
   return session.status === 'completed' && completedWorkingSets(session) > 0;
 }
 
@@ -87,7 +92,7 @@ export function activeSession(sessions: Session[]): Session | null {
 
 /** e1RM：Epley，仅适用于 1–10 次外部负荷工作组。 */
 export function e1rm(loadGrams: number, reps: number): number | null {
-  if (reps < 1 || reps > 10) return null;
+  if (!Number.isFinite(reps) || reps < 1 || reps > 10) return null;
   if (!Number.isFinite(loadGrams) || loadGrams <= 0) return null;
   return loadGrams * (1 + reps / 30);
 }
@@ -198,4 +203,5 @@ export function createSessionExercise(
     sets: [],
   };
 }
+
 
