@@ -11,6 +11,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { store } from '../store/appStore';
 import { useToast } from '../composables/useToast';
+import { useSheetBack } from '../composables/useBackLayer';
 import { businessDate } from '../domain/units';
 import {
   PROVIDER_PRESETS,
@@ -36,6 +37,9 @@ const configured = computed(() => isAiConfigured(settings.value));
 const showConfig = ref(false);
 const draftSettings = ref<AiSettings>({ ...settings.value });
 const confirmingEgress = ref(false);
+
+// 返回键/边缘返回先关配置面板
+useSheetBack(showConfig, () => { showConfig.value = false; });
 
 const question = ref('');
 const busy = ref(false);

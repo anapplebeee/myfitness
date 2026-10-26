@@ -56,7 +56,7 @@ const SYNC: SyncState = { ...INITIAL_SYNC_STATE };
 function transport(overrides: Partial<SyncTransport> = {}): SyncTransport {
   return {
     put: vi.fn(async () => ({ status: 200, json: { revision: 1, snapshotHash: 'x' }, etag: '"1"' })),
-    get: vi.fn(async () => ({ status: 404, json: null, etag: null })),
+    get: vi.fn(async () => ({ status: 404, json: { error: { code: 'DATASET_EMPTY' } }, etag: null })),
     remove: vi.fn(async () => ({ status: 204, json: null })),
     health: vi.fn(async () => ({ status: 200, json: { ok: true }, etag: null })),
     ...overrides,
@@ -198,6 +198,13 @@ describe('AC-S02 · 拉取与 304', () => {
     expect(r.code).toBe('DATASET_EMPTY');
   });
 
+  it('普通404不是已验证的空数据集', async () => {
+    const t = transport({ get: vi.fn(async () => ({ status: 404, json: null, etag: null })) });
+    const r = await pullSnapshot(t, SYNC);
+    expect(r.ok).toBe(false);
+    expect(r.code).not.toBe('DATASET_EMPTY');
+  });
+
   it('200 返回快照与 revision', async () => {
     const t = transport({ get: vi.fn(async () => ({ status: 200, json: SNAP, etag: '"7"' })) });
     const r = await pullSnapshot(t, SYNC);
@@ -219,6 +226,13 @@ describe('AC-S02 · 拉取与 304', () => {
 });
 
 describe('AC-S04 · 冲突检测（三方比对）', () => {
+  it('首次非空远端即使旧generation为0也必须选择，不能覆盖本地', () => {
+    expect(detectConflict({ localHash: 'local', remoteHash: 'remote', baseHash: null, localDirty: false }).kind).toBe('diverged');
+  });
+  it('generation未更新时仍以快照差异保护本地修改', () => {
+    expect(detectConflict({ localHash: 'local-new', remoteHash: 'remote-new', baseHash: 'base', localDirty: false }).kind).toBe('diverged');
+    expect(detectConflict({ localHash: 'local-new', remoteHash: 'base', baseHash: 'base', localDirty: false }).kind).toBe('local_ahead');
+  });
   it('远端为空 → local_ahead', () => {
     expect(detectConflict({ localHash: 'h', remoteHash: null, baseHash: null, localDirty: true }).kind).toBe('local_ahead');
   });

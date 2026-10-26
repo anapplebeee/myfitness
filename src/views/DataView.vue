@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exportFileName, type ImportMode, type ImportPreview } from '../domain/transfer';
 import { useToast } from '../composables/useToast';
+import { useSheetBack } from '../composables/useBackLayer';
 import SyncPanel from './SyncPanel.vue';
 
 const { push } = useToast();
@@ -14,6 +15,10 @@ const mode = ref<ImportMode>('merge');
 const busy = ref(false);
 const confirmWipe = ref(false);
 const confirmReplace = ref(false);
+
+// 返回键/边缘返回先关确认面板（清空数据是不可逆操作，误触代价很高）
+useSheetBack(confirmWipe, () => { confirmWipe.value = false; });
+useSheetBack(confirmReplace, () => { confirmReplace.value = false; });
 
 const stats = computed(() => preview.value?.stats ?? null);
 const conflicts = computed(() => preview.value?.conflicts ?? []);

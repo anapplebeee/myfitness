@@ -16,9 +16,13 @@ test.describe('目标设定', () => {
     await goTab(page, '我的');
   });
 
-  test('身体页显示目标面板（无目标时给引导）', async ({ page }) => {
+  test('身体页显示目标面板（三类目标都在，未设定时给入口）', async ({ page }) => {
     await expect(page.locator('.goals')).toBeVisible();
-    await expect(page.getByText('还没有目标')).toBeVisible();
+    // 体重 / 力量 / 频率三类恒常展示，避免"只能设体重"的误解
+    await expect(page.locator('.goalgroup__name')).toHaveText(['体重', '力量', '频率']);
+    await expect(page.getByText('还没设目标体重')).toBeVisible();
+    await expect(page.getByText('还没设力量目标')).toBeVisible();
+    await expect(page.getByText('还没设频率目标')).toBeVisible();
   });
 
   test('能打开目标设定面板并选择类型', async ({ page }) => {

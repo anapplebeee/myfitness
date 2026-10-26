@@ -130,14 +130,45 @@ needs: unit
 |---|---|
 | **真机安装与冒烟** | **未做**——没有连接任何设备。一键脚本与操作手册见 [20 真机验证](20-android-device-testing.md) |
 | 模拟器验证 | **已尝试并放弃**：本机账户不在管理员组，无法安装虚拟化驱动。AVD 组件已卸载（见 22 号） |
-| release 签名 | 未配置 keystore |
+| release 签名 | **已配置固定密钥** `android/tieguan-release.keystore`（CN=TieGuan），debug/release 共用；密钥与口令在 `android/keystore.properties`（均被 gitignore）。构建脚本会校验签名 DN |
 | 图标与启动图 | 沿用旧资源，未按新设计系统重做 |
-| Android 返回键行为 | **已实现**：WebView 可后退则后退，否则退出 |
+| Android 返回键行为 | **已实现（两层）**：有浮层时先关浮层，见下文「返回键与浮层」；无浮层时 WebView 可后退则后退，否则退出 |
 | 安全区适配 | 未在真机验证刘海/手势区 |
 | `android:allowBackup` | **未显式关闭**（AC-C09 要求排除 IDB 与密钥备份） |
 | 真机性能 | 未测 24.7 MiB 快照解析与 IndexedDB 写入 |
 
-## 7. 结论
+## 7. 返回键与浮层
+
+**问题**：应用用 hash 路由。打开底部面板后按返回键，WebView 执行 `history.back()`，
+hash 一变就换了页面，面板随视图卸载——用户看到的是"跳到别的页面"，而不是关掉面板。
+
+**更严重的一层（模拟器实测发现）**：Capacitor 的 Activity **默认完全不拦截返回键**，
+按下返回直接 `finish()`——有面板打开时也是整个应用退出，用户会以为数据丢了。
+
+**做法**：
+
+- 原生侧：`@capacitor/app` 的 `backButton` 事件（`src/App.vue`），拿回决定权；
+- 顺序：先关最上层浮层 → 再退路由 → 都没有才 `minimizeApp()`（符合安卓"返回回桌面"的习惯）；
+- Web 侧：`src/composables/useBackLayer.ts` 在 history 里压**同 URL 哨兵条目**，
+  返回先消费哨兵 → 触发 `popstate`（不是 `hashchange`）→ 关掉最上层浮层；
+- 组件自己关闭（点 ✕）时反向退掉哨兵，不留历史垃圾；
+- 配套 `useEdgeSwipeBack` 提供应用内边缘滑动返回，覆盖 iOS 独立 PWA 等没有系统手势的场景。
+
+回归用例：`e2e/fixes-round2.spec.ts` 的「返回键与浮层」两条（浏览器），
+以及模拟器手工验收（Android 15 / Pixel 7，KEYCODE_BACK 真实按键）。
+
+## 8. 模拟器验收（2026-10-26）
+
+工具链补齐后在本机跑通了无头模拟器：Android 15（API 35）`google_apis/x86_64`，
+AVD `tieguan`（Pixel 7，1080×2400 / 420dpi），WHPX 硬件加速，48 秒冷启动。
+
+驱动方式：`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` +
+原生 CDP（Playwright 的 `connectOverCDP` 不支持 WebView 的上下文管理），
+返回键用 `adb shell input keyevent 4`。
+
+结论：五处改动在真机运行时全部生效；同时暴露并修掉了"返回键退出应用"这个只在原生才出现的问题。
+
+## 9. 结论
 
 Android 链路从「完全断开、无人发现」修复为「**能真正编译出可安装的 APK**」，并有 16 项自动校验。
 

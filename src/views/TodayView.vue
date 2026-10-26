@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { store, derived } from '../store/appStore';
-import { TEMPLATE_BY_ID, exerciseName } from '../content/exercises';
+import { exerciseName } from '../content/exercises';
 import {
   businessDate,
   formatVolume,
@@ -10,15 +10,15 @@ import {
   weekdayLabel,
 } from '../domain/units';
 import {
-  activeSession,
   isValidCompleted,
   sessionVolumeGrams,
   trainingCount,
 } from '../domain/metrics';
 import Sparkline from '../components/Sparkline.vue';
-import { startLive } from '../composables/useOverlay';
+import { openSession, startLive } from '../composables/useOverlay';
 import type { Route } from '../types/nav';
 import { computeWeek, dayStatesForWeek, statusLabel, targetNarrative } from '../domain/week';
+import { todayTraining } from '../domain/today';
 
 const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
 withDefaults(defineProps<{ greetingName?: string }>(), { greetingName: '你' });
@@ -27,7 +27,6 @@ const today = businessDate();
 const weekStart = weekStartOf(today);
 
 const sessions = computed(() => store.state.sessions);
-const live = computed(() => activeSession([...sessions.value]));
 
 const weekResult = computed(() =>
   computeWeek({
@@ -48,14 +47,37 @@ const weekStatusText = computed(() => statusLabel(weekResult.value.status));
 const adjustedHint = computed(() => targetNarrative(weekResult.value));
 
 const template = computed(() =>
-  store.state.activeTemplateId ? TEMPLATE_BY_ID.get(store.state.activeTemplateId) ?? null : null,
+  store.state.activeTemplateId ? store.templateById(store.state.activeTemplateId) : null,
+);
+
+/**
+ * 今天到底算"待训练 / 进行中 / 已完成 / 已顺延 / 休息"。
+ *
+ * 之前今日页只认模板的星期几，不看今天的计划项有没有被顺延、
+ * 也不看今天是否已经练过，于是出现"练完了还让你开始训练"的矛盾。
+ */
+const todayInfo = computed(() =>
+  todayTraining({
+    today,
+    occurrences: [...store.state.occurrences],
+    sessions: [...sessions.value],
+    result: weekResult.value,
+  }),
 );
 
 const todayPlan = computed(() => {
-  if (!template.value) return null;
+  const tpl = template.value;
+  if (!tpl) return null;
+  // 优先用今天真正的计划项反查模板日：顺延进来的训练也能显示对
+  const occ = todayInfo.value.occurrence;
+  if (occ) {
+    const bySlot = tpl.days.find((d) => `${tpl.id}-${d.id}` === occ.slotId);
+    if (bySlot) return bySlot;
+  }
+  // 没有计划项时按星期几取（休息日也允许手动开一场）
   const dayIndex = new Date(`${today}T12:00:00`).getDay();
-  const idx = dayIndex === 0 ? template.value.days.length - 1 : dayIndex - 1;
-  return template.value.days[idx] ?? template.value.days[0] ?? null;
+  const idx = dayIndex === 0 ? tpl.days.length - 1 : dayIndex - 1;
+  return tpl.days[idx] ?? tpl.days[0] ?? null;
 });
 
 const recent = computed(() =>
@@ -115,6 +137,21 @@ const weekDays = computed(() => {
 
 const totalTraining = computed(() => trainingCount([...sessions.value]));
 
+const heroTitle = computed(() => {
+  switch (todayInfo.value.state) {
+    case 'live':
+      return '训练进行中';
+    case 'done':
+      return '今天已经练完了';
+    case 'moved':
+      return '今天这项已顺延';
+    case 'rest':
+      return '今天没有安排';
+    default:
+      return '把这一组，记下来';
+  }
+});
+
 /**
  * 开始训练。
  *
@@ -123,8 +160,17 @@ const totalTraining = computed(() => trainingCount([...sessions.value]));
  * 没有计划时才退回到训练页让用户选。
  */
 function startWorkout(): void {
+  const info = todayInfo.value;
+  if (info.state === 'live' && info.session) {
+    startLive(info.session.id);
+    return;
+  }
+  if (info.state === 'done') {
+    if (info.session) openSession(info.session.id);
+    return;
+  }
   const day = todayPlan.value;
-  if (day && !live.value) {
+  if (day) {
     const session = store.startSessionFromDay(day.id);
     if (session) {
       startLive(session.id);
@@ -132,6 +178,10 @@ function startWorkout(): void {
     }
   }
   emit('navigate', 'train');
+}
+
+function openRecent(id: string): void {
+  openSession(id);
 }
 </script>
 
@@ -142,9 +192,7 @@ function startWorkout(): void {
       <div class="hero__head">
         <div>
           <p class="hero__eyebrow">{{ greetingName }}，今天练什么</p>
-          <h1 class="hero__title">
-            {{ live ? '训练进行中' : '把这一组，记下来' }}
-          </h1>
+          <h1 class="hero__title">{{ heroTitle }}</h1>
         </div>
         <div class="ring" :style="{ '--pct': weekPct }" :aria-label="`本周完成 ${doneThisWeek} 次，目标 ${weekGoal} 次`">
           <div class="ring__inner">
@@ -154,10 +202,33 @@ function startWorkout(): void {
         </div>
       </div>
 
-      <div v-if="live" class="hero__live">
+      <div v-if="todayInfo.state === 'live' && todayInfo.session" class="hero__live">
         <span class="dot" />
-        <span>{{ live.title }}</span>
-        <span class="hero__live-time">{{ shortDate(live.businessDate) }} 开始</span>
+        <span>{{ todayInfo.session.title }}</span>
+        <span class="hero__live-time">{{ shortDate(todayInfo.session.businessDate) }} 开始</span>
+      </div>
+
+      <!-- 已完成：给出训练事实，而不是再让用户开始一次 -->
+      <div v-else-if="todayInfo.state === 'done' && todayInfo.session" class="hero__plan">
+        <div class="hero__plan-head">
+          <span class="label">今天完成</span>
+          <span class="chip chip--sm hero__chip">{{ todayInfo.credited ? '已计入周目标' : '未计入周目标' }}</span>
+        </div>
+        <p class="hero__plan-title">{{ todayInfo.session.title }}</p>
+        <div class="hero__exercises">
+          <span class="hero__ex">{{ todayInfo.session.exercises.length }} 个动作</span>
+          <span class="hero__ex">{{ formatVolume(sessionVolumeGrams(todayInfo.session), 'kg') }} 容量</span>
+        </div>
+      </div>
+
+      <!-- 已顺延 -->
+      <div v-else-if="todayInfo.state === 'moved' && todayInfo.movedTo" class="hero__plan">
+        <div class="hero__plan-head">
+          <span class="label">今天原计划</span>
+          <span class="chip chip--sm hero__chip">顺延至 {{ shortDate(todayInfo.movedTo) }}</span>
+        </div>
+        <p class="hero__plan-title">{{ todayInfo.occurrence?.title }}</p>
+        <p class="tiny hero__plan-note">今天不用补，按新日期练即可；想加练可以开始一场空白训练。</p>
       </div>
 
       <div v-else-if="todayPlan" class="hero__plan">
@@ -174,14 +245,34 @@ function startWorkout(): void {
       </div>
 
       <div class="hero__actions">
-        <button class="btn btn--lime btn--lg" @click="startWorkout">
+        <button
+          v-if="todayInfo.state === 'done'"
+          class="btn btn--lime btn--lg"
+          @click="startWorkout"
+        >
+          查看这次训练
+        </button>
+        <button
+          v-else-if="todayInfo.state === 'moved'"
+          class="btn btn--lime btn--lg"
+          @click="emit('navigate', 'plan')"
+        >
+          看本周安排
+        </button>
+        <button v-else class="btn btn--lime btn--lg" @click="startWorkout">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" />
           </svg>
-          {{ live ? '继续训练' : '开始训练' }}
+          {{ todayInfo.state === 'live' ? '继续训练' : '开始训练' }}
         </button>
-        <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', 'train')">空白训练</button>
+        <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', 'train')">
+          {{ todayInfo.state === 'done' ? '再练一场' : '空白训练' }}
+        </button>
       </div>
+
+      <p v-if="todayInfo.state === 'done' && !todayInfo.credited" class="hero__hint">
+        这场只记录了训练次数，没有计入本周目标（结束时可勾选「本次计入周目标」）。
+      </p>
     </section>
 
     <!-- week strip -->
@@ -278,7 +369,7 @@ function startWorkout(): void {
           v-for="s in recent"
           :key="s.id"
           class="list__row recent__row"
-          @click="emit('navigate', 'train')"
+          @click="openRecent(s.id)"
         >
           <span class="recent__date">
             <strong>{{ shortDate(s.businessDate).split('月')[1]?.replace('日', '') }}</strong>
@@ -407,6 +498,22 @@ function startWorkout(): void {
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.025em;
+}
+
+.hero__plan-note {
+  margin-top: 8px;
+  color: rgba(244, 246, 238, 0.55);
+  line-height: 1.5;
+}
+
+.hero__hint {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(244, 246, 238, 0.07);
+  color: rgba(244, 246, 238, 0.7);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .hero__exercises {

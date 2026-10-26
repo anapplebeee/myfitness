@@ -12,7 +12,10 @@ import {
 } from '../domain/metrics';
 import { pendingSetCount, contributesToVolume } from '../domain/amend';
 import { setSummary } from '../domain/tracking';
+import { computeWeek } from '../domain/week';
+import { mondayOf } from '../domain/plan';
 import { useToast } from '../composables/useToast';
+import { useBackLayer, useSheetBack } from '../composables/useBackLayer';
 import type { SetRecord } from '../domain/types';
 
 const props = defineProps<{ sessionId: string }>();
@@ -28,6 +31,12 @@ const editReps = ref('');
 const editExId = ref('');
 const confirmDelete = ref(false);
 
+// 返回键/边缘返回先关详情，而不是跳回上一个页面
+useBackLayer(() => emit('close'));
+useSheetBack(dateSheet, () => { dateSheet.value = false; });
+useSheetBack(confirmDelete, () => { confirmDelete.value = false; });
+useSheetBack(computed(() => editSetId.value !== null), () => { editSetId.value = null; });
+
 // 必须走响应式查询：更正会整体替换 sessions 数组，旧对象引用不会触发重算
 const session = computed(() => store.sessionById(props.sessionId));
 const isDeleted = computed(() => Boolean(session.value?.deletedAt));
@@ -41,6 +50,52 @@ const duration = computed(() => {
   return formatDuration((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000);
 });
 const countsAsTraining = computed(() => (session.value ? isValidCompleted(session.value) : false));
+
+/**
+ * 事后关联周目标。
+ *
+ * 结束训练时默认会勾上"计入周目标"，但用户可能取消，或这场是空白训练。
+ * 没有这个入口的话，"已练完但周目标还是 0"就变成了无法自救的状态。
+ */
+const creditSheet = ref(false);
+useSheetBack(creditSheet, () => { creditSheet.value = false; });
+
+const weekStart = computed(() => (session.value ? mondayOf(session.value.businessDate) : ''));
+const weekResult = computed(() => {
+  const s = session.value;
+  if (!s) return null;
+  return computeWeek({
+    weekStart: weekStart.value,
+    goal: store.goalForWeek(weekStart.value),
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    now: new Date(),
+  });
+});
+
+const creditedTitle = computed(() => {
+  const id = session.value?.occurrenceId;
+  if (!id) return '';
+  return store.state.occurrences.find((o) => o.id === id)?.title ?? '';
+});
+
+/** 可关联的项目：本周仍未满足的；已关联的那一项也算进来，方便取消。 */
+const creditOptions = computed(() => {
+  const s = session.value;
+  if (!s || !weekResult.value) return [];
+  const open = store.openOccurrences(weekStart.value, weekResult.value.satisfiedOccurrenceIds);
+  const current = s.occurrenceId
+    ? store.state.occurrences.find((o) => o.id === s.occurrenceId) ?? null
+    : null;
+  if (current && !open.some((o) => o.id === current.id)) return [current, ...open];
+  return open;
+});
+
+function applyCredit(occurrenceId: string | null): void {
+  store.creditSessionToOccurrence(props.sessionId, occurrenceId);
+  creditSheet.value = false;
+  push(occurrenceId ? '已计入本周目标' : '已取消计入周目标', 'success');
+}
 
 function openDateSheet(): void {
   nextDate.value = session.value?.businessDate ?? '';
@@ -217,8 +272,24 @@ function lastHint(exerciseId: string): string {
 
     <p v-if="!session.exercises.length" class="empty card">这场训练没有动作记录。</p>
 
-    <p v-if="countsAsTraining" class="tiny detail__foot">计入训练次数与周目标（若已确认关联）。</p>
-    <p v-else class="tiny detail__foot">不计入训练次数：没有完成的工作组。</p>
+    <!-- 周目标关联：练完了但没计入时，这里能补上；本周没有可匹配项就不摆这个入口 -->
+    <section
+      v-if="countsAsTraining && !isDeleted && (session.occurrenceId || creditOptions.length)"
+      class="card creditcard"
+    >
+      <div class="row between">
+        <div>
+          <p class="label">周目标</p>
+          <p class="small creditcard__text">
+            {{ session.goalCreditConfirmed && creditedTitle ? `已计入：${creditedTitle}` : '这场还没计入本周目标，只记了次数与天数' }}
+          </p>
+        </div>
+        <button class="btn btn--ghost btn--sm" @click="creditSheet = true">
+          {{ session.goalCreditConfirmed ? '修改' : '计入' }}
+        </button>
+      </div>
+    </section>
+    <p v-else-if="!countsAsTraining" class="tiny detail__foot">不计入训练次数：没有完成的工作组。</p>
 
     <!-- 日期更正 -->
     <Transition name="sheet">
@@ -265,6 +336,48 @@ function lastHint(exerciseId: string): string {
             </div>
           </div>
           <button class="btn btn--lime btn--block btn--lg" style="margin-top: 16px" @click="saveEdit">保存更正</button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 周目标关联 -->
+    <Transition name="sheet">
+      <div v-if="creditSheet" class="sheet" @click.self="creditSheet = false">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">周目标</p>
+              <h2 class="h2">这场训练算哪一项</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="creditSheet = false">✕</button>
+          </div>
+          <p class="small">
+            一个计划项最多由一场训练满足。改动只影响周目标完成数，不改变训练记录本身。
+          </p>
+          <div class="stack gap-8" style="margin-top: 12px">
+            <button
+              v-for="o in creditOptions"
+              :key="o.id"
+              class="list__row creditrow"
+              :class="{ 'is-on': session.occurrenceId === o.id }"
+              @click="applyCredit(o.id)"
+            >
+              <span class="recent__body">
+                <span class="h3">{{ o.title }}</span>
+                <span class="tiny">{{ shortDate(o.scheduledDate) }}</span>
+              </span>
+              <span v-if="session.occurrenceId === o.id" class="chip chip--lime chip--sm">当前</span>
+            </button>
+            <p v-if="!creditOptions.length" class="empty">本周没有可匹配的计划项。</p>
+          </div>
+          <button
+            v-if="session.occurrenceId"
+            class="btn btn--ghost btn--block"
+            style="margin-top: 12px"
+            @click="applyCredit(null)"
+          >
+            取消计入
+          </button>
         </div>
       </div>
     </Transition>
@@ -435,6 +548,28 @@ function lastHint(exerciseId: string): string {
 
 .detail__foot {
   padding: 0 4px;
+}
+
+.creditcard {
+  padding: 14px 16px;
+}
+
+.creditcard__text {
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.creditrow {
+  width: 100%;
+  text-align: left;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(17, 20, 17, 0.035);
+}
+
+.creditrow.is-on {
+  background: rgba(201, 245, 63, 0.18);
 }
 </style>
 

@@ -35,6 +35,9 @@ export interface SyncState {
   lastAttemptAt: string | null;
   /** 服务端公布的上限 */
   maxSnapshotBytes: number;
+  /** 检查点绑定服务，幂等键绑定不可变请求快照。 */
+  serviceEndpoint?: string;
+  inflightHash?: string | null;
 }
 
 export const INITIAL_SYNC_STATE: SyncState = {
@@ -284,7 +287,7 @@ export async function pullSnapshot(
     if (res.status === 304) {
       return { ok: true, status: 304, notModified: true };
     }
-    if (res.status === 404) {
+    if (res.status === 404 && errorOf(res.json).code === 'DATASET_EMPTY') {
       return { ok: true, status: 404, code: 'DATASET_EMPTY' };
     }
     if (res.status === 200) {
@@ -335,7 +338,11 @@ export function detectConflict(args: {
   if (remoteHash === null) {
     return { kind: 'local_ahead', message: '远端为空，可直接上传' };
   }
-  if (!localDirty) {
+  // 没有共同基线不是“本地没改”；旧generation也不能推翻实际哈希差异。
+  if (baseHash === null && localHash !== remoteHash) {
+    return { kind: 'diverged', message: '首次连接已有远端，请选择保留方式；本地记录尚未被替换' };
+  }
+  if (!localDirty && localHash === baseHash) {
     if (localHash === remoteHash) {
       return { kind: 'none', message: '已是最新' };
     }

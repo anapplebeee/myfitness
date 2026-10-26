@@ -29,6 +29,8 @@ const PERSISTED = [
   'inflightKey',
   'inflightGeneration',
   'maxSnapshotBytes',
+  'serviceEndpoint',
+  'inflightHash',
 ] as const;
 
 type PersistedKey = (typeof PERSISTED)[number];
@@ -48,6 +50,8 @@ export function loadSyncState(): SyncState {
       inflightKey: typeof p.inflightKey === 'string' ? p.inflightKey : null,
       inflightGeneration: typeof p.inflightGeneration === 'number' ? p.inflightGeneration : null,
       maxSnapshotBytes: typeof p.maxSnapshotBytes === 'number' && p.maxSnapshotBytes > 0 ? p.maxSnapshotBytes : base.maxSnapshotBytes,
+      serviceEndpoint: typeof p.serviceEndpoint === 'string' ? p.serviceEndpoint : undefined,
+      inflightHash: typeof p.inflightHash === 'string' ? p.inflightHash : null,
     };
   } catch {
     // 存储损坏时回到初始值：最坏情况是多一次 412，不会丢数据
@@ -55,13 +59,15 @@ export function loadSyncState(): SyncState {
   }
 }
 
-export function saveSyncState(s: SyncState): void {
+export function saveSyncState(s: SyncState): boolean {
   try {
     const out: Partial<Record<PersistedKey, unknown>> = {};
     for (const k of PERSISTED) out[k] = s[k];
     localStorage.setItem(KEY, JSON.stringify(out));
+    return true;
   } catch {
     // 配额满/隐私模式：静默失败。下次同步会重新走 412 分支，不会丢数据。
+    return false;
   }
 }
 

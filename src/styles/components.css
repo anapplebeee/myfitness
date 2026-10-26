@@ -120,6 +120,30 @@
   display: flex;
   align-items: center;
   gap: 11px;
+  /* 标题现在可点（回今日/滚到顶），按钮形态需要清掉默认外观 */
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.brand:active {
+  transform: scale(0.98);
+}
+
+/* 可点的 chip：给出"能按"的视觉与触感 */
+.chip--tap {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chip--tap:active {
+  transform: scale(0.96);
 }
 
 .brand__mark {

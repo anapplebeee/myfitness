@@ -14,6 +14,7 @@ import {
   dayStatesForWeek,
   daysLeftInWeek,
   foldStreak,
+  isValidCompletedSession,
   statusLabel,
   targetNarrative,
   EXCUSE_REASONS,
@@ -22,6 +23,7 @@ import {
   type WeekResult,
 } from '../domain/week';
 import { mondayOf } from '../domain/plan';
+import { useSheetBack } from '../composables/useBackLayer';
 import { useToast } from '../composables/useToast';
 import type { Route } from '../types/nav';
 
@@ -152,7 +154,15 @@ function saveTarget(): void {
 const weekdayOfWeek = (i: number) => weekdayLabel(addDays(activeWeek.value, i)).replace('周', '');
 
 function isSatisfied(o: PlannedOccurrence): boolean {
-  return result.value.satisfiedOccurrenceIds.includes(o.id);
+  // 以会话关联为唯一权威（09 号口径），不依赖当前周的统计结果——
+  // 月视图里会点到别的周的项目，用周结果判断会串周。
+  return sessions.value.some(
+    (s) =>
+      !s.deletedAt &&
+      isValidCompletedSession(s) &&
+      s.occurrenceId === o.id &&
+      s.goalCreditConfirmed === true,
+  );
 }
 
 const stateTone: Record<DayCell['primary'], string> = {
@@ -187,7 +197,7 @@ const tone: Record<WeekResult['status'], string> = {
 function occurrenceState(o: PlannedOccurrence): { text: string; cls: string } {
   if (o.disposition === 'excused') return { text: '豁免', cls: 'chip--sky' };
   if (o.disposition === 'cancelled') return { text: '已取消', cls: '' };
-  if (result.value.satisfiedOccurrenceIds.includes(o.id)) return { text: '已完成', cls: 'chip--lime' };
+  if (isSatisfied(o)) return { text: '已完成', cls: 'chip--lime' };
   if (o.scheduledDate < today) return { text: '未完成', cls: 'chip--clay' };
   if (o.originalDate !== o.scheduledDate) return { text: `顺延至 ${shortDate(o.scheduledDate)}`, cls: '' };
   return { text: shortDate(o.scheduledDate), cls: '' };
@@ -199,11 +209,35 @@ function openDay(cell: DayCell): void {
   dayDetail.value = cell;
 }
 
+/** 单日详情里的项目：不限于当前周，月视图点任意一天都能看到内容。 */
 const dayItems = computed(() => {
   const cell = dayDetail.value;
   if (!cell) return [];
-  return weekOccurrences.value.filter((o) => o.scheduledDate === cell.date);
+  return occurrences.value
+    .filter((o) => o.scheduledDate === cell.date)
+    .sort((a, b) => (a.title < b.title ? -1 : 1));
 });
+
+/** 从单日详情跳到该日期所在的周。 */
+function jumpToWeek(cell: DayCell): void {
+  const target = mondayOf(cell.date);
+  const diff = Math.round(
+    (new Date(`${target}T12:00:00`).getTime() - new Date(`${thisWeek}T12:00:00`).getTime()) / 86_400_000,
+  );
+  weekOffset.value = Math.round(diff / 7);
+  dayDetail.value = null;
+}
+
+/** 在单日详情里点某一项 → 直接打开操作面板（先关掉日详情，避免面板叠面板）。 */
+function actFromDay(o: PlannedOccurrence): void {
+  dayDetail.value = null;
+  openActions(o);
+}
+
+// 返回键/边缘返回：先关面板，而不是离开周目标页
+useSheetBack(computed(() => acting.value !== null), closeActions);
+useSheetBack(showTargetEditor, () => { showTargetEditor.value = false; });
+useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value = null; });
 
 </script>
 
@@ -448,14 +482,28 @@ const dayItems = computed(() => {
           </div>
           <div class="divider" />
           <div v-if="dayItems.length" class="stack gap-8">
-            <div v-for="o in dayItems" :key="o.id" class="list__row">
+            <button
+              v-for="o in dayItems"
+              :key="o.id"
+              class="list__row dayitem"
+              :class="{ 'is-disposed': o.disposition !== 'scheduled' }"
+              @click="actFromDay(o)"
+            >
               <span class="item__body">
                 <span class="h3">{{ o.title }}</span>
-                <span class="tiny">{{ o.exerciseIds.length }} 个动作 · {{ occurrenceState(o).text }}</span>
+                <span class="tiny">
+                  {{ o.exerciseIds.slice(0, 3).map((id) => exerciseName(id)).join(' · ') }}
+                </span>
               </span>
-            </div>
+              <span class="chip chip--sm" :class="occurrenceState(o).cls">{{ occurrenceState(o).text }}</span>
+            </button>
           </div>
           <p v-else class="empty">这天没有安排，也没有训练记录。</p>
+
+          <div class="row gap-10" style="margin-top: 16px">
+            <button class="btn btn--ghost btn--block" @click="dayDetail = null">关闭</button>
+            <button class="btn btn--primary btn--block" @click="jumpToWeek(dayDetail)">看这一周</button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -473,6 +521,16 @@ const dayItems = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.dayitem {
+  width: 100%;
+  text-align: left;
+  align-items: center;
+}
+
+.dayitem.is-disposed {
+  opacity: 0.55;
 }
 
 .weeknav__label {

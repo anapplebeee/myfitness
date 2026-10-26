@@ -170,8 +170,16 @@ export function seedState(): AppState {
     sessions: sessions.sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1)),
     weights,
     foods,
+    /*
+     * 示例数据不带目标：目标面板的空状态引导是产品有意为之
+     * （"定一个能判断达成没达成的数字"）。
+     *
+     * 同时 bodyGoalGrams 必须跟着为空——只写 74000 而不建 goal，
+     * 会让体重卡显示"目标 74.0 kg"、目标面板却说"还没有目标"，
+     * 同一屏两个互相矛盾的事实。
+     */
     goals: [],
-    bodyGoalGrams: 74000,
+    bodyGoalGrams: null,
     targetKcal: 2350,
     targetProtein: 165,
     weeklyGoal: 4,

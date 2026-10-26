@@ -6,17 +6,23 @@ import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from 
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
+import ExerciseDemo from './ExerciseDemo.vue';
 import { setSummary } from '../domain/tracking';
 import { diffSessions, previousComparableSession, summarizeSession } from '../domain/goals';
 import type { SetRecord, TrackingMode } from '../domain/types';
 import { setImmersive } from '../composables/useImmersive';
 import { mondayOf } from '../domain/plan';
 import { computeWeek } from '../domain/week';
+import { useBackLayer, useSheetBack } from '../composables/useBackLayer';
 
 const props = defineProps<{ sessionId: string }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'finished'): void }>();
 
 const { push } = useToast();
+
+// 返回键/边缘返回：先关本场录制（会话保持未结束，可继续），
+// 而不是把用户带回别的页面、让他以为训练丢了。
+useBackLayer(() => emit('close'));
 
 onMounted(() => setImmersive(true));
 onBeforeUnmount(() => {
@@ -36,6 +42,13 @@ const finishing = ref(false);
 const creditChoice = ref<string>('');
 const creditConfirmed = ref(false);
 const elapsed = ref(0);
+/** 动作演示面板：非空时显示 */
+const demoId = ref<string | null>(null);
+const saving = ref(false);
+
+// 总结面板与动作面板也要能被返回键关掉，而不是直接退出录制
+useSheetBack(finishing, () => { finishing.value = false; });
+useSheetBack(showPicker, () => { showPicker.value = false; });
 /*
  * 训练计时：每秒刷新已用时长。
  *
@@ -158,14 +171,21 @@ function modeOf(exId: string): TrackingMode {
   return EXERCISES.find((e) => e.id === exId)?.mode ?? 'load_reps';
 }
 
-function complete(exId: string, set: SetRecord): void {
+async function complete(exId: string, set: SetRecord): Promise<void> {
+  if (saving.value) return;
   const parsed = parseDraft(exId, set);
   if (!parsed) {
     push(EXERCISES.find((e) => e.id === exId)?.mode === 'load_reps' ? '先填重量和次数' : '先填完整数据', 'error');
     return;
   }
   const ex = activeExercise.value;
-  store.completeSet(props.sessionId, exId, set.id, parsed);
+  saving.value = true;
+  const saved = await store.completeSet(props.sessionId, exId, set.id, parsed);
+  saving.value = false;
+  if (!saved) {
+    push(store.saveError.value ?? '本组尚未保存，请重试', 'error');
+    return;
+  }
   if (ex) rest.start(ex.restSeconds);
   push('已保存本组', 'success');
 }
@@ -219,6 +239,7 @@ function prevFor(exId: string, index: number): string {
 }
 
 function finish(): void {
+  if (saving.value) return;
   const s = session.value;
   if (!s) return;
   if (completedWorkingSets(s) === 0) {
@@ -236,9 +257,17 @@ function finish(): void {
   });
   // 排除已被其他场次满足的项目，避免一场顶掉已有记录
   const open = store.openOccurrences(weekStart, weekState.satisfiedOccurrenceIds);
-  const sameDay = open.find((o) => o.scheduledDate === s.businessDate);
-  creditChoice.value = sameDay?.id ?? open[0]?.id ?? '';
-  creditConfirmed.value = false;
+  /*
+   * 默认匹配项：
+   * 1. 开始训练时就绑定的那一项（从"今日计划"进来的情况）
+   * 2. 否则取同日的项目
+   * 有默认值就顺手勾上——否则用户练完直接点"确认结束"，
+   * 周目标仍然是 0/N，看起来像没记上。仍可手动取消。
+   */
+  const bound = s.occurrenceId ? open.find((o) => o.id === s.occurrenceId) : undefined;
+  const match = bound ?? open.find((o) => o.scheduledDate === s.businessDate);
+  creditChoice.value = match?.id ?? '';
+  creditConfirmed.value = Boolean(match);
   finishing.value = true;
 }
 
@@ -275,9 +304,15 @@ const comparison = computed(() => {
   };
 });
 
-function confirmFinish(): void {
-  store.updateSession(props.sessionId, { status: 'completed', endedAt: new Date().toISOString(), restEndsAt: null });
-  store.creditSessionToOccurrence(props.sessionId, creditConfirmed.value && creditChoice.value ? creditChoice.value : null);
+async function confirmFinish(): Promise<void> {
+  if (saving.value) return;
+  saving.value = true;
+  const saved = await store.finishSession(props.sessionId, creditConfirmed.value && creditChoice.value ? creditChoice.value : null);
+  saving.value = false;
+  if (!saved) {
+    push(store.saveError.value ?? '训练尚未保存，请重试', 'error');
+    return;
+  }
   finishing.value = false;
   push('训练已保存', 'success');
   emit('finished');
@@ -392,6 +427,9 @@ const progress = computed(() => {
           <h2 class="h2">{{ exerciseName(activeExercise.exerciseId) }}</h2>
           <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · {{ targetHint(activeExercise) }}</p>
         </div>
+        <button class="btn btn--ghost btn--sm demo-btn" @click="demoId = activeExercise!.exerciseId">
+          要领
+        </button>
       </div>
 
       <div v-if="modeOf(activeExercise.exerciseId) === 'load_reps'" class="seg live__unit">
@@ -481,6 +519,7 @@ const progress = computed(() => {
             </div>
             <button
               class="set__check"
+              :disabled="saving"
               :aria-label="`完成第 ${idx + 1} 组`"
               @click="complete(activeExercise.exerciseId, set)"
             >
@@ -564,10 +603,16 @@ const progress = computed(() => {
               <input v-model="creditConfirmed" type="checkbox" class="credit__box" />
               <span class="credit__text">
                 <span class="h3">本次计入周目标</span>
-                <span class="tiny">只有勾选并确认后，本场才算满足一个计划项目</span>
+                <span class="tiny">
+                  {{
+                    creditConfirmed
+                      ? '已匹配到本周计划项；取消勾选则只记次数与天数'
+                      : '勾选后本场才算满足一个计划项目'
+                  }}
+                </span>
               </span>
             </label>
-            <div v-if="creditConfirmed" class="credit__pick">
+            <div v-if="creditConfirmed && creditOptions.length" class="credit__pick">
               <label class="tiny">匹配哪一项</label>
               <select v-model="creditChoice" class="input credit__select">
                 <option value="">不匹配具体项目</option>
@@ -580,11 +625,14 @@ const progress = computed(() => {
                 </option>
               </select>
             </div>
+            <p v-else-if="!creditOptions.length" class="tiny credit__none">
+              本周没有可匹配的计划项，本场只计入次数与天数。
+            </p>
           </div>
 
           <div class="row gap-10" style="margin-top: 18px">
             <button class="btn btn--ghost btn--block" @click="finishing = false">继续练</button>
-            <button class="btn btn--lime btn--block" @click="confirmFinish">确认结束</button>
+            <button class="btn btn--lime btn--block" :disabled="saving" @click="confirmFinish">确认结束</button>
           </div>
         </div>
       </div>
@@ -614,6 +662,9 @@ const progress = computed(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- 动作演示 -->
+    <ExerciseDemo v-if="demoId" :exercise-id="demoId" @close="demoId = null" />
   </div>
 </template>
 
@@ -671,7 +722,15 @@ const progress = computed(() => {
 }
 
 .live__panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 12px;
+}
+
+.demo-btn {
+  flex: none;
 }
 
 .live__unit {
@@ -954,6 +1013,13 @@ const progress = computed(() => {
   align-items: flex-start;
   gap: 10px;
   cursor: pointer;
+}
+
+.credit__none {
+  margin-top: 8px;
+  padding-left: 30px;
+  color: var(--text-2);
+  line-height: 1.45;
 }
 
 .credit__box {

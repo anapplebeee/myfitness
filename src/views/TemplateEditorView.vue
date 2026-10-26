@@ -18,6 +18,7 @@ import {
   validateTemplate,
 } from '../domain/template';
 import { useToast } from '../composables/useToast';
+import { useBackLayer, useSheetBack } from '../composables/useBackLayer';
 
 const props = defineProps<{ templateId: string }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -28,6 +29,11 @@ const baseline = ref<Template | null>(null);
 const activeDayId = ref<string>('');
 const pickerOpen = ref(false);
 const confirmation = ref(false);
+
+// 返回键/边缘返回：先关浮层，再退出编辑器
+useBackLayer(() => emit('close'));
+useSheetBack(pickerOpen, () => { pickerOpen.value = false; });
+useSheetBack(confirmation, () => { confirmation.value = false; });
 
 watch(
   () => props.templateId,

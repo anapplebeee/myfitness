@@ -106,6 +106,58 @@ export function searchFoods(keyword: string): Food[] {
   });
 }
 
+/** 可数单位：一个鸡蛋 50g、一片面包 35g…… */
+export interface PortionUnit {
+  /** 量词，如 个 / 片 / 杯。 */
+  label: string;
+  /** 一个单位对应多少克。 */
+  grams: number;
+  /** 步进：半个起步的食物按 0.5 递增。 */
+  step: number;
+}
+
+const CN_COUNT: Record<string, number> = {
+  半: 0.5,
+  一: 1,
+  两: 2,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+};
+
+/**
+ * 从份量描述里解析计数单位。
+ *
+ * 食物库的 portion.label 写的是"一个/两片/半个/一小碗"这类人话，
+ * 直接解析它，就不必给 57 条食物逐条补字段，也不会出现
+ * 标签和单位对不上的情况（例如"两片 70g"必须换算成每片 35g）。
+ */
+export function portionUnit(portion: { label: string; grams: number }): PortionUnit | null {
+  const raw = portion.label.trim();
+  const head = raw.slice(0, 1);
+  const count = CN_COUNT[head];
+  if (!count) return null;
+  const label = raw.slice(1);
+  if (!label) return null;
+  const grams = portion.grams / count;
+  if (!Number.isFinite(grams) || grams <= 0) return null;
+  return { label, grams, step: count < 1 ? 0.5 : 1 };
+}
+
+/** 食物的计数单位；无法解析时不支持按份数录入。 */
+export function unitOf(food: Food): PortionUnit | null {
+  return portionUnit(food.portion);
+}
+
+/** 列表里展示"1 个 ≈ 50g"，比只写"一个"更能说明份量。 */
+export function portionText(food: Food): string {
+  const unit = unitOf(food);
+  if (!unit) return `${food.portion.grams}g`;
+  return `1${unit.label} ≈ ${Math.round(unit.grams)}g`;
+}
+
 export function nutritionFor(food: Food, grams: number) {
   const ratio = grams / 100;
   return {

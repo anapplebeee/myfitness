@@ -36,12 +36,24 @@ export async function resetApp(page: Page): Promise<void> {
 export async function skipOnboarding(page: Page): Promise<void> {
   const onb = page.locator('.onb');
   if (await onb.count()) {
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const raw = localStorage.getItem('tieguan.v2.state');
       if (!raw) return;
       const state = JSON.parse(raw) as Record<string, unknown>;
       state.onboarded = true;
       localStorage.setItem('tieguan.v2.state', JSON.stringify(state));
+      // IDB已真实启用，测试前置状态必须更新两个副本，不能只改回退存储。
+      await new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('tieguan', 1);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction('state', 'readwrite');
+          tx.objectStore('state').put(state, 'app');
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
+        };
+        req.onerror = () => reject(req.error);
+      });
     });
     await page.reload();
     await expectReady(page);

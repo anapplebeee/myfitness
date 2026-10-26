@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
-import { FOOD_GROUPS, nutritionFor, searchFoods, type Food } from '../content/foods';
+import { FOOD_GROUPS, nutritionFor, portionText, searchFoods, unitOf, type Food } from '../content/foods';
 import { businessDate } from '../domain/units';
 import { useToast } from '../composables/useToast';
+import { useSheetBack } from '../composables/useBackLayer';
 import { filterFoods } from '../domain/allergens';
 import { ALLERGEN_CODES, FOOD_ALLERGENS } from '../content/allergens';
 import type { DietRestriction } from '../domain/types';
@@ -24,9 +25,16 @@ const sheet = ref<{ slot: Slot } | null>(null);
 const keyword = ref('');
 const group = ref<Food['group'] | 'all'>('all');
 const selected = ref<Food | null>(null);
-const grams = ref(100);
+/** 按克录入的数值。 */
+const amount = ref(100);
+/** 按份数录入的数值（个/根/片…）。 */
+const count = ref(1);
+const byCount = ref(true);
 const manualKcal = ref('');
 const manualProtein = ref('');
+
+// 返回键/边缘返回先关面板
+useSheetBack(computed(() => sheet.value !== null), () => { sheet.value = null; });
 
 const foodsToday = computed(() => store.state.foods.filter((f) => f.date === today));
 const totals = computed(() => ({
@@ -61,6 +69,26 @@ const results = computed(() => {
 /** 被过敏原排除的数量，用于给出可解释提示。 */
 const excludedCount = computed(() => filterResult.value.excluded.length);
 
+/** 当前食物的计数单位（鸡蛋=个、面包=片…），没有可数单位时返回 null。 */
+const unit = computed(() => (selected.value ? unitOf(selected.value) : null));
+
+/** 输入框清空时 v-model.number 会给出空串，统一收敛成合法份数。 */
+const safeCount = computed(() => {
+  const v = Number(count.value);
+  return Number.isFinite(v) && v > 0 ? v : 1;
+});
+
+const safeAmount = computed(() => {
+  const v = Number(amount.value);
+  return Number.isFinite(v) && v > 0 ? v : 100;
+});
+
+/** 最终计入的克数：按份数时由单位重量换算。 */
+const grams = computed(() => {
+  if (byCount.value && unit.value) return Math.max(1, Math.round(safeCount.value * unit.value.grams));
+  return Math.max(1, Math.round(safeAmount.value));
+});
+
 const preview = computed(() => (selected.value ? nutritionFor(selected.value, grams.value) : null));
 
 function openSheet(slot: Slot): void {
@@ -68,15 +96,23 @@ function openSheet(slot: Slot): void {
   keyword.value = '';
   group.value = 'all';
   selected.value = null;
-  grams.value = 100;
+  amount.value = 100;
+  count.value = 1;
+  byCount.value = true;
 }
 
 function addFromFood(): void {
   if (!selected.value || !sheet.value || !preview.value) return;
+  const food = selected.value;
+  const u = unit.value;
+  const label =
+    byCount.value && u
+      ? `${food.name} ${trimNum(safeCount.value)}${u.label}（${grams.value}g）`
+      : `${food.name} ${grams.value}g`;
   store.addFood({
     date: today,
     slot: sheet.value.slot,
-    label: `${selected.value.name} ${grams.value}g`,
+    label,
     kcal: preview.value.kcal,
     protein: preview.value.protein,
     carb: preview.value.carb,
@@ -108,7 +144,25 @@ function addManual(): void {
 
 function selectFood(food: Food): void {
   selected.value = food;
-  grams.value = food.portion.grams;
+  amount.value = food.portion.grams;
+  count.value = 1;
+  // 有可数单位的食物默认按份数录入：鸡蛋点"2 个"比算 100g 自然
+  byCount.value = unitOf(food) !== null;
+}
+
+/** 去掉 2.0 这类多余小数，让记录标签干净。 */
+function trimNum(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
+}
+
+function stepCount(delta: number): void {
+  const step = unit.value?.step ?? 1;
+  const next = Math.round((safeCount.value + delta * step) * 10) / 10;
+  count.value = Math.max(step, next);
+}
+
+function stepGrams(delta: number): void {
+  amount.value = Math.max(10, Math.round(safeAmount.value + delta));
 }
 
 function removeEntry(id: string): void {
@@ -215,7 +269,7 @@ function removeEntry(id: string): void {
                   <span class="h3">{{ f.name }}</span>
                   <span class="tiny">{{ f.kcal }} kcal/100g · 蛋白 {{ f.protein }}g</span>
                 </span>
-                <span class="tiny">{{ f.portion.label }}</span>
+                <span class="tiny">{{ portionText(f) }}</span>
               </button>
             </div>
             <div class="divider" />
@@ -231,12 +285,34 @@ function removeEntry(id: string): void {
             <div class="confirm">
               <p class="h2">{{ selected.name }}</p>
               <p class="small">{{ selected.kcal }} kcal / 100g</p>
-              <div class="confirm__amount">
-                <button class="icon-btn" @click="grams = Math.max(10, grams - 10)">−</button>
-                <input v-model.number="grams" class="input input--lg confirm__input" inputmode="numeric" />
-                <span class="small">g</span>
-                <button class="icon-btn" @click="grams = grams + 10">+</button>
+
+              <!-- 有可数单位时先问"几个"，再换算成克 -->
+              <div v-if="unit" class="seg unitseg">
+                <button class="seg__item" :class="{ 'is-on': byCount }" @click="byCount = true">
+                  按{{ unit.label }}
+                </button>
+                <button class="seg__item" :class="{ 'is-on': !byCount }" @click="byCount = false">
+                  按克
+                </button>
               </div>
+
+              <div v-if="byCount && unit" class="confirm__amount">
+                <button class="icon-btn" aria-label="减少" @click="stepCount(-1)">−</button>
+                <input v-model.number="count" class="input input--lg confirm__input" inputmode="decimal" />
+                <span class="small">{{ unit.label }}</span>
+                <button class="icon-btn" aria-label="增加" @click="stepCount(1)">+</button>
+              </div>
+              <div v-else class="confirm__amount">
+                <button class="icon-btn" aria-label="减少" @click="stepGrams(-10)">−</button>
+                <input v-model.number="amount" class="input input--lg confirm__input" inputmode="numeric" />
+                <span class="small">g</span>
+                <button class="icon-btn" aria-label="增加" @click="stepGrams(10)">+</button>
+              </div>
+
+              <p v-if="byCount && unit" class="tiny confirm__hint">
+                {{ trimNum(safeCount) }}{{ unit.label }} ≈ {{ grams }}g（1{{ unit.label }}约 {{ Math.round(unit.grams) }}g）
+              </p>
+
               <div v-if="preview" class="grid-2 confirm__stats">
                 <div class="stat"><span class="stat__value">{{ preview.kcal }}</span><span class="stat__label">kcal</span></div>
                 <div class="stat"><span class="stat__value">{{ preview.protein }}<span class="stat__unit">g</span></span><span class="stat__label">蛋白</span></div>
@@ -431,6 +507,15 @@ function removeEntry(id: string): void {
 
 .confirm__stats {
   margin-top: 14px;
+}
+
+.unitseg {
+  margin-top: 12px;
+}
+
+.confirm__hint {
+  margin-top: 8px;
+  color: var(--text-2);
 }
 
 .recent__body {

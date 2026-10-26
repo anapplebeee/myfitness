@@ -152,6 +152,27 @@ if (existsSync(aapt)) {
     const allowBackup = /android:allowBackup\(0x[0-9a-f]+\)=\(type 0x12\)0x([01])/i.exec(tree)?.[1];
     record('allowBackup 为 false（AC-C09）', allowBackup === '0', `allowBackup=${allowBackup ?? 'absent'}`);
     record('备份排除规则已配置', tree.includes('fullBackupContent') && tree.includes('dataExtractionRules'));
+
+    /*
+     * 固定签名：测试包也必须用 android/tieguan-release.keystore 签。
+     * 用默认 debug keystore 的话，换一台机器签名就变，覆盖安装会被系统拒绝
+     * （INSTALL_FAILED_UPDATE_INCOMPATIBLE），只能卸载重装、数据全丢。
+     */
+    const apksigner = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], 'apksigner.bat');
+    if (existsSync(apksigner)) {
+      try {
+        const certs = execFileSync(apksigner, ['verify', '--print-certs', apkPath], {
+          encoding: 'utf8',
+          env,
+          // Windows 上 .bat 不能直接被 execFileSync 启动（EINVAL），必须走 shell
+          shell: process.platform === 'win32',
+        });
+        const dn = /certificate DN: (.+)/.exec(certs)?.[1]?.trim() ?? '';
+        record('使用固定签名（可覆盖升级）', dn.includes('CN=TieGuan'), dn || '未读取到证书');
+      } catch (e) {
+        record('使用固定签名（可覆盖升级）', false, String(e).slice(0, 100));
+      }
+    }
   } catch (e) {
     record('aapt 校验', false, String(e).slice(0, 100));
   }

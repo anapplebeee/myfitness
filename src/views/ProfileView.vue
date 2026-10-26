@@ -7,6 +7,7 @@ import GoalsPanel from '../components/GoalsPanel.vue';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
 import { useToast } from '../composables/useToast';
+import { useSheetBack } from '../composables/useBackLayer';
 import { clearCacheAndReload, listCacheNames } from '../store/cacheControl';
 
 import { ALLERGEN_CODES } from '../content/allergens';
@@ -72,6 +73,9 @@ const tab = ref<'body' | 'data' | 'settings'>('body');
 const weightInput = ref('');
 const weightSheet = ref(false);
 
+// 返回键/边缘返回先关记体重的面板
+useSheetBack(weightSheet, () => { weightSheet.value = false; });
+
 const series = computed(() => derived.weightSeries.value);
 const latest = computed(() => derived.latestWeight.value);
 const points = computed(() => series.value.map((w) => w.grams / 1000));
@@ -89,6 +93,51 @@ const bmi = computed(() => {
 });
 
 const goal = computed(() => (store.state.bodyGoalGrams ?? 0) / 1000);
+
+/** 距离目标体重还差多少（正数=还要减，负数=已经低于目标）。没有目标或体重时为空。 */
+const toGoal = computed(() => {
+  const g = store.state.bodyGoalGrams;
+  const w = latest.value?.grams;
+  if (!g || !w) return null;
+  return (w - g) / 1000;
+});
+
+/**
+ * 身体数据集中在一处。
+ *
+ * 之前身高在"设置"里、体重在"身体"里、目标体重又在目标面板里，
+ * 用户要改一个身体数据得跑三个地方。现在统一到"身体"页：
+ * 身高、目标体重、BMI 与体重记录同屏，设置页只留一个跳转入口。
+ */
+const heightValue = computed(() => store.state.profile.heightCm ?? '');
+const goalValue = computed(() => (store.state.bodyGoalGrams ? (store.state.bodyGoalGrams / 1000).toFixed(1) : ''));
+
+function saveHeight(raw: string): void {
+  const v = Number.parseInt(raw, 10);
+  if (!Number.isFinite(v) || v < 100 || v > 250) {
+    push('身高请填 100–250 cm', 'error');
+    return;
+  }
+  store.updateProfile({ heightCm: v });
+  push('已保存身高', 'success');
+}
+
+function saveGoalWeight(raw: string): void {
+  const kg = Number.parseFloat(raw.replace(',', '.'));
+  if (!Number.isFinite(kg) || kg <= 0 || kg > 400) {
+    push('目标体重请填 1–400 kg', 'error');
+    return;
+  }
+  const existing = store.state.goals.find((g) => g.kind === 'bodyweight');
+  store.setGoal({
+    kind: 'bodyweight',
+    targetGrams: Math.round(kg * 1000),
+    startGrams: existing?.kind === 'bodyweight' ? existing.startGrams : (latest.value?.grams ?? null),
+    targetDate: existing?.kind === 'bodyweight' ? existing.targetDate : null,
+    createdAt: new Date().toISOString(),
+  });
+  push('目标体重已更新', 'success');
+}
 
 function saveWeight(): void {
   const v = Number.parseFloat(weightInput.value.replace(',', '.'));
@@ -140,16 +189,57 @@ const sessionCount = computed(() => store.state.sessions.length);
         <Sparkline :points="points" :height="64" tone="lime" />
       </section>
 
+      <section class="card bodydata">
+        <div class="section__head">
+          <div>
+            <p class="label">身体数据</p>
+            <p class="tiny">身高、目标体重、BMI 与体重记录放在一起</p>
+          </div>
+        </div>
+        <div class="bodydata__grid">
+          <label class="bodyfield">
+            <span class="tiny">身高 cm</span>
+            <input
+              class="input"
+              type="number"
+              inputmode="numeric"
+              :value="heightValue"
+              placeholder="175"
+              @change="saveHeight(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <label class="bodyfield">
+            <span class="tiny">目标体重 kg</span>
+            <input
+              class="input"
+              type="number"
+              inputmode="decimal"
+              :value="goalValue"
+              placeholder="75"
+              @change="saveGoalWeight(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <div class="bodyfield">
+            <span class="tiny">BMI</span>
+            <strong class="bodyfield__value">{{ bmi ? bmi.toFixed(1) : '—' }}</strong>
+          </div>
+        </div>
+      </section>
+
       <GoalsPanel />
 
       <div class="grid-2">
         <div class="card stat-card">
-          <span class="stat__value">{{ bmi ? bmi.toFixed(1) : '—' }}</span>
-          <span class="stat__label">BMI</span>
-        </div>
-        <div class="card stat-card">
           <span class="stat__value">{{ series.length }}</span>
           <span class="stat__label">体重记录</span>
+        </div>
+        <!-- BMI 已经在上面身体数据卡里了，这里换成"距目标"，避免同一屏两个 BMI -->
+        <div class="card stat-card">
+          <span class="stat__value">
+            {{ toGoal === null ? '—' : `${toGoal > 0 ? '+' : ''}${toGoal.toFixed(1)}` }}
+            <span v-if="toGoal !== null" class="stat__unit">kg</span>
+          </span>
+          <span class="stat__label">距目标</span>
         </div>
       </div>
 
@@ -244,15 +334,11 @@ const sessionCount = computed(() => store.state.sessions.length);
             {{ store.state.profile.restrictionsConfirmed ? '已确认，修改后需重新确认' : '确认这些限制' }}
           </button>
         </div>
-        <div class="field" style="margin-top: 12px">
-          <label class="tiny">身高 cm</label>
-          <input
-            class="input"
-            type="number"
-            :value="store.state.profile.heightCm ?? ''"
-            @change="store.updateProfile({ heightCm: Number(($event.target as HTMLInputElement).value) })"
-          />
-        </div>
+
+        <div class="divider" />
+        <button class="btn btn--ghost btn--block" @click="tab = 'body'">
+          身高 / 体重 / 目标体重 · 去「身体」页
+        </button>
       </div>
 
       <!--
@@ -370,6 +456,27 @@ const sessionCount = computed(() => store.state.sessions.length);
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.bodydata__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.8fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.bodyfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bodyfield__value {
+  font-size: 19px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  padding-top: 6px;
 }
 
 .weight__list {

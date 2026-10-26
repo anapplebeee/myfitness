@@ -30,7 +30,7 @@ export default defineConfig({
     timezoneId: 'Asia/Shanghai',
   },
 
-  webServer: {
+  webServer: process.env.E2E_MANAGED_SERVER === '1' ? undefined : {
     // 先构建再用静态服务器托管，确保测的是真实产物而非 dev 中间态
     command: 'npm run build && node scripts/serve.mjs dist 4173',
     url: 'http://127.0.0.1:4173',

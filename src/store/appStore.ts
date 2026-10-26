@@ -6,6 +6,7 @@ import { validateGoal, type Goal } from '../domain/goals';
 import { stateFingerprint } from '../domain/ai-adopt';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
+import { loadSyncState, saveSyncState } from './syncStateStore';
 import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
 import type { Template } from '../content/types';
 import {
@@ -33,7 +34,7 @@ import {
   switchTemplate,
   type OccurrenceCommand,
 } from '../domain/plan';
-import type { PlannedOccurrence, WeekGoal } from '../domain/week';
+import { isValidCompletedSession, type PlannedOccurrence, type WeekGoal } from '../domain/week';
 import {
   applyImport,
   buildExport,
@@ -46,6 +47,8 @@ const state = reactive<AppState>(seedState());
 const ready = ref(false);
 const saveError = ref<string | null>(null);
 const savedAt = ref<string | null>(null);
+const initError = ref<string | null>(null);
+const generation = ref(loadSyncState().generation);
 let saveTimer: number | null = null;
 
 function uid(prefix: string): string {
@@ -66,14 +69,21 @@ function createSessionRecord(session: Session): Session {
   return session;
 }
 
-async function persist(): Promise<void> {
+async function persist(): Promise<boolean> {
+  if (initError.value) return false;
   try {
     await saveState(state);
     saveError.value = null;
     savedAt.value = new Date().toISOString();
+    return true;
   } catch (error) {
     saveError.value = error instanceof Error ? error.message : '保存失败';
+    return false;
   }
+}
+
+function resolveTemplate(id: string): Template | null {
+  return state.customTemplates.find((t) => t.id === id) ?? TEMPLATE_BY_ID.get(id) ?? null;
 }
 
 /**
@@ -83,7 +93,7 @@ async function persist(): Promise<void> {
  * 而 init 内用 this 访问其他方法会踩响应式代理的坑。
  */
 function ensurePlanAheadImpl(state: AppState): void {
-  const template = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
+  const template = state.activeTemplateId ? resolveTemplate(state.activeTemplateId) : null;
   if (!template) return;
   const today = businessDate();
   const from = mondayOf(today);
@@ -115,6 +125,10 @@ function ensurePlanAheadImpl(state: AppState): void {
 }
 
 function schedulePersist(): void {
+  if (initError.value) return;
+  generation.value += 1;
+  const checkpoint = loadSyncState();
+  saveSyncState({ ...checkpoint, generation: generation.value });
   if (saveTimer !== null) window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     saveTimer = null;
@@ -122,74 +136,81 @@ function schedulePersist(): void {
   }, 120);
 }
 
+/**
+ * 找出某个模板训练日在指定业务日期上的发生项。
+ *
+ * ignoreDate=true 时返回该周这一 slot 的项目，不管它被顺延到了哪天——
+ * 训练页需要知道"今天这项被挪走了"，否则会当成新的一天重新开始。
+ */
+function planOccurrenceForDay(
+  state: AppState,
+  templateId: string,
+  dayId: string,
+  date: string,
+  options: { ignoreDate?: boolean; includeDisposed?: boolean } = {},
+): PlannedOccurrence | null {
+  const weekStart = mondayOf(date);
+  const slotId = `${templateId}-${dayId}`;
+  const template = resolveTemplate(templateId);
+  const week = state.occurrences.filter(
+    (o) =>
+      o.weekStart === weekStart &&
+      o.slotId === slotId &&
+      (!template || o.planVersionId === `${templateId}@v${template.version}`) &&
+      (options.includeDisposed || o.disposition === 'scheduled'),
+  );
+  if (!week.length) return null;
+  return week.find((o) => o.scheduledDate === date) ?? (options.ignoreDate ? week[0]! : null);
+}
+
 export const store = {
   state: readonly(state) as Readonly<AppState>,
   ready,
   saveError,
   savedAt,
+  initError,
+  generation,
+
+  /** 等待当前内存版本真正落盘；调用方据此决定是否展示成功。 */
+  async flush(): Promise<boolean> {
+    if (saveTimer !== null) window.clearTimeout(saveTimer);
+    saveTimer = null;
+    return persist();
+  },
 
   async init(): Promise<void> {
-    let fromSeed = false;
+    if (saveTimer !== null) window.clearTimeout(saveTimer);
+    saveTimer = null;
+    ready.value = false;
+    initError.value = null;
     try {
-      /*
-       * 直接 await，不做外层超时竞速。
-       *
-       * 原实现用 Promise.race 在 1200ms 后判定"无数据"并播种，
-       * 但 loadState() 并不会因此中止——它可能在 1.3 秒后带着
-       * 用户的真实数据返回，而那时 state 已被种子覆盖，
-       * finally 里的 persist() 还会把种子写回存储，原数据就此永久丢失。
-       *
-       * loadState 内部已有超时（idbGet 1500ms）且会回落 localStorage，
-       * 所以外层不需要、也不应该再砍一刀。
-       */
       const loaded = await loadState();
-      if (loaded && loaded.version === 2) {
-        Object.assign(state, loaded);
-        state.profile = { ...state.profile, ...loaded.profile };
-        /*
-         * 老数据的 profile 可能缺字段。
-         *
-         * 最危险的是 restrictionsConfirmed 缺失——它会让
-         * mealPlanBlocker 把"未确认过敏设置"当成已确认，
-         * 直接绕过 AC-F03 的过敏原门槛。所以这里显式补默认值：
-         * 缺字段一律按"未确认"处理，宁可多问用户一次。
-         */
-        if (typeof state.profile.restrictionsConfirmed !== 'boolean') {
-          state.profile.restrictionsConfirmed = false;
+      if (loaded && loaded.version !== 2) {
+        throw new Error('数据来自不支持的版本，请更新应用或恢复备份；原始数据未改动');
+      }
+      if (loaded) {
+        if (!loaded.profile || !Array.isArray(loaded.sessions) || !Array.isArray(loaded.weights) || !Array.isArray(loaded.foods)) {
+          throw new Error('本地数据结构损坏，原始数据未改动，请恢复备份');
         }
-        if (!Array.isArray(state.profile.allergies)) state.profile.allergies = [];
-        if (!Array.isArray(state.profile.restrictions)) state.profile.restrictions = [];
-        // 老数据可能缺新字段，补齐但不覆盖已有值
-        if (!state.datasetId) state.datasetId = `ds_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-        state.lastBackupKey ??= null;
-        state.customTemplates ??= [];
-        state.occurrences ??= [];
-        state.weekGoals ??= [];
-        state.goals ??= [];
+        const restored = { ...seedState(), ...loaded, profile: { ...seedState().profile, ...loaded.profile } };
+        restored.profile.restrictionsConfirmed = loaded.profile.restrictionsConfirmed === true;
+        restored.profile.allergies = Array.isArray(loaded.profile.allergies) ? loaded.profile.allergies : [];
+        restored.profile.restrictions = Array.isArray(loaded.profile.restrictions) ? loaded.profile.restrictions : [];
+        restored.lastBackupKey ??= null;
+        restored.customTemplates ??= [];
+        restored.occurrences ??= [];
+        restored.weekGoals ??= [];
+        restored.goals ??= [];
+        Object.assign(state, restored);
       } else {
         Object.assign(state, seedState());
-        fromSeed = true;
+        await persist();
       }
-    } catch {
-      Object.assign(state, seedState());
-      fromSeed = true;
-    } finally {
+      ensurePlanAheadImpl(state);
       ready.value = true;
-      // 种子数据必须立即落盘：否则每次刷新都会换 datasetId，
-      // 导致自己导出的备份在下次导入时被判为"另一个数据集"。
-      if (fromSeed) void persist();
-    /*
-     * 预建未来 4 周的计划发生项。
-     *
-     * 原来这个方法定义了但从未被调用，于是 occurrences 只由
-     * seed 和 switchTemplate 填充；用户越过种子覆盖范围后，
-     * computeWeek 因 goal === null 直接返回 unplanned，
-     * 周计划页对未来周永远显示"无计划"（新用户约 3 周后失效）。
-     *
-     * 放在 init 末尾：此时 activeTemplateId 已从存储恢复，
-     * 且 state 已就绪，不会在种子数据加载前空跑。
-     */
-    ensurePlanAheadImpl(state);
+    } catch (error) {
+      initError.value = error instanceof Error ? error.message : '读取失败，原始数据未改动';
+      // 不播种、不补计划、不保存：保留未知版本或损坏数据供用户恢复。
     }
   },
 
@@ -305,11 +326,28 @@ export const store = {
    * 今日页的"开始训练"与训练页的"开始这一天"必须走同一条路径，
    * 否则两处预填逻辑会各自演化。原实现里今日页只做了跳转，
    * 用户点完还得再点一次，与"开始训练"的字面承诺不符。
+   *
+   * 另外：如果今天正好有这个训练日的安排，直接把会话**绑定**到该发生项。
+   * 不绑定的话，结束训练时"计入周目标"没有默认匹配项，
+   * 用户很容易漏勾，于是练完了周目标还是 0/4。
    */
   startSessionFromDay(dayId: string): Session | null {
-    const tpl = state.activeTemplateId ? TEMPLATE_BY_ID.get(state.activeTemplateId) : null;
+    const tpl = state.activeTemplateId ? resolveTemplate(state.activeTemplateId) : null;
     const day = tpl?.days.find((d) => d.id === dayId);
     if (!tpl || !day) return null;
+    const today = businessDate();
+    const candidate = planOccurrenceForDay(state, tpl.id, day.id, today);
+    // 已经被别的场次满足的项目不再绑定，否则两场训练会抢同一个计划项
+    const taken =
+      candidate !== null &&
+      state.sessions.some(
+        (s) =>
+          !s.deletedAt &&
+          isValidCompletedSession(s) &&
+          s.occurrenceId === candidate.id &&
+          s.goalCreditConfirmed === true,
+      );
+    const bound = taken ? null : candidate;
     const session = createSessionRecord({
       id: nextId('s'),
       templateId: tpl.id,
@@ -318,9 +356,10 @@ export const store = {
       status: 'active',
       startedAt: new Date().toISOString(),
       endedAt: null,
-      businessDate: businessDate(),
+      businessDate: today,
       restEndsAt: null,
       note: '',
+      ...(bound ? { occurrenceId: bound.id } : {}),
       exercises: day.exercises.map((pe, i) => {
         // 用上次可比记录预填计划组，首次训练则留空
         const last = lastExerciseSets([...state.sessions], pe.exerciseId, null);
@@ -350,6 +389,56 @@ export const store = {
       }),
     });
     return session;
+  },
+
+  /**
+   * 某个模板训练日在**今天**的状态。
+   *
+   * 训练页据此决定：能不能开始、要不要提示"已经完成/已经顺延"，
+   * 避免同一项被重复练两遍还各自算一次。
+   */
+  planStateForDay(dayId: string): {
+    status: 'open' | 'done' | 'moved' | 'later' | 'excused' | 'cancelled' | 'none';
+    occurrenceId: string | null;
+    movedTo: string | null;
+    sessionId: string | null;
+  } {
+    const today = businessDate();
+    const tplId = state.activeTemplateId;
+    if (!tplId) return { status: 'none', occurrenceId: null, movedTo: null, sessionId: null };
+    const occ = planOccurrenceForDay(state, tplId, dayId, today, {
+      ignoreDate: true,
+      includeDisposed: true,
+    });
+    if (!occ) return { status: 'none', occurrenceId: null, movedTo: null, sessionId: null };
+
+    // 豁免/取消的项目仍要显示出来，否则用户会以为计划丢了
+    if (occ.disposition === 'excused') {
+      return { status: 'excused', occurrenceId: occ.id, movedTo: null, sessionId: null };
+    }
+    if (occ.disposition === 'cancelled') {
+      return { status: 'cancelled', occurrenceId: occ.id, movedTo: null, sessionId: null };
+    }
+
+    const credited = state.sessions.find(
+      (s) =>
+        !s.deletedAt &&
+        isValidCompletedSession(s) &&
+        s.occurrenceId === occ.id &&
+        s.goalCreditConfirmed === true,
+    );
+    if (credited) {
+      return { status: 'done', occurrenceId: occ.id, movedTo: null, sessionId: credited.id };
+    }
+    if (occ.scheduledDate !== today) {
+      // 只有 originalDate ≠ scheduledDate 才是"顺延"；
+      // 正常排在别的日子的项目不该被说成顺延。
+      if (occ.originalDate !== occ.scheduledDate) {
+        return { status: 'moved', occurrenceId: occ.id, movedTo: occ.scheduledDate, sessionId: null };
+      }
+      return { status: 'later', occurrenceId: occ.id, movedTo: occ.scheduledDate, sessionId: null };
+    }
+    return { status: 'open', occurrenceId: occ.id, movedTo: null, sessionId: null };
   },
 
   createSession(session: Session): Session {
@@ -433,15 +522,33 @@ export const store = {
     schedulePersist();
   },
 
-  completeSet(sessionId: string, exerciseId: string, setId: string, patch: Partial<SetRecord>): void {
+  async completeSet(sessionId: string, exerciseId: string, setId: string, patch: Partial<SetRecord>): Promise<boolean> {
     const s = state.sessions.find((x) => x.id === sessionId);
-    if (!s) return;
+    if (!s) return false;
     const ex = s.exercises.find((x) => x.exerciseId === exerciseId);
-    if (!ex) return;
+    if (!ex) return false;
     const set = ex.sets.find((x) => x.id === setId);
-    if (!set) return;
+    if (!set || set.status === 'completed') return false;
+    const before = { ...set };
     Object.assign(set, patch, { status: 'completed', completedAt: new Date().toISOString() });
     schedulePersist();
+    if (await store.flush()) return true;
+    Object.assign(set, before);
+    return false;
+  },
+
+  async finishSession(sessionId: string, occurrenceId: string | null): Promise<boolean> {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s || (s.status !== 'active' && s.status !== 'paused')) return false;
+    const before = JSON.parse(JSON.stringify(s)) as Session;
+    Object.assign(s, { status: 'completed', endedAt: new Date().toISOString(), restEndsAt: null,
+      occurrenceId: occurrenceId ?? undefined, goalCreditConfirmed: occurrenceId !== null });
+    schedulePersist();
+    if (await store.flush()) return true;
+    delete s.occurrenceId;
+    delete s.goalCreditConfirmed;
+    Object.assign(s, before);
+    return false;
   },
 
   skipSet(sessionId: string, exerciseId: string, setId: string): void {
@@ -553,7 +660,7 @@ export const store = {
   },
 
   applyTemplate(nextId: string): string | null {
-    const next = TEMPLATE_BY_ID.get(nextId);
+    const next = resolveTemplate(nextId);
     if (!next) return '模板不存在';
     const today = businessDate();
     const result = switchTemplate({

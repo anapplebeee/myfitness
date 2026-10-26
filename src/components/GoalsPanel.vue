@@ -10,6 +10,7 @@
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { useToast } from '../composables/useToast';
+import { useSheetBack } from '../composables/useBackLayer';
 import { EXERCISES, exerciseName } from '../content/exercises';
 import { businessDate } from '../domain/units';
 import {
@@ -30,6 +31,9 @@ const targetKg = ref('');
 const targetExercise = ref('bb-squat');
 const targetDate = ref('');
 const keyword = ref('');
+
+// 返回键/边缘返回先关目标面板
+useSheetBack(pickerOpen, () => { pickerOpen.value = false; });
 
 const latestWeight = computed(() => {
   const list = [...store.state.weights].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -120,6 +124,37 @@ function remove(key: string, g: Goal): void {
 function pct(p: GoalProgress): number {
   return Math.round(p.ratio * 100);
 }
+
+/**
+ * 按类型分组。
+ *
+ * 之前面板只列出"已经设过的目标"，只设了体重时就只剩一条，
+ * 用户会以为这个应用只能设体重目标。改成三类恒常展示：
+ * 没设的那类显示成可点的空状态，能力一眼可见。
+ */
+const groups = computed(() => [
+  {
+    kind: 'bodyweight' as const,
+    label: '体重',
+    hint: '减脂 / 增重，按最近体重算进度',
+    empty: '还没设目标体重',
+    rows: rows.value.filter((r) => r.goal.kind === 'bodyweight'),
+  },
+  {
+    kind: 'strength' as const,
+    label: '力量',
+    hint: '某个动作要做到多重，按历史最佳单组算',
+    empty: '还没设力量目标',
+    rows: rows.value.filter((r) => r.goal.kind === 'strength'),
+  },
+  {
+    kind: 'frequency' as const,
+    label: '频率',
+    hint: '每周练几次，按最近 4 周平均算',
+    empty: '还没设频率目标',
+    rows: rows.value.filter((r) => r.goal.kind === 'frequency'),
+  },
+]);
 </script>
 
 <template>
@@ -129,33 +164,47 @@ function pct(p: GoalProgress): number {
       <button class="btn btn--ghost btn--sm" @click="openPicker()">设定目标</button>
     </div>
 
-    <p v-if="!rows.length" class="small goals__empty">
-      还没有目标。定一个能判断"达成没达成"的数字——比如体重到多少、某个动作做到多重、每周练几次。
-    </p>
+    <div v-for="g in groups" :key="g.kind" class="goalgroup">
+      <div class="goalgroup__head">
+        <span class="goalgroup__name">{{ g.label }}</span>
+        <span class="tiny goalgroup__hint">{{ g.hint }}</span>
+      </div>
 
-    <div v-for="r in rows" :key="r.key" class="goal">
-      <div class="goal__head">
-        <div>
-          <p class="h3">{{ r.label }}</p>
-          <p class="tiny goal__status" :class="{ 'is-done': r.progress.achieved, 'is-late': r.overdue }">
-            {{ r.progress.text }}
-          </p>
+      <button v-if="!g.rows.length" class="goalslot" @click="openPicker(g.kind)">
+        <span class="goalslot__plus">+</span>
+        <span class="goalslot__text">{{ g.empty }}</span>
+        <span class="goalslot__cta">去设定</span>
+      </button>
+
+      <div v-for="r in g.rows" :key="r.key" class="goal">
+        <div class="goal__head">
+          <div>
+            <p class="h3">{{ r.label }}</p>
+            <p class="tiny goal__status" :class="{ 'is-done': r.progress.achieved, 'is-late': r.overdue }">
+              {{ r.progress.text }}
+            </p>
+          </div>
+          <button class="icon-btn goal__del" aria-label="删除目标" @click="remove(r.key, r.goal)">✕</button>
         </div>
-        <button class="icon-btn goal__del" aria-label="删除目标" @click="remove(r.key, r.goal)">✕</button>
+
+        <div class="goal__bar">
+          <div class="goal__fill" :class="{ 'is-done': r.progress.achieved }" :style="{ width: `${pct(r.progress)}%` }" />
+        </div>
+
+        <div class="goal__foot">
+          <span class="tiny">{{ r.progress.current }}{{ r.progress.unit }} / {{ r.progress.target }}{{ r.progress.unit }}</span>
+          <span class="tiny">{{ pct(r.progress) }}%</span>
+        </div>
+
+        <p v-if="r.overdue" class="tiny goal__overdue">
+          已超过目标日期，仍未达成。可以改目标或延长日期。
+        </p>
       </div>
 
-      <div class="goal__bar">
-        <div class="goal__fill" :class="{ 'is-done': r.progress.achieved }" :style="{ width: `${pct(r.progress)}%` }" />
-      </div>
-
-      <div class="goal__foot">
-        <span class="tiny">{{ r.progress.current }}{{ r.progress.unit }} / {{ r.progress.target }}{{ r.progress.unit }}</span>
-        <span class="tiny">{{ pct(r.progress) }}%</span>
-      </div>
-
-      <p v-if="r.overdue" class="tiny goal__overdue">
-        已超过目标日期，仍未达成。可以改目标或延长日期。
-      </p>
+      <button v-if="g.rows.length && g.kind === 'strength'" class="goalslot goalslot--slim" @click="openPicker('strength')">
+        <span class="goalslot__plus">+</span>
+        <span class="goalslot__text">再加一个动作</span>
+      </button>
     </div>
 
     <Transition name="sheet">
@@ -221,6 +270,72 @@ function pct(p: GoalProgress): number {
   margin-top: 10px;
   line-height: 1.55;
   color: var(--text-2);
+}
+
+.goalgroup {
+  margin-top: 16px;
+}
+
+.goalgroup__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.goalgroup__name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.goalgroup__hint {
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+/* 未设定的一类：虚线空槽，点一下直接去设，避免"只有体重"的错觉 */
+.goalslot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  text-align: left;
+}
+
+.goalslot--slim {
+  margin-top: 8px;
+  padding: 8px 12px;
+}
+
+.goalslot__plus {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: rgba(17, 20, 17, 0.06);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  flex: none;
+}
+
+.goalslot__text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.goalslot__cta {
+  font-size: 12px;
+  font-weight: 640;
+  color: var(--ink);
 }
 
 .goal {

@@ -3,10 +3,16 @@ import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { EXERCISES, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { businessDate, formatDuration, formatVolume, shortDate } from '../domain/units';
-import { isValidCompleted, lastExerciseSets, sessionVolumeGrams } from '../domain/metrics';
-import { liveSessionId } from '../composables/useOverlay';
-import { openSession, openTemplateEditor } from '../composables/useOverlay';
+import { isValidCompleted, sessionVolumeGrams } from '../domain/metrics';
+import { liveSessionId, openSession, openTemplateEditor } from '../composables/useOverlay';
+import { useSheetBack } from '../composables/useBackLayer';
 import { useToast } from '../composables/useToast';
+import { computeWeek, statusLabel } from '../domain/week';
+import { mondayOf } from '../domain/plan';
+import { todayTraining } from '../domain/today';
+import { monthCells, monthLabel, monthSummary, shiftMonth, type MonthCell } from '../domain/calendar';
+import MonthCalendar from '../components/MonthCalendar.vue';
+import ExerciseDemo from '../components/ExerciseDemo.vue';
 import type { Route } from '../types/nav';
 
 const props = defineProps<{ greetingName?: string }>();
@@ -18,16 +24,93 @@ const mode = ref<'plan' | 'history' | 'library'>('plan');
 // 录制开关统一由 useOverlay 管理，避免本页与全局各持一套状态
 const search = ref('');
 const group = ref<string>('all');
+/** 动作演示面板：非空时显示 */
+const demoId = ref<string | null>(null);
 
 const sessions = computed(() => [...store.state.sessions].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)));
 const active = computed(() => sessions.value.find((s) => s.status === 'active' || s.status === 'paused') ?? null);
 
 const history = computed(() => sessions.value.filter(isValidCompleted));
 
+/**
+ * 今天的状态。训练页必须和今日页说同一句话：
+ * 已经练完/已经顺延的，不要再摆一个"开始"让人重复开一场。
+ */
+const today = businessDate();
+const weekResult = computed(() => {
+  const weekStart = mondayOf(today);
+  return computeWeek({
+    weekStart,
+    goal: store.goalForWeek(weekStart),
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    now: new Date(),
+  });
+});
+
+const todayInfo = computed(() =>
+  todayTraining({
+    today,
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    result: weekResult.value,
+  }),
+);
+
+const weekStatusText = computed(() => ({
+  label: statusLabel(weekResult.value.status),
+  done: weekResult.value.completedOccurrences,
+  target: weekResult.value.minimumTarget,
+}));
+
 const templates = computed(() => store.allTemplates());
 const currentTemplate = computed(() =>
   store.state.activeTemplateId ? store.templateById(store.state.activeTemplateId) : null,
 );
+
+/**
+ * 训练日历（月）。
+ *
+ * 原来放在"周目标"页里，但它讲的是"这个月练了哪些天"，
+ * 属于训练记录而不是周目标承诺——挪到历史里更符合用户找它的路径。
+ */
+const monthAnchor = ref(today);
+const monthKey = computed(() => monthAnchor.value.slice(0, 7));
+
+const calendarCells = computed<MonthCell[]>(() =>
+  monthCells({
+    anchor: monthAnchor.value,
+    occurrences: [...store.state.occurrences],
+    sessions: [...store.state.sessions],
+    goalForWeek: (w) => store.goalForWeek(w),
+    today,
+  }),
+);
+
+const calendarStats = computed(() =>
+  monthSummary({
+    month: monthKey.value,
+    cells: calendarCells.value,
+    sessions: [...store.state.sessions],
+    occurrences: [...store.state.occurrences],
+  }),
+);
+
+function shiftMonthView(delta: number): void {
+  monthAnchor.value = shiftMonth(monthKey.value, delta);
+}
+
+/** 点日历某天：有记录就打开那一场，没有就明确说一声，别让用户以为点了没反应。 */
+function openDaySessions(cell: MonthCell): void {
+  const list = sessions.value.filter(
+    (s) => !s.deletedAt && s.businessDate === cell.date && isValidCompleted(s),
+  );
+  if (!list.length) {
+    push(`${shortDate(cell.date)} 没有训练记录`);
+    return;
+  }
+  openSession(list[0]!.id);
+}
 
 const filteredExercises = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -38,51 +121,47 @@ const filteredExercises = computed(() => {
   });
 });
 
+/**
+ * 开始某个训练日。
+ *
+ * 之前这里自己拼一遍会话，和 store.startSessionFromDay 各写一份预填逻辑；
+ * 现在统一走 store，并先看今天这一项的状态：
+ * 已完成的直接打开记录，已顺延的明确告知会记为加练，
+ * 避免"练完了还能再练一次，周目标却没动"。
+ */
 function startFromTemplate(dayId: string): void {
-  const tpl = currentTemplate.value;
-  if (!tpl) return;
-  const day = tpl.days.find((d) => d.id === dayId);
-  if (!day) return;
-  const session = store.createSession({
-    id: store.newId('s'),
-    templateId: tpl.id,
-    dayId: day.id,
-    title: day.title,
-    status: 'active',
-    startedAt: new Date().toISOString(),
-    endedAt: null,
-    businessDate: businessDate(),
-    restEndsAt: null,
-    note: '',
-    exercises: day.exercises.map((pe, i) => {
-      // 用上次可比记录预填计划组，首次训练则留空
-      const last = lastExerciseSets([...store.state.sessions], pe.exerciseId, null);
-      const top = last.reduce<number>((max, s) => Math.max(max, s.loadGrams ?? 0), 0);
-      const topReps = last.find((s) => (s.loadGrams ?? 0) === top)?.reps ?? pe.repMin;
-      return {
-        id: store.newId('se'),
-        exerciseId: pe.exerciseId,
-        order: i,
-        targetSets: pe.sets,
-        repMin: pe.repMin,
-        repMax: pe.repMax,
-        restSeconds: pe.restSeconds,
-        incrementGrams: pe.incrementGrams,
-        sets: Array.from({ length: pe.sets }, () => ({
-          id: store.newId('set'),
-          kind: 'work' as const,
-          status: 'planned' as const,
-          loadGrams: top > 0 ? top : null,
-          reps: top > 0 ? Math.min(pe.repMax, Math.max(pe.repMin, topReps)) : null,
-          durationSeconds: null,
-          distanceMeters: null,
-          rpe: null,
-          completedAt: null,
-        })),
-      };
-    }),
-  });
+  const info = store.planStateForDay(dayId);
+  if (info.status === 'done') {
+    push('今天这一项已经完成了', 'success');
+    if (info.sessionId) openSession(info.sessionId);
+    return;
+  }
+  if (info.status === 'moved') {
+    push(`这项已顺延到 ${shortDate(info.movedTo ?? '')}，现在开始会记为加练`, 'error');
+  } else if (info.status === 'later') {
+    push(`这项排在 ${shortDate(info.movedTo ?? '')}，今天开始会记为加练`);
+  } else if (info.status === 'excused') {
+    push('这项本周已豁免，今天开始会记为加练');
+  } else if (info.status === 'cancelled') {
+    push('这项本周已取消，今天开始会记为加练');
+  }
+  const session = store.startSessionFromDay(dayId);
+  if (!session) {
+    push('模板不存在', 'error');
+    return;
+  }
   liveSessionId.value = session.id;
+}
+
+function dayChip(dayId: string): { text: string; cls: string } | null {
+  const info = store.planStateForDay(dayId);
+  if (info.status === 'done') return { text: '已完成', cls: 'chip--lime' };
+  if (info.status === 'moved') return { text: `顺延至 ${shortDate(info.movedTo ?? '')}`, cls: '' };
+  if (info.status === 'open') return { text: '今天', cls: 'chip--sky' };
+  if (info.status === 'later') return { text: shortDate(info.movedTo ?? ''), cls: '' };
+  if (info.status === 'excused') return { text: '已豁免', cls: 'chip--sky' };
+  if (info.status === 'cancelled') return { text: '已取消', cls: '' };
+  return null;
 }
 
 function startBlank(): void {
@@ -166,6 +245,9 @@ function submitBackfill(): void {
   backfillOpen.value = false;
 }
 
+// 返回键/边缘返回：先关补录面板
+useSheetBack(backfillOpen, () => { backfillOpen.value = false; });
+
 function groupLabel(id: string): string {
   return MUSCLES.find((m) => m.id === id)?.short ?? id;
 }
@@ -182,13 +264,39 @@ function sessionDuration(startedAt: string): string {
       <header class="train__head">
         <div>
           <p class="label">训练</p>
-          <h1 class="h1">{{ active ? '有一场未结束' : '今天练点力气' }}</h1>
+          <h1 class="h1">{{ active ? '有一场未结束' : todayInfo.state === 'done' ? '今天已经练完' : '今天练点力气' }}</h1>
         </div>
         <div class="row gap-6">
+          <span class="chip chip--sm">{{ weekStatusText.label }} {{ weekStatusText.done }}/{{ weekStatusText.target }}</span>
           <span v-if="active" class="chip chip--clay">{{ sessionDuration(active.startedAt) }}</span>
           <button class="btn btn--ghost btn--sm" @click="openBackfill">补录</button>
         </div>
       </header>
+
+      <!-- 今天的真实状态：避免"已练完/已顺延"还摆着开始按钮 -->
+      <button
+        v-if="todayInfo.state === 'done' && todayInfo.session"
+        class="card todaybar todaybar--done"
+        @click="openSession(todayInfo.session.id)"
+      >
+        <span class="todaybar__badge">✓</span>
+        <span class="todaybar__body">
+          <span class="h3">今天已完成 · {{ todayInfo.session.title }}</span>
+          <span class="tiny">
+            {{ todayInfo.session.exercises.length }} 个动作 ·
+            {{ todayInfo.credited ? '已计入本周目标' : '未计入周目标，只记次数' }}
+          </span>
+        </span>
+        <span class="chip chip--lime chip--sm">查看</span>
+      </button>
+
+      <div v-else-if="todayInfo.state === 'moved'" class="card todaybar todaybar--moved">
+        <span class="todaybar__badge">↷</span>
+        <span class="todaybar__body">
+          <span class="h3">今天这项已顺延</span>
+          <span class="tiny">改到 {{ shortDate(todayInfo.movedTo ?? '') }}；今天开始会记为加练，不占用原计划项。</span>
+        </span>
+      </div>
 
       <button v-if="active" class="card resume" @click="resume">
         <span class="resume__pulse" />
@@ -238,6 +346,9 @@ function sessionDuration(startedAt: string): string {
                 <span class="h3">{{ day.title }}</span>
                 <span class="tiny">{{ day.exercises.map((e) => exerciseName(e.exerciseId)).slice(0, 3).join(' · ') }}</span>
               </span>
+              <span v-if="dayChip(day.id)" class="chip chip--sm" :class="dayChip(day.id)!.cls">
+                {{ dayChip(day.id)!.text }}
+              </span>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M9 6l6 6-6 6" />
               </svg>
@@ -267,7 +378,7 @@ function sessionDuration(startedAt: string): string {
                 @click="chooseTemplate(tpl.id)"
               >
                 <span class="label">{{ tpl.daysPerWeek }} 天 / 周 · v{{ tpl.version }}</span>
-                <span class="h3">{{ tpl.title.split(' · ')[0] }}</span>
+                <span class="h3">{{ tpl.title.split(' · ')[0] }}{{ tpl.title.endsWith('（副本）') ? '（副本）' : '' }}</span>
                 <span class="tiny">{{ tpl.days.length }} 个训练日</span>
               </button>
               <div class="tpl__tools">
@@ -281,6 +392,30 @@ function sessionDuration(startedAt: string): string {
 
       <!-- history -->
       <template v-else-if="mode === 'history'">
+        <!-- 训练日历：整月看"哪天练了、哪天断了" -->
+        <section class="section">
+          <div class="section__head">
+            <h2 class="h2">训练日历</h2>
+            <div class="row gap-6">
+              <button class="icon-btn" aria-label="上个月" @click="shiftMonthView(-1)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6" /></svg>
+              </button>
+              <span class="tiny">{{ monthLabel(monthKey) }}</span>
+              <button class="icon-btn" aria-label="下个月" @click="shiftMonthView(1)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="card mcalcard">
+            <MonthCalendar :cells="calendarCells" :today="today" @select="openDaySessions" />
+          </div>
+          <div v-if="calendarStats.sessionCount > 0" class="mstat">
+            <span><strong>{{ calendarStats.trainedDays }}</strong> 天有训练</span>
+            <span><strong>{{ calendarStats.sessionCount }}</strong> 次</span>
+            <span v-if="calendarStats.missedDays"><strong>{{ calendarStats.missedDays }}</strong> 天漏做</span>
+          </div>
+        </section>
+
         <!-- 空状态：没有记录时显示 0 次与空列表，会让用户以为坏了 -->
         <div v-if="!history.length" class="card history__blank">
           <p class="label">还没有训练记录</p>
@@ -358,13 +493,19 @@ function sessionDuration(startedAt: string): string {
           </button>
         </div>
         <div class="card lib__list">
-          <div v-for="ex in filteredExercises" :key="ex.id" class="list__row lib__row">
+          <button
+            v-for="ex in filteredExercises"
+            :key="ex.id"
+            class="list__row lib__row lib__btn"
+            @click="demoId = ex.id"
+          >
             <span class="lib__tag">{{ groupLabel(exerciseGroup(ex.id)) }}</span>
             <span class="recent__body">
               <span class="h3">{{ ex.name }}</span>
               <span class="tiny">{{ ex.equipment }} · {{ ex.cues?.slice(0, 2).join(' / ') }}</span>
             </span>
-          </div>
+            <span class="chip chip--sm">要领</span>
+          </button>
           <p v-if="!filteredExercises.length" class="empty">没有匹配的动作，试试其他关键词。</p>
         </div>
       </template>
@@ -421,6 +562,9 @@ function sessionDuration(startedAt: string): string {
         </div>
       </div>
     </Transition>
+
+    <!-- 动作演示 -->
+    <ExerciseDemo v-if="demoId" :exercise-id="demoId" @close="demoId = null" />
   </div>
 </template>
 
@@ -449,6 +593,51 @@ function sessionDuration(startedAt: string): string {
   text-align: left;
   width: 100%;
   border-color: rgba(226, 87, 44, 0.28);
+}
+
+/* 今日状态条：把"已经练完 / 已经顺延"写在最上面 */
+.todaybar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+}
+
+.todaybar--done {
+  border-color: rgba(201, 245, 63, 0.5);
+  background: linear-gradient(120% 100% at 100% 0%, rgba(201, 245, 63, 0.18), var(--card) 62%);
+}
+
+.todaybar--moved {
+  border-color: rgba(226, 87, 44, 0.26);
+}
+
+.todaybar__badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--lime);
+  font-size: 14px;
+  font-weight: 700;
+  flex: none;
+}
+
+.todaybar--moved .todaybar__badge {
+  background: var(--clay-soft);
+  color: var(--clay);
+}
+
+.todaybar__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .resume__pulse {
@@ -585,12 +774,35 @@ function sessionDuration(startedAt: string): string {
   margin-top: 2px;
 }
 
+.mcalcard {
+  padding: 14px 12px;
+}
+
+.mstat {
+  display: flex;
+  gap: 14px;
+  padding: 2px 4px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mstat strong {
+  font-size: 14px;
+  font-weight: 680;
+  color: var(--text);
+}
+
 .lib__list {
   padding: 4px 16px;
 }
 
 .lib__row {
   align-items: center;
+}
+
+.lib__btn {
+  width: 100%;
+  text-align: left;
 }
 
 .lib__tag {
