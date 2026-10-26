@@ -4,9 +4,21 @@ name: verify
 # 之前 273 项测试全靠人工执行，任何提交都可能悄悄破坏主路径。
 
 on:
+  # 只在主分支 push 时全量验证。
+  # 之前是 branches: ['**']，等于每个临时分支都跑一遍 E2E + Android 出包，
+  # 而临时分支提 PR 时会再跑一次，纯浪费。分支保护靠 pull_request 兜住。
   push:
-    branches: ['**']
+    branches: ['main']
+    # 纯文档改动不必占用 CI：docs/**、*.md 变更跳过。
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 concurrency:
