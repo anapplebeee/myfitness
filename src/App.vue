@@ -14,9 +14,10 @@ import TabBar from './components/TabBar.vue';
 import ToastHost from './components/ToastHost.vue';
 import { store } from './store/appStore';
 import { businessDate, shortDate, weekdayLabel } from './domain/units';
-import type { Route } from './types/nav';
+import type { NavigatePayload, Route } from './types/nav';
 import { immersive } from './composables/useImmersive';
 import { editingTemplateId, openSessionId, liveSessionId } from './composables/useOverlay';
+import { forgetArrival, originOf, setIntent } from './composables/useNavigation';
 import LiveWorkout from './components/LiveWorkout.vue';
 import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
@@ -87,9 +88,28 @@ const view = computed(() => {
   }
 });
 
-function go(next: Route): void {
-  route.value = next;
-  if (window.location.hash.replace('#', '') !== next) window.location.hash = next;
+/**
+ * 切换标签。
+ *
+ * 接受两种写法：
+ *   go('train')                     —— 纯切换（底部标签栏用，不带来源）
+ *   go({ to, from, focus })         —— 带意图的跳转（页面内链接用）
+ *
+ * 带 from 的跳转会被记住，目的地的返回键优先回到来源，
+ * 而不是一路退到应用外。这样"今日 → 训练 → 返回"才是直觉的。
+ */
+function go(next: NavigatePayload): void {
+  const target: Route = typeof next === 'string' ? next : next.to;
+
+  if (typeof next === 'string') {
+    // 用户主动点标签切换：这次跳转没有"来处"，之前的来源记录作废
+    forgetArrival(target);
+  } else {
+    setIntent(next);
+  }
+
+  route.value = target;
+  if (window.location.hash.replace('#', '') !== target) window.location.hash = target;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -105,11 +125,21 @@ function tapBrand(): void {
 /**
  * 没有浮层可关时的返回兜底。
  *
- * 非今日页交给浏览器的后退（与安卓返回键同一条路径），
- * 不用 go('today')——那会再压一条历史，来回滑会在两个 Tab 之间打乒乓。
- * 今日页不处理，交给系统（安卓退出应用）。
+ * 优先级：
+ *   1. 这个标签是"从别处跳来的" → 回跳来的地方
+ *      （今日 →「全部」→ 训练，返回应该回今日，而不是退出应用）
+ *   2. 否则交给浏览器后退（与安卓返回键同一条路径）
+ *   3. 今日页不处理，交给系统（安卓退出应用）
+ *
+ * 不用 go('today') 兜底——那会再压一条历史，来回滑会在两个 Tab 之间打乒乓。
  */
 setBackFallback(() => {
+  const origin = originOf(route.value);
+  if (origin) {
+    forgetArrival(route.value);
+    go(origin);
+    return true;
+  }
   if (route.value === 'today') return false;
   window.history.back();
   return true;

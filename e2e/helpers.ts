@@ -68,15 +68,21 @@ export async function completeOnboardingViaUi(
   await expect(page.locator('.onb')).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: '知道了，下一步' }).click();
   await page.waitForTimeout(300);
-  await page.getByRole('button', { name: '下一步' }).click();
-  await page.waitForTimeout(300);
+
+  /*
+   * 第二步是「每周练几次」，它同时决定用哪套计划——
+   * 引导里不再单独问「选哪套模板」。
+   */
   if (opts.weeklyGoal) {
-    await page.locator('.onb__goal', { hasText: String(opts.weeklyGoal) }).first().click();
+    await page.locator('.onb__goal', { hasText: new RegExp(`^${opts.weeklyGoal}\\s*次/周$`) }).first().click();
   }
   if (opts.keepDemo === false) {
     const cb = page.locator('.onb__check');
     if (await cb.isChecked()) await cb.uncheck();
   }
+
+  await page.getByRole('button', { name: '下一步' }).click();
+  await page.waitForTimeout(300);
   await page.getByRole('button', { name: '开始使用' }).click();
   await expectReady(page);
 }

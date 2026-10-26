@@ -16,11 +16,11 @@ import {
 } from '../domain/metrics';
 import Sparkline from '../components/Sparkline.vue';
 import { openSession, startLive } from '../composables/useOverlay';
-import type { Route } from '../types/nav';
+import type { NavigatePayload } from '../types/nav';
 import { computeWeek, dayStatesForWeek, statusLabel, targetNarrative } from '../domain/week';
 import { todayTraining } from '../domain/today';
 
-const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
+const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 withDefaults(defineProps<{ greetingName?: string }>(), { greetingName: '你' });
 
 const today = businessDate();
@@ -255,7 +255,7 @@ function openRecent(id: string): void {
         <button
           v-else-if="todayInfo.state === 'moved'"
           class="btn btn--lime btn--lg"
-          @click="emit('navigate', 'plan')"
+          @click="emit('navigate', { to: 'plan', from: 'today' })"
         >
           看本周安排
         </button>
@@ -265,7 +265,7 @@ function openRecent(id: string): void {
           </svg>
           {{ todayInfo.state === 'live' ? '继续训练' : '开始训练' }}
         </button>
-        <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', 'train')">
+        <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', { to: 'train', from: 'today' })">
           {{ todayInfo.state === 'done' ? '再练一场' : '空白训练' }}
         </button>
       </div>
@@ -335,7 +335,7 @@ function openRecent(id: string): void {
             {{ caloriesToday.kcal }}<span class="tiny"> / {{ kcalTarget || '—' }} kcal</span>
           </p>
         </div>
-        <button class="btn btn--ghost btn--sm" @click="emit('navigate', 'food')">记录</button>
+        <button class="btn btn--ghost btn--sm" @click="emit('navigate', { to: 'food', from: 'today' })">记录</button>
       </div>
       <div class="nutrition__bars">
         <div>
@@ -362,7 +362,13 @@ function openRecent(id: string): void {
     <section class="section">
       <div class="section__head">
         <h2 class="h2">最近训练</h2>
-        <button class="btn btn--ghost btn--sm" @click="emit('navigate', 'train')">全部</button>
+        <!-- 点「全部」是要看历史列表，不是看计划；带 focus 直接落到历史段 -->
+        <button
+          class="btn btn--ghost btn--sm"
+          @click="emit('navigate', { to: 'train', from: 'today', focus: { kind: 'history' } })"
+        >
+          全部
+        </button>
       </div>
       <div class="card recent">
         <button
@@ -682,6 +688,8 @@ function openRecent(id: string): void {
   min-width: 0;
 }
 </style>
+
+
 
 
 

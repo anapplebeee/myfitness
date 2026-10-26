@@ -11,10 +11,41 @@ import { store } from '../store/appStore';
 import { TEMPLATES } from '../content/exercises';
 
 const step = ref(0);
-const chosenTemplate = ref<string>(TEMPLATES[2]?.id ?? TEMPLATES[0]!.id);
-const weeklyGoal = ref(3);
-// 默认保留：清空是不可逆操作，不该是默认选项。
-// 用户想从零开始可以主动取消勾选。
+
+/*
+ * 每周训练次数。
+ *
+ * 0 表示「自己安排」（不绑定模板）。
+ *
+ * 这个数字同时决定两件事：写进 weeklyGoal，并**推导出用哪套计划**。
+ * 之前是分开问的——先选计划（模板自带每周 N 天），再单独问每周几次，
+ * 同一件事问两遍，两个答案还可能打架（选 4 天计划却说练 3 次）。
+ * 主流健身 App 都是「频率驱动计划」：先问一周几练，再给对应方案。
+ */
+const FREQ_OPTIONS = [
+  { n: 2, label: '2' },
+  { n: 3, label: '3' },
+  { n: 4, label: '4' },
+  { n: 0, label: '自定' },
+] as const;
+const weeklyGoal = ref(4);
+
+/** 由频率推导出的计划；0 表示不排计划。 */
+const matchedTemplate = computed(() =>
+  weeklyGoal.value === 0 ? null : (TEMPLATES.find((t) => t.daysPerWeek === weeklyGoal.value) ?? null),
+);
+const chosenTemplate = computed(() => matchedTemplate.value?.id ?? '');
+
+const planTitle = computed(() => {
+  const t = matchedTemplate.value;
+  if (weeklyGoal.value === 0) return '不预排计划，自己安排';
+  return t ? t.title : `每周 ${weeklyGoal.value} 次（暂无对应模板）`;
+});
+const planHint = computed(() => {
+  const t = matchedTemplate.value;
+  if (weeklyGoal.value === 0) return '每次开训时自己挑动作，之后也能在「训练」里换计划。';
+  return t ? t.subtitle : '可以先用空白训练，之后在「训练」里自建计划。';
+});
 const keepDemo = ref(true);
 
 /*
@@ -30,9 +61,6 @@ const chosenLift = ref('bb-squat');
 
 const emit = defineEmits<{ (e: 'done'): void }>();
 
-const templateOptions = computed(() =>
-  TEMPLATES.map((t) => ({ id: t.id, title: t.title, subtitle: t.subtitle, days: t.daysPerWeek })),
-);
 
 const LIFT_OPTIONS = [
   { id: 'bb-squat', label: '杠铃深蹲' },
@@ -85,43 +113,31 @@ function finish(): void {
 
       <template v-else-if="step === 1">
         <p class="label">第二步</p>
-        <h1 class="onb__title">选一套训练计划</h1>
-        <p class="onb__text">之后随时可以换，也可以自己改。</p>
-        <div class="onb__templates">
-          <button
-            v-for="t in templateOptions"
-            :key="t.id"
-            class="onb__tpl"
-            :class="{ 'is-on': chosenTemplate === t.id }"
-            @click="chosenTemplate = t.id"
-          >
-            <span class="h3">{{ t.title }}</span>
-            <span class="tiny">{{ t.subtitle }}</span>
-            <span class="tiny onb__tpl-meta">每周 {{ t.days }} 天</span>
-          </button>
-        </div>
-        <div class="row gap-10" style="margin-top: 16px">
-          <button class="btn btn--ghost btn--block" @click="step = 0">上一步</button>
-          <button class="btn btn--lime btn--block" @click="step = 2">下一步</button>
-        </div>
-      </template>
-
-      <template v-else>
-        <p class="label">最后一步</p>
         <h1 class="onb__title">每周练几次？</h1>
         <p class="onb__text">定一个你能做到的数字。做不到比定太高更伤信心。</p>
 
         <div class="onb__goals">
           <button
-            v-for="n in [2, 3, 4, 5]"
-            :key="n"
+            v-for="opt in FREQ_OPTIONS"
+            :key="opt.n"
             class="onb__goal"
-            :class="{ 'is-on': weeklyGoal === n }"
-            @click="weeklyGoal = n"
+            :class="{ 'is-on': weeklyGoal === opt.n }"
+            @click="weeklyGoal = opt.n"
           >
-            <span class="onb__goal-num">{{ n }}</span>
-            <span class="tiny">次/周</span>
+            <span class="onb__goal-num">{{ opt.label }}</span>
+            <span class="tiny">{{ opt.n === 0 ? '不排计划' : '次/周' }}</span>
           </button>
+        </div>
+
+        <!--
+          频率决定计划：选了 3 次就自动用 3 天的推拉腿，不再单独问一遍"选哪套"。
+          原来第 2 步选计划（自带每周 N 天）、第 3 步又问每周几次，
+          同一个问题问两遍，而且两个答案可能互相矛盾。
+        -->
+        <div class="onb__plan">
+          <p class="label">将使用</p>
+          <p class="h3">{{ planTitle }}</p>
+          <p class="tiny">{{ planHint }}</p>
         </div>
 
         <label class="onb__keep">
@@ -132,11 +148,18 @@ function finish(): void {
           </span>
         </label>
 
+        <div class="row gap-10" style="margin-top: 16px">
+          <button class="btn btn--ghost btn--block" @click="step = 0">上一步</button>
+          <button class="btn btn--lime btn--block" @click="step = 2">下一步</button>
+        </div>
+      </template>
+
+      <template v-else>
+        <p class="label">最后一步 · 可跳过</p>
+        <h1 class="onb__title">想练成什么样？</h1>
+        <p class="onb__text">不填也能开始记录，之后在「我的」里随时补。</p>
 
         <div class="onb__optional">
-          <p class="label">可选 · 定个目标</p>
-          <p class="tiny onb__opt-hint">跳过也没关系，之后可以在「我的」里随时设置。</p>
-
           <label class="tiny onb__field-label">目标体重（kg）</label>
           <input v-model="bodyGoalKg" class="input" inputmode="decimal" placeholder="例如 72" />
 
@@ -149,14 +172,14 @@ function finish(): void {
           </div>
         </div>
 
-        <button class="btn btn--lime btn--block btn--lg" style="margin-top: 16px" @click="finish">
-          开始使用
-        </button>
+        <div class="row gap-10" style="margin-top: 16px">
+          <button class="btn btn--ghost btn--block" @click="step = 1">上一步</button>
+          <button class="btn btn--lime btn--block" @click="finish">开始使用</button>
+        </div>
       </template>
     </div>
   </div>
 </template>
-
 <style scoped>
 .onb {
   position: fixed;
@@ -277,6 +300,22 @@ function finish(): void {
   font-weight: 700;
 }
 
+/* 计划预览：让用户看到"选 4 次"具体会得到什么，而不是盲选 */
+.onb__plan {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(var(--ink-rgb), 0.04);
+}
+
+.onb__plan .h3 {
+  margin-top: 2px;
+}
+
+.onb__plan .tiny {
+  margin-top: 4px;
+  color: var(--text-3);
+}
 .onb__keep {
   display: flex;
   align-items: flex-start;
@@ -335,6 +374,9 @@ function finish(): void {
   margin-top: 6px;
 }
 </style>
+
+
+
 
 
 

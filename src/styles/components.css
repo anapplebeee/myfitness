@@ -512,7 +512,15 @@
 
 .ring {
   --pct: 0;
-  --size: 118px;
+  --size: clamp(94px, 27vw, 118px);
+  /*
+   * 尺寸随视口缩放，而不是被 flex 压扁。
+   * 实测 360px 宽时明明写了 width/height: 118px，
+   * 但因为 .ring 是 flex 子项且 flex-shrink 默认为 1，
+   * 浏览器只压缩宽度、高度不变，圆形变成 94×118 的椭圆。
+   */
+  flex: 0 0 auto;
+  aspect-ratio: 1;
   width: var(--size);
   height: var(--size);
   border-radius: 50%;
@@ -745,6 +753,7 @@
   text-transform: none;
   letter-spacing: 0.08em;
 }
+
 
 
 

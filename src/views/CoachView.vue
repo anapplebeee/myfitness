@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { NavigatePayload } from '../types/nav';
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
@@ -12,7 +13,7 @@ import {
 } from '../domain/metrics';
 
 defineProps<{ greetingName?: string }>();
-const emit = defineEmits<{ (e: 'navigate', tab: 'today'): void }>();
+const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 
 const unit = ref<'kg' | 'lb'>('kg');
 const openId = ref<string | null>(null);
@@ -128,7 +129,7 @@ function groupOf(id: string): string {
         教练会用你实际完成的组做比较：同一个动作这次比上次重了多少、多了几次。
         没有记录之前，这里的任何数字都没有意义，所以先不显示。
       </p>
-      <button class="btn btn--lime btn--block" style="margin-top: 16px" @click="emit('navigate', 'today')">
+      <button class="btn btn--lime btn--block" style="margin-top: 16px" @click="emit('navigate', { to: 'today', from: 'coach' })">
         去记第一组
       </button>
     </section>
@@ -365,6 +366,9 @@ function groupOf(id: string): string {
   min-width: 0;
 }
 </style>
+
+
+
 
 
 

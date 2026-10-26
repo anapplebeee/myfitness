@@ -46,8 +46,9 @@ test.describe('引导 · 可选目标', () => {
   test('最后一步出现可选目标，且说明可跳过', async ({ page }) => {
     await toLastStep(page);
     const body = await page.locator('.onb').innerText();
-    expect(body).toContain('定个目标');
-    expect(body).toMatch(/跳过|之后可以/);
+    // 最后一步标题已改为「想练成什么样？」，不再是「定个目标」
+    expect(body).toMatch(/想练成什么样|目标体重/);
+    expect(body).toMatch(/跳过|之后可以|不填也能/);
   });
 
   test('填体重目标后保存到 goals', async ({ page }) => {

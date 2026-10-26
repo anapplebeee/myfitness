@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { store } from '../store/appStore';
 import { EXERCISES, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { businessDate, formatDuration, formatVolume, shortDate } from '../domain/units';
@@ -13,14 +13,28 @@ import { todayTraining } from '../domain/today';
 import { monthCells, monthLabel, monthSummary, shiftMonth, type MonthCell } from '../domain/calendar';
 import MonthCalendar from '../components/MonthCalendar.vue';
 import ExerciseDemo from '../components/ExerciseDemo.vue';
-import type { Route } from '../types/nav';
+import type { NavigatePayload } from '../types/nav';
+import { takeIntent } from '../composables/useNavigation';
 
 const props = defineProps<{ greetingName?: string }>();
 void props;
 const { push } = useToast();
-const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
+const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 void emit;
+/*
+ * 默认停在「计划」。
+ *
+ * 如果这次是从别处带意图跳来的（例如今日页点「最近训练 · 全部」），
+ * 就直接落在「历史」——用户要看的本来就是历史列表，
+ * 落到计划页再让他自己点一次，等于跳转没完成。
+ */
 const mode = ref<'plan' | 'history' | 'library'>('plan');
+onMounted(() => {
+  const it = takeIntent();
+  if (it?.focus?.kind === 'history') mode.value = 'history';
+  else if (it?.focus?.kind === 'library') mode.value = 'library';
+  if (it?.focus?.kind === 'session') openSession(it.focus.id);
+});
 // 录制开关统一由 useOverlay 管理，避免本页与全局各持一套状态
 const search = ref('');
 const group = ref<string>('all');
@@ -858,6 +872,7 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
 
 
 

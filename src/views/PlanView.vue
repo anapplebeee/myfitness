@@ -25,9 +25,9 @@ import {
 import { mondayOf } from '../domain/plan';
 import { useSheetBack } from '../composables/useBackLayer';
 import { useToast } from '../composables/useToast';
-import type { Route } from '../types/nav';
+import type { NavigatePayload } from '../types/nav';
 
-const emit = defineEmits<{ (e: 'navigate', tab: Route): void }>();
+const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 defineProps<{ greetingName?: string }>();
 
 const { push } = useToast();
@@ -248,7 +248,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
         <p class="label">周目标</p>
         <h1 class="page-head__title">把这一周安排明白</h1>
       </div>
-      <button class="btn btn--ghost btn--sm" @click="emit('navigate', 'train')">去训练</button>
+      <button class="btn btn--ghost btn--sm" @click="emit('navigate', { to: 'train', from: 'plan' })">去训练</button>
     </header>
 
     <!-- 周切换 -->
@@ -843,6 +843,8 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   margin-top: 8px;
 }
 </style>
+
+
 
 
 

@@ -29,14 +29,14 @@ async function emptyStart(page: import('@playwright/test').Page): Promise<void> 
   // 走引导并清空示例数据
   await page.getByRole('button', { name: '知道了，下一步' }).click();
   await page.waitForTimeout(300);
-  await page.getByRole('button', { name: '下一步' }).click();
-  await page.waitForTimeout(300);
+  // 保留示例数据的开关在第二步（频率页），不在最后一步
   const cb = page.locator('.onb__check');
   if (await cb.isChecked()) await cb.uncheck();
+  await page.getByRole('button', { name: '下一步' }).click();
+  await page.waitForTimeout(300);
   await page.getByRole('button', { name: '开始使用' }).click();
   await expectReady(page);
 }
-
 test.describe('空状态', () => {
   test('教练页无记录时不显示 0 kg，给出引导', async ({ page }) => {
     await emptyStart(page);
