@@ -117,11 +117,16 @@ a {
 }
 
 .shell__inner {
+  /* 横向内边距抽成变量：滑页时离场元素要按内容盒对齐 */
+  --shell-pad: clamp(16px, 3vw, 32px);
   width: 100%;
   max-width: 1180px;
-  padding: 0 clamp(16px, 3vw, 32px) 168px;
+  padding: 0 var(--shell-pad) 168px;
   transition: padding-bottom 0.3s var(--ease-out);
   flex: 1;
+  /* 横向滑页时裁掉滑出的部分；clip 不会创建纵向滚动容器 */
+  position: relative;
+  overflow-x: clip;
 }
 
 @media (min-width: 900px) {
@@ -151,6 +156,57 @@ a {
 .rise-leave-to {
   transform: translateY(10px);
   opacity: 0;
+}
+
+/*
+ * 左右切页：方向由 go() 按标签顺序决定。
+ * next = 新页从右进、旧页往左退；prev 反之。
+ * 离场页绝对定位，避免两页同时存在时把容器撑高。
+ */
+.slide-next-enter-active,
+.slide-next-leave-active,
+.slide-prev-enter-active,
+.slide-prev-leave-active {
+  transition: transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
+  will-change: transform;
+}
+
+/*
+ * 入场页必须有底：视图根节点本身是透明的，
+ * 不加底色时旧页会从新页的空白处透出来，滑动看起来像重影。
+ */
+.slide-next-enter-active,
+.slide-prev-enter-active {
+  /* 离场页是绝对定位，会盖在流内元素上；入场页必须提一层才遮得住 */
+  position: relative;
+  z-index: 1;
+  background: var(--paper);
+}
+
+.slide-next-leave-active,
+.slide-prev-leave-active {
+  position: absolute;
+  top: 0;
+  left: var(--shell-pad);
+  right: var(--shell-pad);
+}
+
+.slide-next-enter-from {
+  transform: translateX(100%);
+}
+
+.slide-next-leave-to {
+  transform: translateX(-28%);
+  opacity: 0.65;
+}
+
+.slide-prev-enter-from {
+  transform: translateX(-100%);
+}
+
+.slide-prev-leave-to {
+  transform: translateX(28%);
+  opacity: 0.65;
 }
 
 .sheet-enter-active,

@@ -97,6 +97,16 @@ const view = computed(() => {
 });
 
 /**
+ * 标签顺序。滑动切页与切换动画方向都按它算。
+ * 放在 go() 之前：go 需要用它判断"往左还是往右"。
+ */
+const TAB_ORDER: Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
+
+/** 切页动画方向；非标签路由（数据页等）用 none，保留原来的上浮淡入。 */
+const slideDir = ref<'next' | 'prev' | 'none'>('none');
+const transitionName = computed(() => (slideDir.value === 'none' ? 'rise' : `slide-${slideDir.value}`));
+
+/**
  * 切换标签。
  *
  * 接受两种写法：
@@ -109,6 +119,16 @@ const view = computed(() => {
 function go(next: NavigatePayload): void {
   const target: Route = typeof next === 'string' ? next : next.to;
 
+  // 方向：按标签顺序判断，左滑（下一页）新页从右进，右滑反之
+  const fromIdx = TAB_ORDER.indexOf(route.value);
+  const toIdx = TAB_ORDER.indexOf(target);
+  slideDir.value =
+    fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx
+      ? toIdx > fromIdx
+        ? 'next'
+        : 'prev'
+      : 'none';
+
   if (typeof next === 'string') {
     // 用户主动点标签切换：这次跳转没有"来处"，之前的来源记录作废
     forgetArrival(target);
@@ -118,7 +138,8 @@ function go(next: NavigatePayload): void {
 
   route.value = target;
   if (window.location.hash.replace('#', '') !== target) window.location.hash = target;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 切页时瞬间回到顶部，避免和横向滑动叠在一起
+  window.scrollTo({ top: 0, behavior: slideDir.value === 'none' ? 'smooth' : 'auto' });
 }
 
 /** 点标题：非今日页回今日；已在今日页就滚到顶部。 */
@@ -186,7 +207,6 @@ useEdgeSwipeBack(() => {
  * 避免用户在横向滑动图表或拖拽时误切页。
  * 屏幕边缘 28px 让给返回手势，横向滚动容器（.scroll-x）不接管。
  */
-const TAB_ORDER: Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
 useTabSwipe({
   enabled: () =>
     TAB_ORDER.includes(route.value) &&
@@ -279,7 +299,11 @@ useTabSwipe({
           :session-id="openSessionId"
           @close="openSessionId = null"
         />
-        <Transition v-else name="rise" mode="out-in">
+        <Transition
+          v-else
+          :name="transitionName"
+          :mode="slideDir === 'none' ? 'out-in' : 'default'"
+        >
           <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
         </Transition>
       </main>
