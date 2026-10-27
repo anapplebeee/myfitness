@@ -457,7 +457,7 @@ onBeforeUnmount(() => controller?.abort());
 .ai__note {
   margin-top: 6px;
   color: var(--text-3);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .ai__who {

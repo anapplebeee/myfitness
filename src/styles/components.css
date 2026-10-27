@@ -383,18 +383,6 @@
   color: var(--lime-ink);
 }
 
-/*
- * 深色卡上的中性标签。
- *
- * 之前这里用 chip--lime，和底部激活标签的酸橙撞色：
- * 一个只是说明文字，一个是真的可点，视觉上却一样亮。
- */
-.chip--on-dark {
-  background: rgba(var(--inv-rgb), 0.1);
-  border: 1px solid rgba(var(--inv-rgb), 0.22);
-  color: rgba(var(--inv-rgb), 0.82);
-}
-
 .chip--clay {
   background: var(--clay-soft);
   color: var(--clay);
@@ -409,6 +397,44 @@
   height: 24px;
   padding: 0 9px;
   font-size: 11.5px;
+}
+
+/* ---------- 可点的大块 ---------- */
+
+.tap-card {
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
+}
+
+.tap-card:active {
+  transform: scale(0.995);
+}
+
+.tap-card:focus-visible,
+.tap-head:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/* 卡片头部的可点区域：里面可能还有独立按钮，所以只包头部 */
+.tap-head {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tap-head:active {
+  opacity: 0.75;
+}
+
+/* 可点提示，和 .tiny 同字号，不额外抢视觉 */
+.tap-go {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-3);
+  transform: translateY(1px);
 }
 
 /* ---------- tabbar ---------- */
@@ -542,6 +568,16 @@
   background: var(--lime);
 }
 
+/*
+ * 注册 --pct 后才能对 conic-gradient 的角度做过渡。
+ * 不注册时自定义属性是离散值，加饮水/记饮食会让环瞬间跳变。
+ */
+@property --pct {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 .ring {
   --pct: 0;
   --size: clamp(94px, 27vw, 118px);
@@ -561,6 +597,7 @@
   background:
     radial-gradient(closest-side, var(--surface-ink) 78%, transparent 79% 100%),
     conic-gradient(var(--lime) calc(var(--pct) * 1%), rgba(var(--inv-rgb), 0.14) 0);
+  transition: --pct 0.6s var(--ease-out);
 }
 
 .ring--light {

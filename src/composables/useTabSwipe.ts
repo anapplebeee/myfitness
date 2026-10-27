@@ -40,11 +40,18 @@ export function useTabSwipe(options: TabSwipeOptions): void {
   let startY = 0;
   let dx = 0;
   let dy = 0;
+  /** 本次手势起点所在的横向滚动容器（页面内的小标签条）。 */
+  let scroller: HTMLElement | null = null;
+  let atLeftStart = true;
+  let atRightStart = true;
 
   function reset(): void {
     tracking = false;
     dx = 0;
     dy = 0;
+    scroller = null;
+    atLeftStart = true;
+    atRightStart = true;
   }
 
   function onStart(event: TouchEvent): void {
@@ -53,9 +60,27 @@ export function useTabSwipe(options: TabSwipeOptions): void {
     const touch = event.touches[0]!;
     // 边缘让给返回手势
     if (touch.clientX <= edge || touch.clientX >= window.innerWidth - edge) return;
-    // 横向滚动容器 / 输入控件内不抢手势
+    // 输入控件内不抢手势
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.scroll-x, input, textarea, select, [data-no-swipe]')) return;
+    if (target?.closest('input, textarea, select, [data-no-swipe]')) return;
+
+    /*
+     * 嵌套横滑：优先让页面内的小标签滚动。
+     * 只有内层已经在边界上，这次手势才交给切页；
+     * 内层还能滚就先让它滚完，用户再滑一次才切页。
+     */
+    scroller = (target?.closest('.scroll-x') as HTMLElement | null) ?? null;
+    if (scroller) {
+      const max = scroller.scrollWidth - scroller.clientWidth;
+      if (max <= 1) {
+        // 内容不够宽，不需要滚动，按普通区域处理
+        scroller = null;
+      } else {
+        atLeftStart = scroller.scrollLeft <= 1;
+        atRightStart = scroller.scrollLeft >= max - 1;
+      }
+    }
+
     tracking = true;
     startX = touch.clientX;
     startY = touch.clientY;
@@ -68,6 +93,19 @@ export function useTabSwipe(options: TabSwipeOptions): void {
     dy = touch.clientY - startY;
     // 竖向为主：交还滚动
     if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) reset();
+
+    if (scroller) {
+      // 手指左滑 = 内容往右滚（scrollLeft 增大）；没到最右就先给内层
+      if (dx < 0 && !atRightStart) {
+        reset();
+        return;
+      }
+      // 手指右滑 = 内容往左滚；没到最左就先给内层
+      if (dx > 0 && !atLeftStart) {
+        reset();
+        return;
+      }
+    }
   }
 
   function onEnd(): void {

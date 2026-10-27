@@ -271,6 +271,23 @@ function tapHeroHead(): void {
   }
   emit('navigate', 'train');
 }
+
+/* 大卡片的目的地：点哪儿都比"没反应"强 */
+function goPlan(): void {
+  emit('navigate', { to: 'plan', from: 'today' });
+}
+
+function goHistory(): void {
+  emit('navigate', { to: 'train', from: 'today', focus: { kind: 'history' } });
+}
+
+function goBody(): void {
+  emit('navigate', { to: 'me', from: 'today' });
+}
+
+function goFood(): void {
+  emit('navigate', { to: 'food', from: 'today' });
+}
 </script>
 
 <template>
@@ -404,7 +421,15 @@ function tapHeroHead(): void {
     </section>
 
     <!-- week strip -->
-    <section class="week card">
+    <section
+      class="week card tap-card"
+      role="button"
+      tabindex="0"
+      aria-label="查看周目标"
+      @click="goPlan"
+      @keydown.enter.prevent="goPlan"
+      @keydown.space.prevent="goPlan"
+    >
       <div class="section__head">
         <div>
           <p class="label">本周节奏</p>
@@ -416,6 +441,7 @@ function tapHeroHead(): void {
             {{ weekStatusText }}
           </span>
           <span class="chip chip--sm">{{ weekPct }}%</span>
+          <span class="tap-go" aria-hidden="true">›</span>
         </div>
       </div>
       <div class="week__strip">
@@ -437,13 +463,29 @@ function tapHeroHead(): void {
 
     <!-- quick stats：没有数据时整块隐藏，改用引导卡 -->
     <section v-if="hasAnyData" class="grid-2 quick">
-      <article class="card quick__card">
-        <p class="label">累计训练</p>
+      <article
+        class="card quick__card tap-card"
+        role="button"
+        tabindex="0"
+        aria-label="查看训练历史"
+        @click="goHistory"
+        @keydown.enter.prevent="goHistory"
+        @keydown.space.prevent="goHistory"
+      >
+        <p class="label">累计训练 <span class="tap-go" aria-hidden="true">›</span></p>
         <p class="stat__value">{{ totalTraining }}<span class="stat__unit">次</span></p>
         <Sparkline :points="volumeTrend" :height="36" tone="ink" />
       </article>
-      <article class="card quick__card">
-        <p class="label">体重趋势</p>
+      <article
+        class="card quick__card tap-card"
+        role="button"
+        tabindex="0"
+        aria-label="查看身体数据"
+        @click="goBody"
+        @keydown.enter.prevent="goBody"
+        @keydown.space.prevent="goBody"
+      >
+        <p class="label">体重趋势 <span class="tap-go" aria-hidden="true">›</span></p>
         <p class="stat__value">
           {{ latestWeight ? (latestWeight.grams / 1000).toFixed(1) : '—' }}<span class="stat__unit">kg</span>
         </p>
@@ -457,7 +499,15 @@ function tapHeroHead(): void {
     <!-- nutrition -->
     <section v-if="hasAnyData" class="card nutrition">
       <div class="section__head">
-        <div>
+        <div
+          class="tap-head"
+          role="button"
+          tabindex="0"
+          aria-label="打开饮食页"
+          @click="goFood"
+          @keydown.enter.prevent="goFood"
+          @keydown.space.prevent="goFood"
+        >
           <p class="label">今日饮食</p>
           <p class="h3">
             {{ caloriesToday.kcal }}<span v-if="kcalTarget" class="tiny"> / {{ kcalTarget }} kcal</span><span v-else class="tiny"> kcal · 未设目标</span>
@@ -507,7 +557,15 @@ function tapHeroHead(): void {
     <!-- 饮水：与训练/饮食解耦，即使还没有训练数据也显示 -->
     <section class="card water">
       <div class="section__head">
-        <div>
+        <div
+          class="tap-head"
+          role="button"
+          tabindex="0"
+          aria-label="打开饮食页看饮水进度"
+          @click="goFood"
+          @keydown.enter.prevent="goFood"
+          @keydown.space.prevent="goFood"
+        >
           <p class="label">今日饮水</p>
           <p class="h3">
             {{ waterTotalMl }}<span class="tiny"> / {{ waterGoal }} ml</span>

@@ -203,8 +203,8 @@ function groupOf(id: string): string {
           <span class="tiny coach__hero-sub">{{ sessions.length }} 场训练 · 全部来自本机记录</span>
         </span>
         <span class="coach__hero-side">
-          <!-- 深色卡上用中性标签：lime 留给底部激活标签，避免"哪个能点"混淆 -->
-          <span class="chip chip--on-dark chip--sm">可比较工作组</span>
+          <!-- 纯文字提示：之前做成深色 pill，像一块独立色块，和卡片其他小字脱节 -->
+          <span class="coach__hint">可比较工作组</span>
           <span class="coach__go" aria-hidden="true">›</span>
         </span>
       </button>
@@ -362,6 +362,13 @@ function groupOf(id: string): string {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+}
+
+.coach__hint {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(var(--inv-rgb), 0.55);
+  white-space: nowrap;
 }
 
 .coach__go {

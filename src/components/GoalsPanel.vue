@@ -292,7 +292,7 @@ const groups = computed(() => [
 
 .goalgroup__hint {
   color: var(--text-3);
-  line-height: 1.3;
+  line-height: 1.45;
 }
 
 /* 未设定的一类：虚线空槽，点一下直接去设，避免"只有体重"的错觉 */
