@@ -24,6 +24,16 @@ export interface BackfillInput {
   title: string;
   exerciseIds: string[];
   selfReported: boolean;
+  /**
+   * 补录的组数与每组次数/重量。
+   *
+   * 之前补录只生成 3 个 planned 空壳组，而"有效训练"要求至少 1 个 completed
+   * 工作组——于是补录存进去了，却在历史、累计、周目标、教练里全被过滤掉，
+   * 用户看到 toast"已保存"但哪都找不到。现在按这里填的数字生成真实完成的组。
+   */
+  setsPerExercise?: number;
+  reps?: number;
+  loadKg?: number;
 }
 
 export interface BackfillResult {
@@ -50,27 +60,40 @@ export function buildBackfill(
   }
 
   const startedAt = new Date(`${input.date}T19:00:00`);
+  /*
+   * 没有填组数就当作"只确认练过"，走自报口径：
+   * 自报会话的 isValidCompletedSession 为 true，能进历史与统计，
+   * 而空壳 planned 组不会。两条路都保证"补录一定看得见"。
+   */
+  const setsPerExercise = Math.max(0, Math.round(input.setsPerExercise ?? 0));
+  const reps = Math.max(0, Math.round(input.reps ?? 0));
+  const loadGrams =
+    input.loadKg != null && Number.isFinite(input.loadKg) && input.loadKg > 0
+      ? Math.round(input.loadKg * 1000)
+      : null;
+  const asSelfReported = input.selfReported || setsPerExercise === 0;
+
   const exercises: SessionExercise[] = input.exerciseIds.map((exerciseId, order) => ({
     id: idFactory('se'),
     exerciseId,
     order,
-    targetSets: 3,
+    targetSets: asSelfReported ? 3 : setsPerExercise,
     repMin: 8,
     repMax: 12,
     restSeconds: 90,
     incrementGrams: 2500,
-    sets: input.selfReported
+    sets: asSelfReported
       ? []
-      : Array.from({ length: 3 }, () => ({
+      : Array.from({ length: setsPerExercise }, (_, i) => ({
           id: idFactory('set'),
           kind: 'work' as const,
-          status: 'planned' as const,
-          loadGrams: null,
-          reps: null,
+          status: 'completed' as const,
+          loadGrams,
+          reps: reps || null,
           durationSeconds: null,
           distanceMeters: null,
           rpe: null,
-          completedAt: null,
+          completedAt: new Date(startedAt.getTime() + i * 5 * 60 * 1000).toISOString(),
         })),
   }));
 
@@ -86,7 +109,7 @@ export function buildBackfill(
       businessDate: input.date,
       restEndsAt: null,
       note: '',
-      completionBasis: input.selfReported ? 'selfReported' : 'sets',
+      completionBasis: asSelfReported ? 'selfReported' : 'sets',
       backfilledAt: now.toISOString(),
       exercises,
     },

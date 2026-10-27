@@ -4,7 +4,8 @@ import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { suggestProgression } from '../domain/amend';
-import { formatLoad, formatVolume } from '../domain/units';
+import { formatLoad, formatVolume, shortDate } from '../domain/units';
+import { trendGeometry } from '../domain/trend';
 import AiCoachPanel from '../components/AiCoachPanel.vue';
 import WeeklyReportCard from '../components/WeeklyReportCard.vue';
 import {
@@ -27,12 +28,27 @@ interface ExerciseRow {
   exerciseId: string;
   bestGrams: number;
   lastReps: number;
+  /** 最近 6 次顶组重量（kg），时间正序 */
   series: number[];
-  changePct: number;
+  /** 与 series 一一对应的业务日期，用于首尾标注 */
+  dates: string[];
+  /** 折线 / 面积 path（按真实 min/max 缩放，见 domain/trend.ts） */
+  line: string;
+  area: string;
+  /** Y 轴标注用的真实极值 */
+  min: number;
+  max: number;
+  flat: boolean;
+  /**
+   * 首末变化百分比。
+   * 样本不足 3 次时为 null——两个点算出来的"涨幅"没有统计意义，
+   * 却会让用户以为自己在稳定进步（PM 深评 §2.8）。
+   */
+  changePct: number | null;
 }
 
 const exercises = computed<ExerciseRow[]>(() => {
-  const map = new Map<string, number[]>();
+  const map = new Map<string, Array<{ value: number; date: string }>>();
   for (const s of [...sessions.value].reverse()) {
     for (const ex of s.exercises) {
       const top = ex.sets
@@ -40,29 +56,55 @@ const exercises = computed<ExerciseRow[]>(() => {
         .reduce((max, x) => Math.max(max, x.loadGrams ?? 0), 0);
       if (!top) continue;
       const list = map.get(ex.exerciseId) ?? [];
-      list.push(top / 1000);
+      list.push({ value: top / 1000, date: s.businessDate });
       map.set(ex.exerciseId, list);
     }
   }
   return [...map.entries()]
-    .map(([exerciseId, series]) => {
+    .map(([exerciseId, points]) => {
       const best = bestSet([...sessions.value], exerciseId);
-      const recent = series.slice(-6);
-      const first = recent[0] ?? 0;
-      const last = recent[recent.length - 1] ?? 0;
+      const recent = points.slice(-6);
+      const series = recent.map((p) => p.value);
+      const first = series[0] ?? 0;
+      const last = series[series.length - 1] ?? 0;
+      const geo = trendGeometry(series);
       return {
         exerciseId,
         bestGrams: best?.loadGrams ?? 0,
         lastReps: best?.reps ?? 0,
-        series: recent,
-        changePct: first > 0 ? Math.round(((last - first) / first) * 100) : 0,
+        series,
+        dates: recent.map((p) => p.date),
+        line: geo.line,
+        area: geo.area,
+        min: geo.min,
+        max: geo.max,
+        flat: geo.flat,
+        changePct:
+          series.length >= 3 && first > 0 ? Math.round(((last - first) / first) * 100) : null,
       };
     })
     .sort((a, b) => b.series.length - a.series.length);
 });
 
+/** 趋势卡默认只展开最近练得最多的 3 个，其余折起（原来 20 张全展开 = 5.3 屏）。 */
+const showAll = ref(false);
+const visibleExercises = computed(() =>
+  showAll.value ? exercises.value : exercises.value.slice(0, 3),
+);
+
+/** 首尾日期区间，例如「10月1日 → 10月27日」。 */
+function rangeLabel(row: ExerciseRow): string {
+  const first = row.dates[0];
+  const last = row.dates[row.dates.length - 1];
+  if (!first || !last) return '';
+  return `${shortDate(first)} → ${shortDate(last)}`;
+}
+
 const topPrs = computed(() =>
   exercises.value
+    // 自重动作（引体/俯卧撑）的最佳负载是 0，混进"力量榜"会显示成 `0 kg`，
+    // 看起来像数据坏了。这里只排有真实负载的动作，自重 PR 另有地方看次数。
+    .filter((e) => e.bestGrams > 0)
     .slice()
     .sort((a, b) => b.bestGrams - a.bestGrams)
     .slice(0, 5),
@@ -183,33 +225,65 @@ function groupOf(id: string): string {
     <section class="section">
       <div class="section__head">
         <h2 class="h2">动作趋势</h2>
-        <span class="tiny">最近 6 次</span>
+        <span class="tiny">最近 6 次 · 默认 3 个</span>
       </div>
       <div class="stack gap-8">
-        <button v-for="row in exercises" :key="row.exerciseId" class="card lift" @click="toggle(row.exerciseId)">
+        <button
+          v-for="row in visibleExercises"
+          :key="row.exerciseId"
+          class="card lift"
+          @click="toggle(row.exerciseId)"
+        >
           <span class="lift__head">
             <span class="recent__body">
               <span class="h3">{{ exerciseName(row.exerciseId) }}</span>
               <span class="tiny">{{ formatLoad(row.bestGrams, unit) }} × {{ row.lastReps }}</span>
             </span>
-            <span class="lift__change" :class="row.changePct >= 0 ? 'is-up' : 'is-down'">
-              {{ row.changePct >= 0 ? '+' : '' }}{{ row.changePct }}%
+            <span
+              class="lift__change"
+              :class="
+                row.changePct === null ? 'is-flat' : row.changePct >= 0 ? 'is-up' : 'is-down'
+              "
+            >
+              <template v-if="row.changePct === null">样本不足</template>
+              <template v-else>
+                {{ row.changePct >= 0 ? '+' : '' }}{{ row.changePct }}%
+              </template>
             </span>
           </span>
-          <span class="lift__bars">
-            <span
-              v-for="(v, i) in row.series"
-              :key="i"
-              class="lift__bar"
-              :style="{ height: `${Math.max(12, (v / Math.max(...row.series)) * 100)}%` }"
-            />
+          <!--
+            折线按真实 min/max 缩放，不再归一化到序列最大值。
+            全程同重量就是一条水平线——"停滞"和"进步"必须长得不一样。
+          -->
+          <span class="lift__chart">
+            <svg viewBox="0 0 280 44" preserveAspectRatio="none" aria-hidden="true">
+              <path :d="row.area" class="lift__area" />
+              <path :d="row.line" class="lift__line" vector-effect="non-scaling-stroke" />
+            </svg>
+            <span class="lift__minmax mono">
+              <span>{{ row.max.toFixed(1) }}</span>
+              <span>{{ row.min.toFixed(1) }}</span>
+            </span>
           </span>
           <span v-if="openId === row.exerciseId" class="lift__detail">
             <span class="tiny">
-              首次 {{ row.series[0]?.toFixed(1) }} kg → 最近 {{ row.series[row.series.length - 1]?.toFixed(1) }} kg，
-              {{ row.changePct >= 0 ? '保持上升' : '需要调整' }}。
+              {{ rangeLabel(row) }} · 首次 {{ row.series[0]?.toFixed(1) }} kg → 最近
+              {{ row.series[row.series.length - 1]?.toFixed(1) }} kg
+              <template v-if="row.changePct === null">（样本不足 3 次，暂不判断趋势）</template>
+              <template v-else>
+                ，{{ row.changePct > 0 ? '上升' : row.changePct < 0 ? '下降' : '持平' }}
+                {{ Math.abs(row.changePct) }}%
+              </template>
             </span>
           </span>
+        </button>
+
+        <button
+          v-if="exercises.length > 3"
+          class="btn btn--ghost btn--block"
+          @click="showAll = !showAll"
+        >
+          {{ showAll ? '收起' : `查看全部 ${exercises.length} 个动作` }}
         </button>
       </div>
     </section>
@@ -339,18 +413,58 @@ function groupOf(id: string): string {
   color: var(--clay);
 }
 
-.lift__bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 54px;
+/* 样本不足：不给涨跌色，避免把噪声染成"进步" */
+.lift__change.is-flat {
+  color: var(--text-3);
+  font-weight: 500;
 }
 
-.lift__bar {
-  flex: 1;
-  border-radius: 5px 5px 3px 3px;
-  background: linear-gradient(180deg, var(--surface-ink) 0%, rgba(var(--ink-rgb), 0.35) 100%);
-  transition: height 0.5s var(--ease-out);
+/*
+ * 折线图：真实 min/max 缩放。
+ *
+ * 原实现是柱状图，高度按序列最大值归一化并兜底 12%，
+ * 于是"6 次同重量"和"进步 20%"长得一模一样（PM 深评 P0-1）。
+ * 折线 + 水平基线，全程同重量时画成一条直线，方向一眼可读。
+ */
+.lift__chart {
+  position: relative;
+  display: block;
+  height: 44px;
+  /* 跟随主题：浅色深线、深色浅线 */
+  color: var(--text);
+}
+
+.lift__chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.lift__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lift__area {
+  fill: currentColor;
+  opacity: 0.1;
+}
+
+.lift__minmax {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-3);
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .lift__detail {

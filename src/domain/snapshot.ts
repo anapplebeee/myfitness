@@ -23,6 +23,12 @@ export interface Snapshot {
     sessions: Session[];
     weights: AppState['weights'];
     foods: AppState['foods'];
+    /**
+     * 饮水记录。旧快照没有这个字段，所以保持可选：
+     * 没有饮水数据时快照形状与旧版完全一致，不会凭空产生假冲突。
+     */
+    water?: AppState['water'];
+    waterGoalMl?: number;
     occurrences: AppState['occurrences'];
     weekGoals: AppState['weekGoals'];
     customTemplates: AppState['customTemplates'];
@@ -67,6 +73,9 @@ export function buildSnapshot(
       })),
       weights: byId(state.weights),
       foods: byId(state.foods),
+      // 只有真的有饮水数据才写字段，避免旧数据哈希被改变
+      ...(state.water?.length ? { water: byId(state.water) } : {}),
+      ...(state.waterGoalMl ? { waterGoalMl: state.waterGoalMl } : {}),
       occurrences: byId(state.occurrences),
       weekGoals: byId(state.weekGoals),
       customTemplates: byId(state.customTemplates),

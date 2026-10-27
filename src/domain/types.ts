@@ -116,6 +116,14 @@ export interface WeightEntry {
   note?: string;
 }
 
+/** 一次饮水记录（毫升）。按条记录而不是只存每日总量，才能做"撤销"和"什么时候喝的"。 */
+export interface WaterEntry {
+  id: Id;
+  date: string;
+  ml: number;
+  createdAt: string;
+}
+
 /** 8 类常见过敏原代码。 */
 export type AllergenCode =
   | 'gluten'
@@ -168,6 +176,25 @@ export interface Targets {
 
 import type { Goal } from './goals';
 
+/**
+ * 本地提醒设置。
+ *
+ * 不依赖服务端：原生端用 Capacitor Local Notifications，网页端用系统通知 +
+ * 前台计时降级。所有字段都可缺省，旧数据读取时回落到默认值。
+ */
+export interface ReminderSettings {
+  workoutEnabled: boolean;
+  /** HH:mm */
+  workoutTime: string;
+  waterEnabled: boolean;
+  /** 每多少分钟提醒一次 */
+  waterIntervalMin: number;
+  /** HH:mm */
+  waterStart: string;
+  /** HH:mm */
+  waterEnd: string;
+}
+
 export interface AppState {
   version: 2;
   createdAt: string;
@@ -181,6 +208,15 @@ export interface AppState {
   goals: Goal[];
   targetKcal: number | null;
   targetProtein: number | null;
+  /**
+   * 每日饮水记录。旧数据没有这个字段，读取时按空数组处理，
+   * 所以这里保持可选，避免破坏已有的导入文件与测试夹具。
+   */
+  water?: WaterEntry[];
+  /** 每日饮水目标（ml）。可改；未设置时界面用参考值并明确标注。 */
+  waterGoalMl?: number;
+  /** 本地提醒设置（训练 / 喝水）。旧数据没有，读取时回落到默认值。 */
+  reminders?: ReminderSettings;
   weeklyGoal: number;
   onboarded: boolean;
   /** 周计划发生项与周目标（09 号模型）。 */

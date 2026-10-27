@@ -1,7 +1,9 @@
 import { backupKey as makeBackupKey, syncBackupKey as makeSyncBackupKey } from './storageKeys';
 import { computed, reactive, readonly, ref, toRaw } from 'vue';
-import type { AppState, FoodEntry, Profile, Session, SessionExercise, SetRecord, WeightEntry } from '../domain/types';
+import type { AppState, FoodEntry, Profile, ReminderSettings, Session, SessionExercise, SetRecord, WaterEntry, WeightEntry } from '../domain/types';
 import { addDays, businessDate } from '../domain/units';
+import { waterTotal } from '../domain/water';
+import { normalizeReminders } from '../domain/reminders';
 import { lastExerciseSets } from '../domain/metrics';
 import { validateGoal, type Goal } from '../domain/goals';
 import { stateFingerprint } from '../domain/ai-adopt';
@@ -274,6 +276,14 @@ export const store = {
       });
     }
     state.onboarded = true;
+
+    /*
+     * 选择"从零开始"时上面把 occurrences 清空了，必须立刻按新模板重建本周计划。
+     * 之前只在 init() 里 ensurePlanAhead，于是新用户进来看到"本周没有设定计划 0/0"，
+     * 刷新一次才正常——第一条路径就断在最核心的周目标上。
+     */
+    ensurePlanAheadImpl(state);
+
     schedulePersist();
   },
 
@@ -552,6 +562,23 @@ export const store = {
     return false;
   },
 
+  /**
+   * 重开一场已结束的训练（"部分完成 → 继续这场"）。
+   *
+   * 结束判定改成有刻度之后，练了 1/16 组会被标成部分完成；
+   * 这时用户需要能回到同一场继续记，而不是另开一场把数据拆成两半。
+   */
+  reopenSession(sessionId: string): string | null {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s) return '找不到这场训练';
+    if (s.deletedAt) return '这场训练已删除，先恢复再继续';
+    if (s.status === 'active' || s.status === 'paused') return null;
+    s.status = 'active';
+    s.endedAt = null;
+    schedulePersist();
+    return null;
+  },
+
   skipSet(sessionId: string, exerciseId: string, setId: string): void {
     const s = state.sessions.find((x) => x.id === sessionId);
     if (!s) return;
@@ -599,6 +626,14 @@ export const store = {
     schedulePersist();
   },
 
+  /** 撤销删除体重记录。 */
+  restoreWeight(entry: WeightEntry): void {
+    if (state.weights.some((w) => w.date === entry.date)) return;
+    state.weights.push({ ...entry });
+    state.weights.sort((a, b) => (a.date < b.date ? -1 : 1));
+    schedulePersist();
+  },
+
   addFood(entry: Omit<FoodEntry, 'id' | 'createdAt'>): void {
     state.foods.push({ ...entry, id: uid('f'), createdAt: new Date().toISOString() });
     schedulePersist();
@@ -609,9 +644,68 @@ export const store = {
     schedulePersist();
   },
 
+  /** 撤销删除：按原 id 放回，避免重复条目。 */
+  restoreFood(entry: FoodEntry): void {
+    if (state.foods.some((f) => f.id === entry.id)) return;
+    state.foods.push(entry);
+    state.foods.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+    schedulePersist();
+  },
+
   setTargets(kcal: number | null, protein: number | null): void {
     state.targetKcal = kcal;
     state.targetProtein = protein;
+    schedulePersist();
+  },
+
+  // ---------- 饮水 ----------
+
+  waterForDate(date = businessDate()): WaterEntry[] {
+    return (state.water ?? []).filter((w) => w.date === date);
+  },
+
+  waterTotalFor(date = businessDate()): number {
+    return waterTotal(state.water, date);
+  },
+
+  /** 记一笔饮水；返回新条目，便于撤销删除时按 id 放回。 */
+  addWater(ml: number, date = businessDate()): WaterEntry | null {
+    const value = Math.round(ml);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    if (!state.water) state.water = [];
+    const entry: WaterEntry = {
+      id: uid('wa'),
+      date,
+      ml: value,
+      createdAt: new Date().toISOString(),
+    };
+    state.water.push(entry);
+    schedulePersist();
+    return entry;
+  },
+
+  removeWater(id: string): void {
+    state.water = (state.water ?? []).filter((w) => w.id !== id);
+    schedulePersist();
+  },
+
+  /** 撤销删除：按原 id 放回，避免重复条目。 */
+  restoreWater(entry: WaterEntry): void {
+    if (!state.water) state.water = [];
+    if (state.water.some((w) => w.id === entry.id)) return;
+    state.water.push(entry);
+    schedulePersist();
+  },
+
+  setWaterGoal(ml: number | null): void {
+    state.waterGoalMl = ml && ml > 0 ? Math.round(ml) : undefined;
+    schedulePersist();
+  },
+
+  // ---------- 提醒 ----------
+
+  updateReminders(patch: Partial<ReminderSettings>): void {
+    state.reminders = normalizeReminders({ ...state.reminders, ...patch });
     schedulePersist();
   },
 

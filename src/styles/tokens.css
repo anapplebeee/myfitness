@@ -21,8 +21,17 @@
   --surface-ink-rgb: 17, 20, 17;
 
   --text: #161a15;
-  --text-2: #5b6256;
-  --text-3: #8b9185;
+  /*
+   * 次级文字必须过 WCAG AA（4.5:1）。
+   *
+   * 原来 --text-3 是 #8b9185，在 paper(#f2f0ea) 上只有 2.84:1——
+   * 低于最低标准 37%，而它承载了日期、分组名、模板副标题等每一处辅助信息
+   * （UI 评审 §1 / PM 深评 P0-2）。以下取值均已实测：
+   *   --text-2 #4f574a → 7.1:1
+   *   --text-3 #656c5e → 4.77:1 on paper / 5.44:1 on white
+   */
+  --text-2: #4f574a;
+  --text-3: #656c5e;
   --text-inverse: #f4f6ee;
 
   --line: rgba(17, 20, 17, 0.075);
@@ -31,7 +40,8 @@
   --lime: #c9f53f;
   --lime-soft: #e8fbb2;
   --lime-ink: #4f6b00;
-  --clay: #e2572c;
+  /* 原 #e2572c 在 clay-soft 上只有 3.14:1，红色小字读不清（UI 评审 §1） */
+  --clay: #b83c18;
   --clay-soft: #fde7de;
   --sky: #4f7df0;
   --sky-soft: #e6ecfd;
@@ -131,7 +141,8 @@
 
   --text: #edf0e7;
   --text-2: #a4ac98;
-  --text-3: #767e6c;
+  /* 原 #767e6c 在 #1d211b 卡片上只有 3.87:1，深色下反而更难读 */
+  --text-3: #8d9583;
   --text-inverse: #f4f6ee;
 
   --line: rgba(238, 241, 232, 0.09);

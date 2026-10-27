@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { goSeg, goTab, resetApp } from './helpers';
+import { goSeg, goTab, readState, resetApp } from './helpers';
 
 /**
  * 本轮用户反馈的回归用例。
@@ -123,8 +123,14 @@ test.describe('训练完成与周目标联动', () => {
     await page.waitForTimeout(500);
 
     await page.locator('.live__finish').click();
-    // 计入周目标默认勾选：练完直接确认就能记上
-    await expect(page.locator('.credit__box')).toBeChecked();
+    /*
+     * 只完成 1 组属于"部分完成"，按新契约默认不勾"计入周目标"。
+     * 这条用例验证的是"用户显式确认后周目标 +1"，所以这里主动勾上；
+     * 默认不勾的行为由同文件的"部分完成"用例单独覆盖。
+     */
+    const credit = page.locator('.credit__box');
+    if (!(await credit.isChecked())) await credit.check();
+    await expect(credit).toBeChecked();
     await page.getByRole('button', { name: '确认结束' }).click();
     await page.waitForTimeout(800);
 
@@ -146,5 +152,92 @@ test.describe('训练完成与周目标联动', () => {
     await expect(page.locator('.live')).toHaveCount(0);
     // 记录里能看到"已计入"以及对应的计划项
     await expect(page.locator('.creditcard')).toContainText('已计入');
+  });
+});
+
+/**
+ * 第二轮 PM 评审（2026-10-27）的 P0 回归。
+ */
+test.describe('记录可信度', () => {
+  test('补录后立刻能在历史里看到', async ({ page }) => {
+    await resetApp(page);
+    await goTab(page, '训练');
+    await goSeg(page, '历史');
+
+    const beforeText = await page.locator('.history__summary .stat__value').first().innerText();
+    const before = Number(beforeText.replace(/[^\d]/g, ''));
+
+    await page.getByRole('button', { name: '补录' }).click();
+    await expect(page.locator('.sheet')).toBeVisible();
+    await page.locator('.sheet input[type=date]').fill('2026-10-25');
+    await page.locator('.sheet input[placeholder="3"]').fill('3');
+    await page.locator('.sheet input[placeholder="8"]').fill('8');
+    await page.locator('.sheet input[placeholder="选填"]').fill('60');
+    await page.locator('.sheet .pick-grid .chip', { hasText: '杠铃深蹲' }).first().click();
+    await page.getByRole('button', { name: '保存补录' }).click();
+    await page.waitForTimeout(1000);
+
+    const state = await readState(page);
+    const sessions = (state?.sessions as Array<Record<string, unknown>>) ?? [];
+    expect(sessions.length).toBeGreaterThan(0);
+
+    await goSeg(page, '历史');
+    const afterText = await page.locator('.history__summary .stat__value').first().innerText();
+    const after = Number(afterText.replace(/[^\d]/g, ''));
+    expect(after).toBe(before + 1);
+    await expect(page.locator('.history__list')).toContainText('补录训练');
+  });
+
+  test('只完成少量组不算练完，且默认不计入周目标', async ({ page }) => {
+    await resetApp(page);
+    await goTab(page, '周目标');
+    const beforeText = (await page.locator('.goalcard__value').innerText()).replace(/\s/g, '');
+    const before = Number(beforeText.split('/')[0]);
+
+    await goTab(page, '训练');
+    const todayCard = page.locator('.day', { has: page.locator('.chip', { hasText: '今天' }) });
+    await todayCard.first().click();
+    await page.waitForTimeout(1200);
+
+    // 只完成一组
+    await page.locator('.set__input').first().fill('100');
+    await page.locator('.set__input').nth(1).fill('5');
+    await page.locator('.set__check').first().click();
+    await page.waitForTimeout(600);
+
+    await page.locator('.live__finish').click();
+    await page.waitForTimeout(600);
+    // 部分完成：默认不勾"计入周目标"
+    await expect(page.locator('.credit__box')).not.toBeChecked();
+    await expect(page.locator('.sheet__panel')).toContainText('默认不计入周目标');
+    await page.getByRole('button', { name: '确认结束' }).click();
+    await page.waitForTimeout(1200);
+
+    await goTab(page, '今日');
+    await expect(page.locator('.hero__title')).toContainText('一半');
+
+    await goTab(page, '周目标');
+    const afterText = (await page.locator('.goalcard__value').innerText()).replace(/\s/g, '');
+    expect(Number(afterText.split('/')[0])).toBe(before);
+  });
+
+  test('放弃训练需要二次确认', async ({ page }) => {
+    await resetApp(page);
+    await goTab(page, '训练');
+    const todayCard = page.locator('.day', { has: page.locator('.chip', { hasText: '今天' }) });
+    await todayCard.first().click();
+    await page.waitForTimeout(1200);
+
+    await page.getByRole('button', { name: '放弃' }).click();
+    await expect(page.locator('.sheet__panel')).toContainText('丢掉这场训练');
+    await page.getByRole('button', { name: '继续练' }).click();
+    await page.waitForTimeout(400);
+    // 仍在训练页，没有丢
+    await expect(page.locator('.live')).toBeVisible();
+
+    await page.getByRole('button', { name: '放弃' }).click();
+    await page.getByRole('button', { name: '确认放弃' }).click();
+    await page.waitForTimeout(800);
+    await expect(page.locator('.live')).toHaveCount(0);
   });
 });

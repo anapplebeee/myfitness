@@ -30,6 +30,25 @@ export function useRestTimer() {
     ensureTick();
   }
 
+  /**
+   * 从持久化的结束时间戳恢复计时。
+   *
+   * 计时原本只存在组件里，训练中切出去看一眼消息再回来，倒计时就没了——
+   * 而这恰恰是健身房里最常见的动作。现在把结束时间写进 session.restEndsAt，
+   * 重新进入时按时间戳接着走。
+   */
+  function restore(endsAtMs: number): void {
+    if (!Number.isFinite(endsAtMs) || endsAtMs <= Date.now()) return;
+    endsAt.value = endsAtMs;
+    now.value = Date.now();
+    ensureTick();
+  }
+
+  /** 当前计时的结束时间戳（没有计时则为 null），供上层持久化。 */
+  function endsAtMs(): number | null {
+    return endsAt.value;
+  }
+
   function stop(): void {
     endsAt.value = null;
     stopTick();
@@ -49,5 +68,5 @@ export function useRestTimer() {
 
   onBeforeUnmount(stopTick);
 
-  return { remaining, running, start, stop, add };
+  return { remaining, running, start, stop, add, restore, endsAtMs };
 }

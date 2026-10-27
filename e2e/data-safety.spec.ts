@@ -27,8 +27,9 @@ test('保存真实写入IndexedDB，移除LS副本后仍能恢复', async ({ pag
 
 test('双存储写失败时录组不报成功，输入保留并可重试', async ({ page }) => {
   await resetApp(page);
-  await goTab(page, '训练');
-  await page.locator('.day').first().click();
+  // 从今日页直接开始：训练页点过去的日卡片会先弹"补做/加练"，那是另一条路径
+  await page.getByRole('button', { name: '开始训练' }).click();
+  await expect(page.locator('.set__input').first()).toBeVisible({ timeout: 10_000 });
   await page.locator('.set__input').nth(0).fill('100');
   await page.locator('.set__input').nth(1).fill('5');
   await page.evaluate(() => {

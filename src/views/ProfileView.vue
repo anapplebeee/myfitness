@@ -1,19 +1,64 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { store, derived } from '../store/appStore';
-import { FOODS } from '../content/foods';
 import { EXERCISE_PACKS, packSummary } from '../content/packs';
 import GoalsPanel from '../components/GoalsPanel.vue';
 import Sparkline from '../components/Sparkline.vue';
 import { shortDate, weekdayLabel } from '../domain/units';
+import { trainingCount } from '../domain/metrics';
 import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
 import { clearCacheAndReload, listCacheNames } from '../store/cacheControl';
 import { applyTheme, loadThemePref, saveThemePref, type ThemePref } from '../store/theme';
+import { normalizeReminders, validTime } from '../domain/reminders';
+import { useReminders } from '../composables/useReminders';
 
 import { ALLERGEN_CODES } from '../content/allergens';
 
 const { push } = useToast();
+
+/*
+ * 提醒与饮水。
+ *
+ * 提醒设置进 AppState 会跟着快照同步——两台设备都排一遍通知没关系，
+ * 反而换机后不用重设。真正排程在本机：原生走 Local Notifications，
+ * 网页走插件的 Web 实现。
+ */
+const reminders = computed(() => normalizeReminders(store.state.reminders));
+const {
+  permission: notifyPermission,
+  permissionLabel: notifyPermissionLabel,
+  busy: notifyBusy,
+  error: notifyError,
+  requestPermission: requestNotifyPermission,
+  applySchedule: applyReminderSchedule,
+} = useReminders();
+
+function toggleReminder(key: 'workoutEnabled' | 'waterEnabled', value: boolean): void {
+  store.updateReminders({ [key]: value });
+  void applyReminderSchedule();
+}
+
+function setReminderTime(key: 'workoutTime' | 'waterStart' | 'waterEnd', value: string): void {
+  if (!validTime(value)) return;
+  store.updateReminders({ [key]: value });
+  void applyReminderSchedule();
+}
+
+function setWaterInterval(raw: string): void {
+  store.updateReminders({ waterIntervalMin: Number(raw) });
+  void applyReminderSchedule();
+}
+
+function saveWaterGoal(raw: string): void {
+  const v = Number.parseInt(raw, 10);
+  store.setWaterGoal(Number.isFinite(v) && v > 0 ? v : null);
+}
+
+async function enableNotifications(): Promise<void> {
+  await requestNotifyPermission();
+  await applyReminderSchedule();
+}
 
 /*
  * 外观偏好。
@@ -112,6 +157,33 @@ const bmi = computed(() => {
   return w / 1000 / ((h / 100) * (h / 100));
 });
 
+/** 把 BMI 映射到 15–32 的刻度上（超出范围夹到两端）。 */
+function bmiPos(v: number): number {
+  return Math.min(100, Math.max(0, ((v - 15) / 17) * 100));
+}
+
+/**
+ * BMI 分区（中国成人标准 WS/T 428-2013）。
+ *
+ * 只给一个裸数字，等于"告诉你超重却不给下一步"（PM 深评 §2.9）。
+ * 这里补上分区、距正常区间多远，以及一条刻度条。
+ */
+const bmiInfo = computed(() => {
+  const v = bmi.value;
+  if (!v) return null;
+  if (v < 18.5) return { label: '偏瘦', hint: `距正常下限 ${(18.5 - v).toFixed(1)}`, pos: bmiPos(v) };
+  if (v < 24) return { label: '正常', hint: '保持在正常区间', pos: bmiPos(v) };
+  if (v < 28) return { label: '超重', hint: `距正常上限 ${(v - 24).toFixed(1)}`, pos: bmiPos(v) };
+  return { label: '肥胖', hint: `距正常上限 ${(v - 24).toFixed(1)}`, pos: bmiPos(v) };
+});
+
+/** 体重记录默认折叠到 7 条；14 条全展开会把设置入口推到很下面。 */
+const showAllWeights = ref(false);
+const visibleWeights = computed(() => {
+  const list = [...series.value].reverse();
+  return showAllWeights.value ? list : list.slice(0, 7);
+});
+
 const goal = computed(() => (store.state.bodyGoalGrams ?? 0) / 1000);
 
 /** 距离目标体重还差多少（正数=还要减，负数=已经低于目标）。没有目标或体重时为空。 */
@@ -167,10 +239,63 @@ function saveWeight(): void {
   weightSheet.value = false;
 }
 
-const foodCount = computed(() => FOODS.length);
+/** 删除体重记录：给 5 秒撤销，比弹确认框轻，也防误触。 */
+function removeWeightEntry(entry: { id: string; date: string; grams: number }): void {
+  store.removeWeight(entry.date);
+  push('已删除这条体重记录', 'default', {
+    label: '撤销',
+    onAction: () => {
+      store.restoreWeight(entry);
+      push('已恢复', 'success');
+    },
+  });
+}
+
 const packInfo = computed(() => EXERCISE_PACKS);
 const packText = computed(() => packSummary(EXERCISE_PACKS));
-const sessionCount = computed(() => store.state.sessions.length);
+
+// 数据页讲"我的数据"，不再把内容库条目数（内置食物）当用户数据展示
+const sessionCount = computed(() => trainingCount(store.state.sessions));
+const foodLogCount = computed(() => store.state.foods.length);
+const weightLogCount = computed(() => store.state.weights.length);
+
+/**
+ * 营养目标。
+ *
+ * 之前 2350 kcal / 165 g 写死在种子数据里，且没有任何 UI 能改，
+ * 55kg 用户也看到同一个目标（PM 评审 §3.7 / §4.3）。现在由用户设定：
+ * 留空即"未设置"，饮食页就如实说没设置，不编默认值。
+ */
+const proteinHint = computed(() => {
+  const g = latest.value?.grams;
+  // 1.8 g/kg 是 docs/11 蛋白区间的中位值，仅作参考
+  return g ? Math.round((g / 1000) * 1.8) : null;
+});
+
+function saveKcal(raw: string): void {
+  const v = Number.parseInt(raw, 10);
+  const next = Number.isFinite(v) && v > 0 ? v : null;
+  store.setTargets(next, store.state.targetProtein);
+  push(next ? '热量目标已更新' : '已清除热量目标', 'success');
+}
+
+function saveProtein(raw: string): void {
+  const v = Number.parseFloat(raw.replace(',', '.'));
+  const next = Number.isFinite(v) && v > 0 ? v : null;
+  store.setTargets(store.state.targetKcal, next);
+  push(next ? '蛋白目标已更新' : '已清除蛋白目标', 'success');
+}
+
+function useProteinHint(): void {
+  if (!proteinHint.value) return;
+  store.setTargets(store.state.targetKcal, proteinHint.value);
+  push('已按当前体重填入蛋白目标', 'success');
+}
+
+function clearNutrition(): void {
+  store.setTargets(null, null);
+  push('已清除营养目标', 'success');
+}
 </script>
 
 <template>
@@ -216,7 +341,23 @@ const sessionCount = computed(() => store.state.sessions.length);
             <p class="tiny">身高、目标体重、BMI 与体重记录放在一起</p>
           </div>
         </div>
-        <div class="bodydata__grid">
+        <div class="bodydata__grid bodydata__grid--body">
+          <!--
+            当前体重必须在同一张卡里出现。
+            原来这里只有"身高 / 目标体重 / BMI"，用户看到 BMI 25.2 却找不到
+            它是按哪个体重算的（当前体重在页面顶部的深色卡里）。
+          -->
+          <div class="bodyfield">
+            <span class="tiny">当前体重 kg</span>
+            <strong class="bodyfield__value">
+              {{ latest ? (latest.grams / 1000).toFixed(1) : '—' }}
+            </strong>
+            <span class="tiny">按最近一次记录</span>
+          </div>
+          <div class="bodyfield">
+            <span class="tiny">BMI（按当前体重）</span>
+            <strong class="bodyfield__value">{{ bmi ? bmi.toFixed(1) : '—' }}</strong>
+          </div>
           <label class="bodyfield">
             <span class="tiny">身高 cm</span>
             <input
@@ -230,18 +371,78 @@ const sessionCount = computed(() => store.state.sessions.length);
           </label>
           <label class="bodyfield">
             <span class="tiny">目标体重 kg</span>
+            <!-- 占位符不能长得像真实值：写"未设置"，并且用弱化样式 -->
             <input
-              class="input"
+              class="input bodyfield__input"
               type="number"
               inputmode="decimal"
               :value="goalValue"
-              placeholder="75"
+              placeholder="未设置"
               @change="saveGoalWeight(($event.target as HTMLInputElement).value)"
             />
           </label>
-          <div class="bodyfield">
-            <span class="tiny">BMI</span>
-            <strong class="bodyfield__value">{{ bmi ? bmi.toFixed(1) : '—' }}</strong>
+        </div>
+        <!-- BMI 不只是一个数字：给分区、给距离、给刻度 -->
+        <div v-if="bmiInfo" class="bmi">
+          <div class="bmi__head">
+            <span class="tiny">{{ bmiInfo.label }}</span>
+            <span class="tiny">{{ bmiInfo.hint }}</span>
+          </div>
+          <div class="bmi__bar" aria-hidden="true">
+            <span class="bmi__seg bmi__seg--low" />
+            <span class="bmi__seg bmi__seg--ok" />
+            <span class="bmi__seg bmi__seg--warn" />
+            <span class="bmi__seg bmi__seg--high" />
+            <span class="bmi__dot" :style="{ left: `${bmiInfo.pos}%` }" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 营养目标：由用户设定。留空即"未设置"，不写死 2350/165 -->
+      <section class="card bodydata">
+        <div class="section__head">
+          <div>
+            <p class="label">营养目标</p>
+            <p class="tiny">参考值，不是处方；留空即不设目标，饮食页不会假装有</p>
+          </div>
+        </div>
+        <div class="bodydata__grid bodydata__grid--nutrition">
+          <label class="bodyfield">
+            <span class="tiny">热量 kcal</span>
+            <input
+              class="input bodyfield__input"
+              type="number"
+              inputmode="numeric"
+              :value="store.state.targetKcal ?? ''"
+              placeholder="未设置"
+              @change="saveKcal(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <label class="bodyfield">
+            <span class="tiny">蛋白质 g</span>
+            <input
+              class="input bodyfield__input"
+              type="number"
+              inputmode="decimal"
+              :value="store.state.targetProtein ?? ''"
+              placeholder="未设置"
+              @change="saveProtein(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+        <div class="row between nutrition-actions">
+          <p class="tiny">
+            蛋白参考 <strong>{{ proteinHint ?? '—' }} g</strong>（按当前体重 1.8 g/kg）
+          </p>
+          <div class="row gap-8">
+            <button v-if="proteinHint" class="btn btn--ghost btn--sm" @click="useProteinHint">用这个</button>
+            <button
+              v-if="store.state.targetKcal || store.state.targetProtein"
+              class="btn btn--ghost btn--sm"
+              @click="clearNutrition"
+            >
+              清除
+            </button>
           </div>
         </div>
       </section>
@@ -264,62 +465,40 @@ const sessionCount = computed(() => store.state.sessions.length);
       </div>
 
       <div class="card weight__list">
-        <div v-for="w in [...series].reverse().slice(0, 10)" :key="w.id" class="list__row weight__row">
+        <div v-for="w in visibleWeights" :key="w.id" class="list__row weight__row">
           <span class="recent__body">
             <span class="h3">{{ (w.grams / 1000).toFixed(1) }} kg</span>
             <span class="tiny">{{ shortDate(w.date) }} · {{ weekdayLabel(w.date) }}</span>
           </span>
-          <button class="meal__del" aria-label="删除" @click="store.removeWeight(w.date)">✕</button>
+          <button class="meal__del" aria-label="删除" @click="removeWeightEntry(w)">✕</button>
         </div>
         <p v-if="!series.length" class="empty">还没有体重记录。</p>
+        <button
+          v-if="series.length > 7"
+          class="btn btn--ghost btn--block weight__more"
+          @click="showAllWeights = !showAllWeights"
+        >
+          {{ showAllWeights ? '收起' : `查看全部 ${series.length} 条` }}
+        </button>
       </div>
     </template>
 
     <template v-else-if="tab === 'data'">
-      <div class="grid-2">
-        <div class="card stat-card">
-          <span class="stat__value">{{ sessionCount }}</span>
-          <span class="stat__label">训练记录</span>
-        </div>
-        <div class="card stat-card">
-          <span class="stat__value">{{ foodCount }}</span>
-          <span class="stat__label">内置食物</span>
-        </div>
-      </div>
+      <!-- 数据页只讲"我的数据"：内置食物数是内容库，不是用户数据 -->
       <div class="card">
-        <p class="label">外观</p>
-        <p class="small" style="margin-top: 8px">
-          深色模式适合夜间或低光环境，也更省电。
-        </p>
-        <div class="seg" style="margin-top: 12px">
-          <button
-            v-for="opt in THEME_OPTIONS"
-            :key="opt.value"
-            class="seg__item"
-            :class="{ 'is-on': themePref === opt.value }"
-            @click="pickTheme(opt.value)"
-          >
-            {{ opt.label }}
-          </button>
+        <p class="label">我的数据</p>
+        <div class="row between datarow">
+          <span class="small">有效训练</span>
+          <strong>{{ sessionCount }} 次</strong>
         </div>
-      </div>
-
-      <div class="card">
-        <p class="label">内容来源与授权</p>
-        <p class="small" style="margin-top: 8px">{{ packText }}</p>
-        <div v-for="p in packInfo" :key="p.packageId" class="lic">
-          <div class="lic__row">
-            <span class="h3">{{ p.title }}</span>
-            <span class="chip chip--lime chip--sm">{{ p.license.id }}</span>
-          </div>
-          <p class="tiny">{{ p.exercises.length }} 个动作 · v{{ p.version }} · {{ p.license.url }}</p>
-          <p class="tiny lic__note">{{ p.license.attribution }}</p>
-          <p class="tiny lic__note">{{ p.license.notice }}</p>
+        <div class="row between datarow">
+          <span class="small">饮食记录</span>
+          <strong>{{ foodLogCount }} 条</strong>
         </div>
-        <div class="divider" />
-        <p class="tiny">
-          内置动作与模板为自建内容；食物营养值为常见参考值，非医疗建议。
-        </p>
+        <div class="row between datarow">
+          <span class="small">体重记录</span>
+          <strong>{{ weightLogCount }} 条</strong>
+        </div>
       </div>
 
       <div class="card">
@@ -377,6 +556,135 @@ const sessionCount = computed(() => store.state.sessions.length);
         <button class="btn btn--ghost btn--block" @click="tab = 'body'">
           身高 / 体重 / 目标体重 · 去「身体」页
         </button>
+      </div>
+
+      <!-- 提醒与饮水：本地通知，不经过服务器 -->
+      <div class="card">
+        <p class="label">提醒与饮水</p>
+        <p class="small" style="margin-top: 8px">
+          提醒在本机定时触发，不上传数据。网页版需要允许通知且页面开着；装成 Android App 后关闭也能提醒。
+        </p>
+
+        <div class="reminder">
+          <label class="reminder__row">
+            <input
+              type="checkbox"
+              :checked="reminders.workoutEnabled"
+              @change="toggleReminder('workoutEnabled', ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="reminder__text">
+              <span class="h3">训练提醒</span>
+              <span class="tiny">每天固定时间提醒今天该练什么</span>
+            </span>
+            <input
+              v-if="reminders.workoutEnabled"
+              class="input reminder__time"
+              type="time"
+              :value="reminders.workoutTime"
+              @change="setReminderTime('workoutTime', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+
+        <div class="reminder">
+          <label class="reminder__row">
+            <input
+              type="checkbox"
+              :checked="reminders.waterEnabled"
+              @change="toggleReminder('waterEnabled', ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="reminder__text">
+              <span class="h3">喝水提醒</span>
+              <span class="tiny">在时段内按间隔提醒</span>
+            </span>
+          </label>
+          <div v-if="reminders.waterEnabled" class="reminder__grid">
+            <label class="field">
+              <span class="tiny">开始</span>
+              <input
+                class="input"
+                type="time"
+                :value="reminders.waterStart"
+                @change="setReminderTime('waterStart', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+            <label class="field">
+              <span class="tiny">结束</span>
+              <input
+                class="input"
+                type="time"
+                :value="reminders.waterEnd"
+                @change="setReminderTime('waterEnd', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+            <label class="field">
+              <span class="tiny">间隔</span>
+              <select
+                class="input"
+                :value="reminders.waterIntervalMin"
+                @change="setWaterInterval(($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="m in [60, 90, 120, 180, 240]" :key="m" :value="m">每 {{ m }} 分钟</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="tiny">每日目标 ml</span>
+              <input
+                class="input"
+                type="number"
+                inputmode="numeric"
+                :value="store.state.waterGoalMl ?? 2000"
+                @change="saveWaterGoal(($event.target as HTMLInputElement).value)"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div class="row between reminder__foot">
+          <span class="tiny">通知权限：{{ notifyPermissionLabel }}</span>
+          <button class="btn btn--ghost btn--sm" :disabled="notifyBusy" @click="enableNotifications">
+            {{ notifyPermission === 'granted' ? '重新调度' : '开启通知' }}
+          </button>
+        </div>
+        <p v-if="notifyError" class="tiny reminder__error">{{ notifyError }}</p>
+      </div>
+
+      <!-- 外观：设备私有偏好，属于设置，不属于"数据" -->
+      <div class="card">
+        <p class="label">外观</p>
+        <p class="small" style="margin-top: 8px">
+          深色模式适合夜间或低光环境，也更省电。
+        </p>
+        <div class="seg" style="margin-top: 12px">
+          <button
+            v-for="opt in THEME_OPTIONS"
+            :key="opt.value"
+            class="seg__item"
+            :class="{ 'is-on': themePref === opt.value }"
+            @click="pickTheme(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 授权是"关于"信息，不是日常数据操作 -->
+      <div class="card">
+        <p class="label">关于与开源许可</p>
+        <p class="small" style="margin-top: 8px">{{ packText }}</p>
+        <div v-for="p in packInfo" :key="p.packageId" class="lic">
+          <div class="lic__row">
+            <span class="h3">{{ p.title }}</span>
+            <span class="chip chip--lime chip--sm">{{ p.license.id }}</span>
+          </div>
+          <p class="tiny">{{ p.exercises.length }} 个动作 · v{{ p.version }} · {{ p.license.url }}</p>
+          <p class="tiny lic__note">{{ p.license.attribution }}</p>
+          <p class="tiny lic__note">{{ p.license.notice }}</p>
+        </div>
+        <div class="divider" />
+        <p class="tiny">
+          内置动作与模板为自建内容；食物营养值为常见参考值，非医疗建议。
+        </p>
       </div>
 
       <!--
@@ -503,6 +811,11 @@ const sessionCount = computed(() => store.state.sessions.length);
   margin-top: 12px;
 }
 
+/* 身体数据四项（当前体重 / BMI / 身高 / 目标体重）两列排，避免挤成一行 */
+.bodydata__grid--body {
+  grid-template-columns: 1fr 1fr;
+}
+
 .bodyfield {
   display: flex;
   flex-direction: column;
@@ -517,12 +830,100 @@ const sessionCount = computed(() => store.state.sessions.length);
   padding-top: 6px;
 }
 
+/* 未填的目标体重必须一眼看出是空的，不能和真实数值同样式 */
+.bodyfield__input::placeholder {
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* BMI 刻度：偏瘦 / 正常 / 超重 / 肥胖（中国成人标准 WS/T 428-2013） */
+.bmi {
+  margin-top: 16px;
+}
+
+.bmi__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.bmi__bar {
+  position: relative;
+  display: flex;
+  height: 8px;
+}
+
+.bmi__seg {
+  height: 100%;
+}
+
+.bmi__seg--low {
+  flex: 21;
+  background: var(--sky-soft);
+  border-radius: 999px 0 0 999px;
+}
+
+.bmi__seg--ok {
+  flex: 32;
+  background: var(--lime-soft);
+}
+
+.bmi__seg--warn {
+  flex: 24;
+  background: var(--warn-soft);
+}
+
+.bmi__seg--high {
+  flex: 23;
+  background: var(--clay-soft);
+  border-radius: 0 999px 999px 0;
+}
+
+.bmi__dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--card);
+  transform: translate(-50%, -50%);
+}
+
+/* 营养目标是两列；不要和上面三项身体数据挤成一行 */
+.bodydata__grid--nutrition {
+  grid-template-columns: 1fr 1fr;
+}
+
+.nutrition-actions {
+  margin-top: 12px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 数据页"我的数据"三行 */
+.datarow {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.datarow:last-child {
+  border-bottom: none;
+}
+
 .weight__list {
   padding: 4px 16px;
 }
 
 .weight__row {
   align-items: center;
+}
+
+.weight__more {
+  margin-top: 8px;
 }
 
 .recent__body {
@@ -563,6 +964,46 @@ const sessionCount = computed(() => store.state.sessions.length);
   margin-top: 4px;
   line-height: 1.45;
 }
+/* 提醒与饮水 */
+.reminder {
+  margin-top: 14px;
+}
+
+.reminder__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reminder__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reminder__time {
+  max-width: 120px;
+}
+
+.reminder__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.reminder__foot {
+  margin-top: 14px;
+  align-items: center;
+}
+
+.reminder__error {
+  margin-top: 6px;
+  color: var(--clay);
+}
+
 .aller {
   display: flex;
   flex-wrap: wrap;

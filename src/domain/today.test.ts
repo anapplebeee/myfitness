@@ -129,6 +129,40 @@ describe('todayTraining', () => {
     const info = build([occurrence('o1')], [session('s1', 'completed', { deletedAt: `${TODAY}T22:00:00.000Z` })]);
     expect(info.state).toBe('planned');
   });
+
+  /*
+   * 回归（PM 评审 P0）：16 个计划组只做了 1 组，
+   * 以前照样显示"今天已经练完了"并把周目标 +1。
+   */
+  it('只完成少量组 → partial，而不是 done', () => {
+    const manySets = Array.from({ length: 16 }, (_, i) => ({
+      ...workSet(),
+      id: `set-${i}`,
+      status: i === 0 ? ('completed' as const) : ('planned' as const),
+      completedAt: i === 0 ? `${TODAY}T10:00:00.000Z` : null,
+    }));
+    const info = build(
+      [occurrence('o1')],
+      [
+        session('s1', 'completed', {
+          exercises: [
+            {
+              id: 'se1',
+              exerciseId: 'bb-bench',
+              order: 0,
+              targetSets: 16,
+              repMin: 5,
+              repMax: 8,
+              restSeconds: 120,
+              incrementGrams: 2500,
+              sets: manySets,
+            },
+          ],
+        }),
+      ],
+    );
+    expect(info.state).toBe('partial');
+  });
 });
 
 describe('todayStateLabel', () => {

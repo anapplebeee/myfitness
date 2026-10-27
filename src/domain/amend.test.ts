@@ -83,8 +83,27 @@ describe('AC-T18 · 补录与自报完成', () => {
     );
     expect(r.session).toBeDefined();
     expect(r.session!.businessDate).toBe('2026-10-01');
-    expect(r.session!.completionBasis).toBe('sets');
+    // 没填组数就按自报口径（否则生成空壳 planned 组，会被统计全部过滤掉）
+    expect(r.session!.completionBasis).toBe('selfReported');
     expect(r.session!.backfilledAt).toBeTruthy();
+  });
+
+  it('填了组数则按真实组记录', () => {
+    const r = buildBackfill(
+      {
+        date: '2026-10-01',
+        title: '补录',
+        exerciseIds: ['bb-squat'],
+        selfReported: false,
+        setsPerExercise: 3,
+        reps: 8,
+        loadKg: 60,
+      },
+      TODAY,
+      idFactory,
+    );
+    expect(r.session!.completionBasis).toBe('sets');
+    expect(r.session!.exercises[0]!.sets.every((s) => s.status === 'completed')).toBe(true);
   });
 
   it('不能补录未来', () => {

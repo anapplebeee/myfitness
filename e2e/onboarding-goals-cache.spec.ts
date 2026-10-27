@@ -113,6 +113,32 @@ test.describe('引导 · 可选目标', () => {
     const goals = (state?.goals as Array<Record<string, unknown>>) ?? [];
     expect(goals.some((g) => g.kind === 'bodyweight')).toBe(false);
   });
+
+  /*
+   * 回归（PM 评审 P0）：选"不保留示例数据"后 occurrences 被清空，
+   * 但当时没有重新预建本周计划，周目标页显示"本周没有设定计划 0/0"，
+   * 刷新一次才恢复——新用户第一条路径就断在最核心的功能上。
+   */
+  test('从零开始后本周计划立即存在，不用刷新', async ({ page }) => {
+    // 勾选框在第二步（示例说明 → 每周几次），先走一步再取消
+    await page.getByRole('button', { name: /知道了/ }).click();
+    await page.waitForTimeout(400);
+    await page.locator('.onb__check').uncheck();
+    await page.getByRole('button', { name: '下一步' }).click();
+    await page.waitForTimeout(400);
+    await page.getByRole('button', { name: '开始使用' }).click();
+    await page.waitForTimeout(1500);
+
+    const state = await readState(page);
+    expect(((state?.sessions as unknown[]) ?? []).length).toBe(0);
+    expect(((state?.occurrences as unknown[]) ?? []).length).toBeGreaterThan(0);
+    expect(((state?.weekGoals as unknown[]) ?? []).length).toBeGreaterThan(0);
+
+    await goTab(page, '周目标');
+    await expect(page.locator('.goalcard__value')).toBeVisible();
+    const text = (await page.locator('.goalcard__value').innerText()).replace(/\s/g, '');
+    expect(Number(text.split('/')[1])).toBeGreaterThan(0);
+  });
 });
 
 test.describe('清理缓存', () => {

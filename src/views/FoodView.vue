@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { FOOD_GROUPS, nutritionFor, portionText, searchFoods, unitOf, type Food } from '../content/foods';
-import { businessDate } from '../domain/units';
+import { addDays, businessDate, shortDate } from '../domain/units';
 import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
 import { filterFoods } from '../domain/allergens';
@@ -12,7 +12,25 @@ import type { Slot } from '../domain/types';
 
 
 const { push } = useToast();
-const today = businessDate();
+
+/**
+ * 当前查看/记录的日期。
+ *
+ * 原来写死 `businessDate()`，只能记今天——"昨晚忘了记"这条最高频的真实路径
+ * 直接走不通（PM 深评 §3.7）。现在可以往回翻并补记，不允许记未来。
+ */
+const selectedDate = ref(businessDate());
+const isToday = computed(() => selectedDate.value === businessDate());
+
+function shiftDate(days: number): void {
+  const next = addDays(selectedDate.value, days);
+  if (next > businessDate()) return;
+  selectedDate.value = next;
+}
+
+function goToday(): void {
+  selectedDate.value = businessDate();
+}
 
 const slots: Array<{ id: Slot; label: string; time: string }> = [
   { id: 'breakfast', label: '早餐', time: '08:00' },
@@ -36,14 +54,35 @@ const manualProtein = ref('');
 // 返回键/边缘返回先关面板
 useSheetBack(computed(() => sheet.value !== null), () => { sheet.value = null; });
 
-const foodsToday = computed(() => store.state.foods.filter((f) => f.date === today));
+const foodsOnDate = computed(() => store.state.foods.filter((f) => f.date === selectedDate.value));
 const totals = computed(() => ({
-  kcal: foodsToday.value.reduce((s, f) => s + f.kcal, 0),
-  protein: foodsToday.value.reduce((s, f) => s + f.protein, 0),
+  kcal: foodsOnDate.value.reduce((s, f) => s + f.kcal, 0),
+  protein: foodsOnDate.value.reduce((s, f) => s + f.protein, 0),
+  // carb/fat 一直在采集，但之前界面只显示热量与蛋白，等于白采（PM 评审 §3.7）
+  carb: foodsOnDate.value.reduce((s, f) => s + (f.carb ?? 0), 0),
+  fat: foodsOnDate.value.reduce((s, f) => s + (f.fat ?? 0), 0),
 }));
 
-const targetKcal = computed(() => store.state.targetKcal ?? 2350);
-const targetProtein = computed(() => store.state.targetProtein ?? 165);
+/**
+ * 目标只能来自用户设置。
+ *
+ * 原来这里回落到写死的 2350 kcal / 165 g：55kg 的用户也看到 2350，
+ * "目标"变成假数字（PM 评审 §4.3 数据诚实）。没设置就如实说没设置，
+ * 不画进度环，也不编一个默认值。
+ */
+const targetKcal = computed(() => store.state.targetKcal);
+const targetProtein = computed(() => store.state.targetProtein);
+
+const kcalPct = computed(() =>
+  targetKcal.value && targetKcal.value > 0
+    ? Math.min(100, Math.round((totals.value.kcal / targetKcal.value) * 100))
+    : null,
+);
+const proteinPct = computed(() =>
+  targetProtein.value && targetProtein.value > 0
+    ? Math.min(100, Math.round((totals.value.protein / targetProtein.value) * 100))
+    : null,
+);
 
 /** 用户已确认的过敏原限制；未确认时为空，此时不隐藏食物但界面提示确认。 */
 const restrictions = computed<DietRestriction[]>(() =>
@@ -110,7 +149,7 @@ function addFromFood(): void {
       ? `${food.name} ${trimNum(safeCount.value)}${u.label}（${grams.value}g）`
       : `${food.name} ${grams.value}g`;
   store.addFood({
-    date: today,
+    date: selectedDate.value,
     slot: sheet.value.slot,
     label,
     kcal: preview.value.kcal,
@@ -130,7 +169,7 @@ function addManual(): void {
     return;
   }
   store.addFood({
-    date: today,
+    date: selectedDate.value,
     slot: sheet.value.slot,
     label: '手工记录',
     kcal,
@@ -166,8 +205,17 @@ function stepGrams(delta: number): void {
 }
 
 function removeEntry(id: string): void {
+  // 先取出整条，撤销时原样放回（id 不变，不会产生重复条目）
+  const removed = store.state.foods.find((f) => f.id === id);
+  if (!removed) return;
   store.removeFood(id);
-  push('已删除');
+  push('已删除这条记录', 'default', {
+    label: '撤销',
+    onAction: () => {
+      store.restoreFood(removed);
+      push('已恢复', 'success');
+    },
+  });
 }
 </script>
 
@@ -176,30 +224,56 @@ function removeEntry(id: string): void {
     <header class="me__head">
       <div>
         <p class="label">饮食</p>
-        <h1 class="h1">今天吃了什么</h1>
+        <h1 class="h1">{{ isToday ? '今天吃了什么' : `${shortDate(selectedDate)}吃了什么` }}</h1>
       </div>
     </header>
+
+    <!-- 日期切换：昨晚忘了记，今天还能补；不允许记未来 -->
+    <div class="date-nav">
+      <button class="icon-btn" aria-label="前一天" @click="shiftDate(-1)">‹</button>
+      <button class="date-nav__label" @click="goToday">
+        <span>{{ isToday ? '今天' : shortDate(selectedDate) }}</span>
+        <span v-if="!isToday" class="tiny">回到今天</span>
+      </button>
+      <button class="icon-btn" aria-label="后一天" :disabled="isToday" @click="shiftDate(1)">›</button>
+    </div>
 
     <!-- nutrition card -->
     <section class="card card--ink nutrition">
       <div class="nutrition__top">
         <div>
-          <p class="label">今日摄入</p>
+          <p class="label">{{ isToday ? '今日摄入' : '当日摄入' }}</p>
           <p class="nutrition__kcal">
-            {{ totals.kcal }}<span>/ {{ targetKcal }} kcal</span>
+            {{ totals.kcal }}<span v-if="targetKcal">/ {{ targetKcal }} kcal</span><span v-else> kcal</span>
+          </p>
+          <p v-if="!targetKcal" class="tiny nutrition__unset">
+            还没设目标 · 在「我的 → 身体」里设置
           </p>
         </div>
-        <div class="ring" :style="{ '--pct': Math.min(100, Math.round((totals.kcal / targetKcal) * 100)) }">
+        <div v-if="kcalPct !== null" class="ring" :style="{ '--pct': kcalPct }">
           <div class="ring__inner">
-            <span class="ring__num">{{ Math.min(100, Math.round((totals.kcal / targetKcal) * 100)) }}<span>%</span></span>
+            <span class="ring__num">{{ kcalPct }}<span>%</span></span>
           </div>
         </div>
       </div>
+      <!-- 三大宏量都展示：carb/fat 已经采集，不展示等于白采 -->
       <div class="nutrition__macro">
         <div>
           <span class="tiny">蛋白质</span>
-          <strong>{{ Math.round(totals.protein) }} / {{ targetProtein }} g</strong>
-          <div class="bar"><div class="bar__fill" :style="{ width: `${Math.min(100, Math.round((totals.protein / targetProtein) * 100))}%` }" /></div>
+          <strong>
+            {{ Math.round(totals.protein) }}<template v-if="targetProtein"> / {{ targetProtein }}</template> g
+          </strong>
+          <div class="bar">
+            <div class="bar__fill" :style="{ width: `${proteinPct ?? 0}%` }" />
+          </div>
+        </div>
+        <div>
+          <span class="tiny">碳水</span>
+          <strong>{{ Math.round(totals.carb) }} g</strong>
+        </div>
+        <div>
+          <span class="tiny">脂肪</span>
+          <strong>{{ Math.round(totals.fat) }} g</strong>
         </div>
       </div>
     </section>
@@ -217,11 +291,13 @@ function removeEntry(id: string): void {
           </div>
           <button class="btn btn--ghost btn--sm" @click="openSheet(slot.id)">添加</button>
         </div>
-        <div v-if="foodsToday.filter((f) => f.slot === slot.id).length" class="meal__items">
-          <div v-for="f in foodsToday.filter((x) => x.slot === slot.id)" :key="f.id" class="meal__item">
+        <div v-if="foodsOnDate.filter((f) => f.slot === slot.id).length" class="meal__items">
+          <div v-for="f in foodsOnDate.filter((x) => x.slot === slot.id)" :key="f.id" class="meal__item">
             <span class="recent__body">
               <span class="h3">{{ f.label }}</span>
-              <span class="tiny">{{ f.kcal }} kcal · 蛋白 {{ f.protein }}g</span>
+              <span class="tiny">
+                {{ f.kcal }} kcal · 蛋白 {{ f.protein }}g<template v-if="f.carb != null"> · 碳 {{ Math.round(f.carb) }}g</template><template v-if="f.fat != null"> · 脂 {{ Math.round(f.fat) }}g</template>
+              </span>
             </span>
             <button class="meal__del" aria-label="删除" @click="removeEntry(f.id)">✕</button>
           </div>
@@ -316,6 +392,8 @@ function removeEntry(id: string): void {
               <div v-if="preview" class="grid-2 confirm__stats">
                 <div class="stat"><span class="stat__value">{{ preview.kcal }}</span><span class="stat__label">kcal</span></div>
                 <div class="stat"><span class="stat__value">{{ preview.protein }}<span class="stat__unit">g</span></span><span class="stat__label">蛋白</span></div>
+                <div class="stat"><span class="stat__value">{{ preview.carb }}<span class="stat__unit">g</span></span><span class="stat__label">碳水</span></div>
+                <div class="stat"><span class="stat__value">{{ preview.fat }}<span class="stat__unit">g</span></span><span class="stat__label">脂肪</span></div>
               </div>
             </div>
             <div class="row gap-10" style="margin-top: 18px">
@@ -340,6 +418,40 @@ function removeEntry(id: string): void {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+}
+
+/* 日期切换：整行可点，触控区 44px */
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-nav__label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.date-nav .icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.date-nav .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .nutrition {
@@ -387,6 +499,15 @@ function removeEntry(id: string): void {
 
 .nutrition__macro {
   margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.nutrition__unset {
+  margin-top: 6px;
+  color: rgba(var(--inv-rgb), 0.5);
 }
 
 .nutrition__macro strong {

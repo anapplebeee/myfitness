@@ -19,6 +19,7 @@ import { immersive } from './composables/useImmersive';
 import { editingTemplateId, openSessionId, liveSessionId } from './composables/useOverlay';
 import { forgetArrival, originOf, setIntent } from './composables/useNavigation';
 import LiveWorkout from './components/LiveWorkout.vue';
+import { useReminders } from './composables/useReminders';
 import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { requestBack, resetBackLayers, setBackFallback } from './composables/useBackLayer';
@@ -36,6 +37,12 @@ function routeFromHash(): Route {
 
 onMounted(async () => {
   route.value = routeFromHash();
+  /*
+   * 本地提醒：读一次通知权限，已授权就按设置排好。
+   * 失败不影响主流程（网页版可能被拒绝，原生可能未装插件）。
+   */
+  const { setupReminders } = useReminders();
+  void setupReminders();
   window.addEventListener('hashchange', () => {
     // 路由已经变了，说明哨兵没拦住（例如外部直接改 hash），
     // 残留的浮层记录必须清掉，否则后面的返回会被它吃掉。
@@ -196,7 +203,8 @@ useEdgeSwipeBack(() => {
   </div>
   <div v-else class="shell" :class="{ 'shell--immersive': immersive }">
     <div class="shell__inner">
-      <header class="topbar">
+      <!-- 训练中隐藏全局顶栏：把 70px 还给"这一组"和"还剩几组" -->
+      <header v-if="!liveSessionId" class="topbar">
         <!-- 标题可点：回到今日页；已经在今日页时滚到顶部 -->
         <button class="brand" type="button" aria-label="回到今日" @click="tapBrand">
           <span class="brand__mark">练</span>

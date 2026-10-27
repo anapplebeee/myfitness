@@ -29,10 +29,14 @@
 }
 
 .label {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 620;
+  font-size: 11.5px;
+  /*
+   * 中文没有大小写，uppercase 是空操作；0.14em 会把汉字拉开得像水印。
+   * 收到 0.06em，字重从非标准 620 回到 500（系统字体只保证 400/500/700）。
+   */
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-weight: 500;
   color: var(--text-3);
 }
 
@@ -260,6 +264,22 @@
 
 .btn--primary:hover {
   background: var(--ink-2);
+}
+
+/*
+ * 深色主题下主按钮必须反相。
+ *
+ * --surface-ink 在深色下是 #1a1e16，页面是 #0d0f0c，两者对比只有 1.14:1——
+ * 视觉上像"一行浮着的绿字"，不像一个按钮（PM 深评 P0-6 / UI 评审 §4.4）。
+ * 深色下改成酸橙底 + 墨字，按钮边界立刻可辨。
+ */
+[data-theme='dark'] .btn--primary {
+  background: var(--lime);
+  color: var(--on-lime);
+}
+
+[data-theme='dark'] .btn--primary:hover {
+  background: #d6f96b;
 }
 
 .btn--lime {

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { store, derived } from '../store/appStore';
 import { exerciseName } from '../content/exercises';
 import {
+  addDays,
   businessDate,
   formatVolume,
   shortDate,
@@ -19,12 +20,31 @@ import { openSession, startLive } from '../composables/useOverlay';
 import type { NavigatePayload } from '../types/nav';
 import { computeWeek, dayStatesForWeek, statusLabel, targetNarrative } from '../domain/week';
 import { todayTraining } from '../domain/today';
+import { completedSetCount, plannedSetCount } from '../domain/metrics';
+import {
+  DEFAULT_WATER_GOAL_ML,
+  WATER_QUICK_ADD,
+  waterProgress,
+  waterText,
+  waterTotal,
+} from '../domain/water';
 
 const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 withDefaults(defineProps<{ greetingName?: string }>(), { greetingName: '你' });
 
 const today = businessDate();
 const weekStart = weekStartOf(today);
+
+/* 饮水：独立于训练/饮食，空状态也显示；目标可改，界面明确标"参考" */
+const waterQuickAdd = WATER_QUICK_ADD;
+const waterGoal = computed(() => store.state.waterGoalMl ?? DEFAULT_WATER_GOAL_ML);
+const waterTotalMl = computed(() => waterTotal(store.state.water, today));
+const waterPct = computed(() => waterProgress(waterTotalMl.value, waterGoal.value));
+const waterHint = computed(() => waterText(waterTotalMl.value, waterGoal.value));
+
+function addWater(ml: number): void {
+  store.addWater(ml);
+}
 
 const sessions = computed(() => store.state.sessions);
 
@@ -97,12 +117,39 @@ const volumeTrend = computed(() => {
 
 const weightTrend = computed(() => derived.weightSeries.value.map((w) => w.grams / 1000));
 const latestWeight = computed(() => derived.latestWeight.value);
-const weightDelta = computed(() => {
+
+/**
+ * 体重变化只看最近 6 周。
+ *
+ * 原来标签写"近 6 周"、算的却是全部记录（14 条约 4 周），标签和事实对不上。
+ * 现在按窗口过滤；记录跨度不足 6 周时，标签改成真实天数。
+ */
+const weightWindow = computed(() => {
   const series = derived.weightSeries.value;
+  const cutoff = addDays(today, -41);
+  const inWindow = series.filter((w) => w.date >= cutoff);
+  return inWindow.length >= 2 ? inWindow : series;
+});
+
+const weightDelta = computed(() => {
+  const series = weightWindow.value;
   if (series.length < 2) return 0;
   const first = series[0]!;
   const last = series[series.length - 1]!;
   return (last.grams - first.grams) / 1000;
+});
+
+/** "近 6 周"只在真的有 6 周数据时才成立。 */
+const weightSpanLabel = computed(() => {
+  const series = weightWindow.value;
+  if (series.length < 2) return '';
+  const days =
+    Math.round(
+      (new Date(`${series[series.length - 1]!.date}T12:00:00`).getTime() -
+        new Date(`${series[0]!.date}T12:00:00`).getTime()) /
+        86_400_000,
+    ) + 1;
+  return days >= 42 ? '近 6 周' : `近 ${days} 天`;
 });
 
 const caloriesToday = computed(() => {
@@ -110,9 +157,20 @@ const caloriesToday = computed(() => {
   return {
     kcal: foods.reduce((sum, f) => sum + f.kcal, 0),
     protein: foods.reduce((sum, f) => sum + f.protein, 0),
-    count: foods.length,
+    // "几餐"按餐次去重，不能数食物条目（PM 评审 §3.2 P2）
+    slots: new Set(foods.map((f) => f.slot)).size,
   };
 });
+
+/**
+ * 真正的空状态：训练、体重、饮食一条都没有。
+ *
+ * 没数据时不能显示"累计 0 次""0 / 默认目标"——0 会被读成"没达标"，
+ * 默认目标又会被当成用户自己设的（PM 评审 §3.2 / §4.3）。
+ */
+const hasAnyData = computed(
+  () => sessions.value.length > 0 || store.state.weights.length > 0 || store.state.foods.length > 0,
+);
 
 const kcalTarget = computed(() => store.state.targetKcal ?? 0);
 const proteinTarget = computed(() => store.state.targetProtein ?? 0);
@@ -143,6 +201,8 @@ const heroTitle = computed(() => {
       return '训练进行中';
     case 'done':
       return '今天已经练完了';
+    case 'partial':
+      return '今天只练了一半';
     case 'moved':
       return '今天这项已顺延';
     case 'rest':
@@ -151,6 +211,18 @@ const heroTitle = computed(() => {
       return '把这一组，记下来';
   }
 });
+
+/** 部分完成时"继续这场"：把已结束的会话重新打开，数据不拆成两场。 */
+function continueSession(): void {
+  const info = todayInfo.value;
+  if (!info.session) return;
+  const error = store.reopenSession(info.session.id);
+  if (error) {
+    openSession(info.session.id);
+    return;
+  }
+  startLive(info.session.id);
+}
 
 /**
  * 开始训练。
@@ -165,7 +237,7 @@ function startWorkout(): void {
     startLive(info.session.id);
     return;
   }
-  if (info.state === 'done') {
+  if (info.state === 'done' || info.state === 'partial') {
     if (info.session) openSession(info.session.id);
     return;
   }
@@ -208,17 +280,24 @@ function openRecent(id: string): void {
         <span class="hero__live-time">{{ shortDate(todayInfo.session.businessDate) }} 开始</span>
       </div>
 
-      <!-- 已完成：给出训练事实，而不是再让用户开始一次 -->
-      <div v-else-if="todayInfo.state === 'done' && todayInfo.session" class="hero__plan">
+      <!-- 已完成 / 部分完成：给出训练事实，而不是再让用户开始一次 -->
+      <div
+        v-else-if="(todayInfo.state === 'done' || todayInfo.state === 'partial') && todayInfo.session"
+        class="hero__plan"
+      >
         <div class="hero__plan-head">
-          <span class="label">今天完成</span>
+          <span class="label">{{ todayInfo.state === 'partial' ? '今天部分完成' : '今天完成' }}</span>
           <span class="chip chip--sm hero__chip">{{ todayInfo.credited ? '已计入周目标' : '未计入周目标' }}</span>
         </div>
         <p class="hero__plan-title">{{ todayInfo.session.title }}</p>
         <div class="hero__exercises">
           <span class="hero__ex">{{ todayInfo.session.exercises.length }} 个动作</span>
+          <span class="hero__ex">{{ completedSetCount(todayInfo.session) }}/{{ plannedSetCount(todayInfo.session) }} 组</span>
           <span class="hero__ex">{{ formatVolume(sessionVolumeGrams(todayInfo.session), 'kg') }} 容量</span>
         </div>
+        <p v-if="todayInfo.state === 'partial'" class="tiny hero__plan-note">
+          还没练完，可以继续这场把剩下的组记完。
+        </p>
       </div>
 
       <!-- 已顺延 -->
@@ -233,7 +312,8 @@ function openRecent(id: string): void {
 
       <div v-else-if="todayPlan" class="hero__plan">
         <div class="hero__plan-head">
-          <span class="label">今日计划</span>
+          <!-- 没有真实计划项时不能说"今日计划"，否则与"今天没有安排"自相矛盾 -->
+          <span class="label">{{ todayInfo.occurrence ? '今日计划' : '按模板今天该练' }}</span>
           <span class="chip chip--sm hero__chip">{{ todayPlan.exercises.length }} 个动作</span>
         </div>
         <p class="hero__plan-title">{{ todayPlan.title }}</p>
@@ -242,11 +322,21 @@ function openRecent(id: string): void {
             {{ exerciseName(ex.exerciseId) }}
           </span>
         </div>
+        <p v-if="!todayInfo.occurrence" class="tiny hero__plan-note">
+          没排进本周计划，练了算加练，不影响周目标。
+        </p>
       </div>
 
       <div class="hero__actions">
         <button
-          v-if="todayInfo.state === 'done'"
+          v-if="todayInfo.state === 'partial'"
+          class="btn btn--lime btn--lg"
+          @click="continueSession"
+        >
+          继续这场
+        </button>
+        <button
+          v-else-if="todayInfo.state === 'done'"
           class="btn btn--lime btn--lg"
           @click="startWorkout"
         >
@@ -266,12 +356,15 @@ function openRecent(id: string): void {
           {{ todayInfo.state === 'live' ? '继续训练' : '开始训练' }}
         </button>
         <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', { to: 'train', from: 'today' })">
-          {{ todayInfo.state === 'done' ? '再练一场' : '空白训练' }}
+          {{ todayInfo.state === 'done' || todayInfo.state === 'partial' ? '再练一场' : '空白训练' }}
         </button>
       </div>
 
       <p v-if="todayInfo.state === 'done' && !todayInfo.credited" class="hero__hint">
         这场只记录了训练次数，没有计入本周目标（结束时可勾选「本次计入周目标」）。
+      </p>
+      <p v-else-if="todayInfo.state === 'partial' && !todayInfo.credited" class="hero__hint">
+        没练完的场次默认不计入周目标；确认这次就练到这儿，可在记录里手动关联。
       </p>
     </section>
 
@@ -307,8 +400,8 @@ function openRecent(id: string): void {
       </div>
     </section>
 
-    <!-- quick stats -->
-    <section class="grid-2 quick">
+    <!-- quick stats：没有数据时整块隐藏，改用引导卡 -->
+    <section v-if="hasAnyData" class="grid-2 quick">
       <article class="card quick__card">
         <p class="label">累计训练</p>
         <p class="stat__value">{{ totalTraining }}<span class="stat__unit">次</span></p>
@@ -320,19 +413,19 @@ function openRecent(id: string): void {
           {{ latestWeight ? (latestWeight.grams / 1000).toFixed(1) : '—' }}<span class="stat__unit">kg</span>
         </p>
         <p class="tiny" :class="weightDelta <= 0 ? 'down' : 'up'">
-          {{ weightDelta > 0 ? '+' : '' }}{{ weightDelta.toFixed(1) }} kg · 近 6 周
+          {{ weightDelta > 0 ? '+' : '' }}{{ weightDelta.toFixed(1) }} kg · {{ weightSpanLabel }}
         </p>
         <Sparkline :points="weightTrend" :height="36" tone="clay" />
       </article>
     </section>
 
     <!-- nutrition -->
-    <section class="card nutrition">
+    <section v-if="hasAnyData" class="card nutrition">
       <div class="section__head">
         <div>
           <p class="label">今日饮食</p>
           <p class="h3">
-            {{ caloriesToday.kcal }}<span class="tiny"> / {{ kcalTarget || '—' }} kcal</span>
+            {{ caloriesToday.kcal }}<span v-if="kcalTarget" class="tiny"> / {{ kcalTarget }} kcal</span><span v-else class="tiny"> kcal · 未设目标</span>
           </p>
         </div>
         <button class="btn btn--ghost btn--sm" @click="emit('navigate', { to: 'food', from: 'today' })">记录</button>
@@ -341,25 +434,67 @@ function openRecent(id: string): void {
         <div>
           <div class="row between nutrition__bar-head">
             <span class="tiny">热量</span>
-            <span class="tiny">{{ kcalPct }}%</span>
+            <span class="tiny">{{ kcalTarget ? `${kcalPct}%` : '—' }}</span>
           </div>
           <div class="bar"><div class="bar__fill" :style="{ width: `${kcalPct}%` }" /></div>
         </div>
         <div>
           <div class="row between nutrition__bar-head">
             <span class="tiny">蛋白质 {{ Math.round(caloriesToday.protein) }}g</span>
-            <span class="tiny">{{ proteinPct }}%</span>
+            <span class="tiny">{{ proteinTarget ? `${proteinPct}%` : '—' }}</span>
           </div>
           <div class="bar"><div class="bar__fill bar__fill--clay" :style="{ width: `${proteinPct}%` }" /></div>
         </div>
       </div>
       <p class="tiny nutrition__note">
-        {{ caloriesToday.count === 0 ? '还没有记录今天的饮食，未记录不等于 0。' : `已记录 ${caloriesToday.count} 餐，部分记录不代表全天。` }}
+        {{ caloriesToday.slots === 0 ? '还没有记录今天的饮食，未记录不等于 0。' : `已记录 ${caloriesToday.slots} 餐，部分记录不代表全天。` }}
+      </p>
+    </section>
+
+    <!-- 空状态：不显示 0 与默认目标，给三条最直接的入口 -->
+    <section v-else class="card empty-guide">
+      <p class="label">从第一条记录开始</p>
+      <h2 class="h2">先记一笔，之后才有趋势</h2>
+      <p class="small empty-guide__lead">
+        现在还没有训练、饮食或体重记录。没有数据时不显示 0 和默认目标——那会让“空”看起来像“没达标”。
+      </p>
+      <div class="empty-guide__actions">
+        <button class="btn btn--primary btn--block" @click="emit('navigate', { to: 'me', from: 'today' })">
+          记体重
+        </button>
+        <button class="btn btn--ghost btn--block" @click="emit('navigate', { to: 'food', from: 'today' })">
+          记饮食
+        </button>
+        <button class="btn btn--lime btn--block" @click="startWorkout">开始训练</button>
+      </div>
+    </section>
+
+    <!-- 饮水：与训练/饮食解耦，即使还没有训练数据也显示 -->
+    <section class="card water">
+      <div class="section__head">
+        <div>
+          <p class="label">今日饮水</p>
+          <p class="h3">
+            {{ waterTotalMl }}<span class="tiny"> / {{ waterGoal }} ml</span>
+          </p>
+        </div>
+        <span class="tiny">{{ waterHint }}</span>
+      </div>
+      <div class="bar">
+        <div class="bar__fill bar__fill--water" :style="{ width: `${waterPct ?? 0}%` }" />
+      </div>
+      <div class="water__actions">
+        <button v-for="ml in waterQuickAdd" :key="ml" class="btn btn--ghost btn--sm" @click="addWater(ml)">
+          +{{ ml }} ml
+        </button>
+      </div>
+      <p class="tiny water__note">
+        参考目标 {{ waterGoal }} ml，可在「我的 → 设置」里改；记录按天保存。
       </p>
     </section>
 
     <!-- recent -->
-    <section class="section">
+    <section v-if="hasAnyData" class="section">
       <div class="section__head">
         <h2 class="h2">最近训练</h2>
         <!-- 点「全部」是要看历史列表，不是看计划；带 focus 直接落到历史段 -->
@@ -398,6 +533,27 @@ function openRecent(id: string): void {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 空状态引导卡：不用 0 和默认值填满屏幕 */
+.empty-guide {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.empty-guide__lead {
+  margin-top: 4px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.empty-guide__actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .hero {
@@ -548,8 +704,14 @@ function openRecent(id: string): void {
 }
 
 .hero__ghost {
-  background: rgba(var(--inv-rgb), 0.08);
+  /*
+   * 深色 hero 上的次级按钮：浅色文字已经有了，但 8% 白的底
+   * 在深色背景上边界只有 ~1.2:1，看起来像"浮着的一行字"。
+   * 提到 14% 底 + 28% 亮描边，按钮形状可辨（PM 深评 P0-6）。
+   */
+  background: rgba(var(--inv-rgb), 0.14);
   color: var(--text-inverse);
+  border-color: rgba(var(--inv-rgb), 0.28);
 }
 
 .hero .label {
@@ -650,6 +812,25 @@ function openRecent(id: string): void {
 
 .nutrition__note {
   margin-top: 12px;
+}
+
+/* 饮水：用冷色区分于训练/饮食的酸橙与黏土 */
+.bar__fill--water {
+  background: var(--sky);
+}
+
+.water__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.water__actions .btn {
+  flex: 1;
+}
+
+.water__note {
+  margin-top: 10px;
 }
 
 .recent {

@@ -5,6 +5,8 @@ import { addDays, businessDate } from '../domain/units';
 import { TEMPLATES } from '../content/exercises';
 import { buildOccurrences, mondayOf } from '../domain/plan';
 import { initialWeekGoal, type PlannedOccurrence, type WeekGoal } from '../domain/week';
+import { DEFAULT_WATER_GOAL_ML } from '../domain/water';
+import { DEFAULT_REMINDERS } from '../domain/reminders';
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -180,8 +182,23 @@ export function seedState(): AppState {
      */
     goals: [],
     bodyGoalGrams: null,
-    targetKcal: 2350,
-    targetProtein: 165,
+    /*
+     * 营养目标不预置。
+     *
+     * 原来写死 2350 kcal / 165 g，且没有 UI 能改——55kg 的用户也看到 2350，
+     * "目标"变成伪装成用户数据的默认值（PM 评审 §3.7 / §4.3）。
+     * 现在由用户在「我的 → 身体 → 营养目标」设置；未设置就如实显示未设置。
+     */
+    targetKcal: null,
+    targetProtein: null,
+    /*
+     * 饮水：记录从空开始，目标给 2000ml 并明确标注为参考值。
+     * 与营养目标不同，水量没有"必须按身体数据推算"的强假设；
+     * 界面会写明"参考值，可在设置改"，不伪装成系统算过的结果。
+     */
+    water: [],
+    waterGoalMl: DEFAULT_WATER_GOAL_ML,
+    reminders: DEFAULT_REMINDERS,
     weeklyGoal: 4,
     occurrences,
     weekGoals: weekGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),

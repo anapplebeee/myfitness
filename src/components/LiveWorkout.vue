@@ -4,6 +4,7 @@ import { store } from '../store/appStore';
 import { exerciseName, EXERCISES, MUSCLES } from '../content/exercises';
 import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
+import { completionSummary, shouldDefaultCredit } from '../domain/completion';
 import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
 import ExerciseDemo from './ExerciseDemo.vue';
@@ -24,7 +25,18 @@ const { push } = useToast();
 // 而不是把用户带回别的页面、让他以为训练丢了。
 useBackLayer(() => emit('close'));
 
-onMounted(() => setImmersive(true));
+onMounted(() => {
+  setImmersive(true);
+  /*
+   * 恢复休息计时：离开训练页时倒计时原本直接丢失（组件内 state），
+   * 训练中切出去看一眼再回来节奏就断了。按 session.restEndsAt 接着走。
+   */
+  const endsAt = session.value?.restEndsAt;
+  if (endsAt) {
+    const ms = new Date(endsAt).getTime();
+    if (Number.isFinite(ms) && ms > Date.now()) rest.restore(ms);
+  }
+});
 onBeforeUnmount(() => {
   setImmersive(false);
   if (elapsedTimer !== null) {
@@ -39,6 +51,7 @@ const unit = ref<'kg' | 'lb'>('kg');
 const activeExIndex = ref(0);
 const showPicker = ref(false);
 const finishing = ref(false);
+const confirmDiscard = ref(false);
 const creditChoice = ref<string>('');
 const creditConfirmed = ref(false);
 const elapsed = ref(0);
@@ -48,6 +61,7 @@ const saving = ref(false);
 
 // 总结面板与动作面板也要能被返回键关掉，而不是直接退出录制
 useSheetBack(finishing, () => { finishing.value = false; });
+useSheetBack(confirmDiscard, () => { confirmDiscard.value = false; });
 useSheetBack(showPicker, () => { showPicker.value = false; });
 /*
  * 训练计时：每秒刷新已用时长。
@@ -186,8 +200,19 @@ async function complete(exId: string, set: SetRecord): Promise<void> {
     push(store.saveError.value ?? '本组尚未保存，请重试', 'error');
     return;
   }
-  if (ex) rest.start(ex.restSeconds);
+  if (ex) {
+    rest.start(ex.restSeconds);
+    syncRestPersist();
+  }
   push('已保存本组', 'success');
+}
+
+/** 把计时结束时间写回会话，离开页面再回来能接着走。 */
+function syncRestPersist(): void {
+  const ends = rest.endsAtMs();
+  store.updateSession(props.sessionId, {
+    restEndsAt: ends === null ? null : new Date(ends).toISOString(),
+  });
 }
 
 function addSet(): void {
@@ -211,31 +236,31 @@ function lastHint(exId: string): string {
 }
 
 /**
- * 逐组的「上次」参照。
+ * 上一场同一索引组的数值，供输入框做 ghost 占位。
  *
- * 为什么按索引取而不是只显示最佳组：
- * 真实训练里同一动作各组重量不同（热身 60、工作 80、85），
- * 只给一个"上次最佳"会让用户不知道该组该打多少。
- * 标杆产品（Hevy / Strong）都在每一行给该组的历史值。
+ * 原来每组单独占一列「上次」：360px 宽时 `105 kg ×` / `6` 折成两行，
+ * 且同一动作 5 行组的文字完全一样，是纯噪声（PM 深评 P0-4）。
+ * 现在把上次值放进输入框 placeholder，行宽从 5 列回到 4 列。
  */
-function prevFor(exId: string, index: number): string {
+function prevSetFor(
+  exId: string,
+  index: number,
+): { loadGrams: number | null; reps: number | null } | null {
   const last = lastExerciseSets([...store.state.sessions], exId, props.sessionId);
   const rec = last[index];
-  /*
-   * 上次那场只做了更少的组时，后面的组没有对照值。
-   *
-   * 直接显示 "—" 会让用户以为功能坏了（真机实测就是这个反应），
-   * 所以区分两种情况：
-   *   - 完全没历史 → "首次"
-   *   - 有历史但这场组数更少 → "未做"（明确表示上次没做到这一组）
-   */
-  if (!rec) return last.length ? '未做' : '首次';
-  if (rec.loadGrams !== null && rec.reps !== null) {
-    return `${formatLoad(rec.loadGrams, unit.value)} × ${rec.reps}`;
-  }
-  if (rec.reps !== null) return `自重 × ${rec.reps}`;
-  if (rec.durationSeconds !== null) return formatRest(rec.durationSeconds);
-  return '—';
+  if (!rec) return null;
+  return { loadGrams: rec.loadGrams, reps: rec.reps };
+}
+
+function prevLoadPlaceholder(exId: string, index: number, set: SetRecord): string {
+  const grams = prevSetFor(exId, index)?.loadGrams ?? set.loadGrams ?? 0;
+  if (!grams) return '0';
+  const value = unit.value === 'kg' ? grams / 1000 : (grams / 1000) * 2.20462;
+  return String(Math.round(value * 10) / 10);
+}
+
+function prevRepsPlaceholder(exId: string, index: number, fallback: number): string {
+  return String(prevSetFor(exId, index)?.reps ?? fallback);
 }
 
 function finish(): void {
@@ -267,7 +292,12 @@ function finish(): void {
   const bound = s.occurrenceId ? open.find((o) => o.id === s.occurrenceId) : undefined;
   const match = bound ?? open.find((o) => o.scheduledDate === s.businessDate);
   creditChoice.value = match?.id ?? '';
-  creditConfirmed.value = Boolean(match);
+  /*
+   * 只有练够了才默认勾选。
+   * 1/16 组也自动计入，会让周目标变成"打卡"，所以部分完成时默认不勾，
+   * 由用户自己决定要不要认（面板上会说明只完成了几成）。
+   */
+  creditConfirmed.value = Boolean(match) && shouldDefaultCredit(s);
   finishing.value = true;
 }
 
@@ -284,6 +314,13 @@ const creditOptions = computed(() => {
     now: new Date(),
   });
   return store.openOccurrences(weekStart, weekState.satisfiedOccurrenceIds);
+});
+
+/** 本场完成度：结束面板据此决定默认是否计入周目标。 */
+const completion = computed(() => {
+  const s = session.value;
+  if (!s) return { completedWorkSets: 0, plannedWorkSets: 0, ratio: 1, partial: false, text: '0 组' };
+  return completionSummary(s);
 });
 
 /** 与上次同类训练对比，供结束总结使用。 */
@@ -322,6 +359,11 @@ function discard(): void {
   store.updateSession(props.sessionId, { status: 'discarded', endedAt: new Date().toISOString(), restEndsAt: null });
   push('已放弃，本场不计入统计', 'error');
   emit('finished');
+}
+
+/** 放弃是不可撤销的整场丢弃，必须先确认。 */
+function askDiscard(): void {
+  confirmDiscard.value = true;
 }
 
 function pickExercise(exerciseId: string): void {
@@ -397,8 +439,8 @@ const progress = computed(() => {
           <p class="rest__time mono">{{ formatRest(rest.remaining.value) }}</p>
         </div>
         <div class="row gap-6">
-          <button class="btn btn--ghost btn--sm rest__btn" @click="rest.add(30)">+30s</button>
-          <button class="btn btn--lime btn--sm" @click="rest.stop()">跳过</button>
+          <button class="btn btn--ghost btn--sm rest__btn" @click="rest.add(30); syncRestPersist()">+30s</button>
+          <button class="btn btn--lime btn--sm" @click="rest.stop(); syncRestPersist()">跳过</button>
         </div>
       </div>
     </Transition>
@@ -427,20 +469,24 @@ const progress = computed(() => {
           <h2 class="h2">{{ exerciseName(activeExercise.exerciseId) }}</h2>
           <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · {{ targetHint(activeExercise) }}</p>
         </div>
-        <button class="btn btn--ghost btn--sm demo-btn" @click="demoId = activeExercise!.exerciseId">
-          要领
-        </button>
-      </div>
-
-      <div v-if="modeOf(activeExercise.exerciseId) === 'load_reps'" class="seg live__unit">
-        <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="unit = 'kg'">kg</button>
-        <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="unit = 'lb'">lb</button>
+        <div class="live__panel-actions">
+          <!--
+            单位是全局偏好，不该独占一整行（原来占 46px 高、整行宽）。
+            收到动作名右侧，和「要领」并排。
+          -->
+          <div v-if="modeOf(activeExercise.exerciseId) === 'load_reps'" class="seg seg--mini">
+            <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="unit = 'kg'">kg</button>
+            <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="unit = 'lb'">lb</button>
+          </div>
+          <button class="btn btn--ghost btn--sm demo-btn" @click="demoId = activeExercise!.exerciseId">
+            要领
+          </button>
+        </div>
       </div>
 
       <div class="sets">
         <div v-for="(set, idx) in activeExercise.sets" :key="set.id" class="set" :class="`set--${set.status}`">
           <span class="set__idx">{{ idx + 1 }}</span>
-          <span class="set__prev">{{ prevFor(activeExercise.exerciseId, idx) }}</span>
           <template v-if="set.status === 'completed'">
             <span class="set__done">
               <strong>{{ completedSummary(activeExercise.exerciseId, set) }}</strong>
@@ -458,7 +504,7 @@ const progress = computed(() => {
                   inputmode="decimal"
                   :aria-label="`${exerciseName(activeExercise.exerciseId)} 重量`"
                   :value="draftFor(activeExercise.exerciseId, set).load"
-                  :placeholder="set.loadGrams ? String(set.loadGrams / 1000) : '0'"
+                  :placeholder="prevLoadPlaceholder(activeExercise.exerciseId, idx, set)"
                   @input="updateDraft(activeExercise.exerciseId, set.id, { load: ($event.target as HTMLInputElement).value })"
                 />
                 <span class="set__x">×</span>
@@ -467,7 +513,7 @@ const progress = computed(() => {
                   inputmode="numeric"
                   :aria-label="`${exerciseName(activeExercise.exerciseId)} 次数`"
                   :value="draftFor(activeExercise.exerciseId, set).reps"
-                  :placeholder="String(activeExercise.repMin)"
+                  :placeholder="prevRepsPlaceholder(activeExercise.exerciseId, idx, activeExercise.repMin)"
                   @input="updateDraft(activeExercise.exerciseId, set.id, { reps: ($event.target as HTMLInputElement).value })"
                 />
               </template>
@@ -478,7 +524,7 @@ const progress = computed(() => {
                   inputmode="numeric"
                   aria-label="次数"
                   :value="draftFor(activeExercise.exerciseId, set).reps"
-                  :placeholder="String(activeExercise.repMin)"
+                  :placeholder="prevRepsPlaceholder(activeExercise.exerciseId, idx, activeExercise.repMin)"
                   @input="updateDraft(activeExercise.exerciseId, set.id, { reps: ($event.target as HTMLInputElement).value })"
                 />
                 <span class="set__unit">次</span>
@@ -548,9 +594,32 @@ const progress = computed(() => {
 
     <!-- actions -->
     <div class="live__actions">
-      <button class="btn btn--ghost btn--lg" @click="discard">放弃</button>
+      <button class="btn btn--ghost btn--lg" @click="askDiscard">放弃</button>
       <button class="btn btn--primary btn--lg live__finish" @click="finish">结束训练</button>
     </div>
+
+    <!-- 放弃确认：整场丢弃不可撤销，不能单击就走 -->
+    <Transition name="sheet">
+      <div v-if="confirmDiscard" class="sheet" @click.self="confirmDiscard = false">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">放弃</p>
+              <h2 class="h2">丢掉这场训练？</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="confirmDiscard = false">✕</button>
+          </div>
+          <p class="small">
+            已经记录 {{ completedWorkingSets(session) }} 个工作组。放弃后本场不计入任何统计，
+            也不能恢复。想保留数据就选「结束训练」。
+          </p>
+          <div class="row gap-10" style="margin-top: 16px">
+            <button class="btn btn--ghost btn--block" @click="confirmDiscard = false">继续练</button>
+            <button class="btn btn--danger btn--block" @click="discard">确认放弃</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- finish sheet -->
     <Transition name="sheet">
@@ -565,15 +634,28 @@ const progress = computed(() => {
           </div>
           <div class="grid-2">
             <div class="stat"><span class="stat__value">{{ completedWorkingSets(session) }}</span><span class="stat__label">工作组</span></div>
-            <div class="stat"><span class="stat__value">{{ completedSetCount(session) }}/{{ plannedSetCount(session) }}</span><span class="stat__label">完成/计划</span></div>
+            <div class="stat"><span class="stat__value">{{ completedSetCount(session) }}/{{ plannedSetCount(session) }}</span><span class="stat__label">全场完成/计划</span></div>
           </div>
           <div class="divider" />
-          <p class="small">
+          <!-- 一个工作组都没完成时，这场连训练次数都算不上，必须说清楚 -->
+          <p v-if="completion.completedWorkSets === 0" class="small completion__warn">
+            这一场还没有完成任何工作组，结束后不会计入训练次数与周目标。
+          </p>
+          <!-- 部分完成要明说，别让"1/16 组"看起来像练完了 -->
+          <p v-else-if="completion.partial" class="small completion__warn">
+            只完成 {{ completion.text }}（{{ Math.round(completion.ratio * 100) }}%），
+            默认不计入周目标。如果这次就是练到这儿，可以自己勾上。
+          </p>
+          <p v-else class="small">
             {{ completedSetCount(session) < plannedSetCount(session) ? '有未录的计划组，未录组不会自动算完成。' : '全部计划组已完成。' }}
           </p>
 
-          <!-- 本次 vs 上次：即时反馈是坚持的关键 -->
-          <div v-if="comparison" class="cmp">
+          <!--
+            本次 vs 上次。
+            部分完成时不做全场对比：拿"1 组"去和上次完整的 15 组比容量，
+            会得到 -94.2% 这种算得对、但会打击人的数字（PM 深评 §2.6）。
+          -->
+          <div v-if="comparison && !completion.partial" class="cmp">
             <p class="label">对比上次</p>
             <p class="tiny cmp__sub">{{ shortDate(comparison.prevDate) }} · {{ comparison.prevTitle }}</p>
             <div class="cmp__grid">
@@ -593,6 +675,15 @@ const progress = computed(() => {
               </div>
             </div>
             <p class="tiny cmp__text">{{ comparison.diff.text }}</p>
+          </div>
+          <!-- 部分完成：说明"为什么这次不比较"，而不是甩一个负数 -->
+          <div v-else-if="comparison && completion.completedWorkSets > 0" class="cmp cmp--part">
+            <p class="label">对比上次</p>
+            <p class="tiny cmp__sub">{{ shortDate(comparison.prevDate) }} · {{ comparison.prevTitle }}</p>
+            <p class="small">
+              本次只完成 {{ completion.completedWorkSets }} 个工作组，样本不足，先不做全场对比。
+              下次练完整了再看。
+            </p>
           </div>
           <div v-else class="cmp cmp--first">
             <p class="tiny">这是这个训练日的第一次记录，下次就能对比了。</p>
@@ -733,9 +824,32 @@ const progress = computed(() => {
   flex: none;
 }
 
-.live__unit {
-  max-width: 160px;
-  margin-bottom: 16px;
+.completion__warn {
+  color: var(--danger, #c0392b);
+  line-height: 1.55;
+}
+
+.live__panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* 迷你单位切换：只占动作名右侧一小块，不再独占整行 */
+.seg--mini {
+  flex: none;
+  padding: 2px;
+  border-radius: 10px;
+}
+
+.seg--mini .seg__item {
+  flex: none;
+  height: 28px;
+  min-width: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
 }
 
 .sets {
@@ -752,13 +866,14 @@ const progress = computed(() => {
  * Grid 的列是"分配制"而非"竞争制"：列宽加起来等于容器宽，
  * 不可能互相压盖，这是这里最需要的性质。
  *
- * 列：组号 / 上次 / 输入区 / 勾选 / 跳过
+ * 列：组号 / 输入区 / 勾选 / 跳过
  */
 .set {
   display: grid;
-  grid-template-columns: 16px 44px minmax(0, 1fr) 40px 16px;
+  /* 「上次」列已并入输入框 placeholder，行宽从 5 列回到 4 列，360px 不折行 */
+  grid-template-columns: 24px minmax(0, 1fr) 44px 44px;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px;
   border-radius: 16px;
   background: rgba(var(--ink-rgb), 0.028);
@@ -850,28 +965,14 @@ const progress = computed(() => {
 .set__skipbtn {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--text-3);
   opacity: 0.55;
   cursor: pointer;
-  position: relative;
-}
-
-/*
- * 视觉宽 16px，但触控区向外扩到 44×44，
- * 否则在真机上很难点中，且容易误触到旁边输入框。
- */
-.set__skipbtn::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: -14px;
-  right: -14px;
 }
 
 .set__skipbtn:active {
@@ -879,30 +980,14 @@ const progress = computed(() => {
 }
 
 /*
- * 「上次」列：每组的上一场实际值。
- * 这是训练记录类产品的核心价值——知道这一组该打多少。
- * 用等宽数字 + 弱化颜色，避免和本次输入抢注意力。
- */
-.set__prev {
-  flex: 0 0 auto;
-  min-width: 52px;
-  font-size: 11.5px;
-  line-height: 1.15;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  letter-spacing: -0.01em;
-}
-
-/*
  * 勾选框：替代原来的「完成」文字按钮。
  * 原来那个按钮一行里最宽，真机 369px 宽时把「跳过」挤到下一行；
- * 换成 40px 方形后整行结构稳定，且能一眼扫出完成进度。
+ * 换成 44px 方形后整行结构稳定，且能一眼扫出完成进度。
  */
 .set__check {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -930,7 +1015,7 @@ const progress = computed(() => {
  */
 .set--completed .set__done,
 .set--skipped .set__skip {
-  grid-column: 3 / -1;
+  grid-column: 2 / -1;
 }
 
 .set__done {

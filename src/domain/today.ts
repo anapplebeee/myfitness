@@ -11,12 +11,15 @@
 
 import type { Session } from './types';
 import { isValidCompletedSession, type PlannedOccurrence, type WeekResult } from './week';
+import { completionSummary } from './completion';
 
 export type TodayState =
   /** 有未结束的会话 */
   | 'live'
-  /** 今天已经有有效训练 */
+  /** 今天已经有有效训练，且练够了 */
   | 'done'
+  /** 有有效训练，但明显没练完（组数不够） */
+  | 'partial'
   /** 今天有计划且还没做 */
   | 'planned'
   /** 今天的计划被顺延到本周其他天 */
@@ -79,7 +82,11 @@ export function todayTraining(input: TodayInput): TodayTraining {
   const base = { occurrence: occToday[0] ?? moved, movedTo: null, openCount: open.length, credited };
 
   if (live) return { ...base, state: 'live', session: live };
-  if (done) return { ...base, state: 'done', session: done };
+  if (done) {
+    // 练了但没练够：事实要显示成"部分完成"，不能写"今天已经练完了"
+    const summary = completionSummary(done);
+    return { ...base, state: summary.partial ? 'partial' : 'done', session: done };
+  }
   if (open.length) return { ...base, state: 'planned', session: null, occurrence: open[0]! };
   if (moved) {
     return { ...base, state: 'moved', session: null, occurrence: moved, movedTo: moved.scheduledDate };
@@ -94,6 +101,8 @@ export function todayStateLabel(state: TodayState): string {
       return '训练进行中';
     case 'done':
       return '今天已完成';
+    case 'partial':
+      return '部分完成';
     case 'planned':
       return '待训练';
     case 'moved':

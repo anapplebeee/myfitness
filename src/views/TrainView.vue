@@ -40,6 +40,8 @@ const search = ref('');
 const group = ref<string>('all');
 /** 动作演示面板：非空时显示 */
 const demoId = ref<string | null>(null);
+/** 错过的计划项：非空时弹"补做 / 只加练"选择 */
+const missedDay = ref<{ dayId: string; occurrenceId: string | null; title: string; date: string } | null>(null);
 
 const sessions = computed(() => [...store.state.sessions].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)));
 const active = computed(() => sessions.value.find((s) => s.status === 'active' || s.status === 'paused') ?? null);
@@ -152,14 +154,44 @@ function startFromTemplate(dayId: string): void {
   }
   if (info.status === 'moved') {
     push(`这项已顺延到 ${shortDate(info.movedTo ?? '')}，现在开始会记为加练`, 'error');
-  } else if (info.status === 'later') {
-    push(`这项排在 ${shortDate(info.movedTo ?? '')}，今天开始会记为加练`);
   } else if (info.status === 'excused') {
     push('这项本周已豁免，今天开始会记为加练');
   } else if (info.status === 'cancelled') {
     push('这项本周已取消，今天开始会记为加练');
+  } else if (info.status === 'later' && (info.movedTo ?? '') < today) {
+    /*
+     * 错过的日子：最高频的真实动作是"今天把周一那课补上"。
+     * 以前只能先跑去周目标页顺延，再回来开始；这里直接给二选一。
+     */
+    missedDay.value = {
+      dayId,
+      occurrenceId: info.occurrenceId,
+      title: store.templateById(store.state.activeTemplateId ?? '')?.days.find((d) => d.id === dayId)?.title ?? '',
+      date: info.movedTo ?? '',
+    };
+    return;
   }
   const session = store.startSessionFromDay(dayId);
+  if (!session) {
+    push('模板不存在', 'error');
+    return;
+  }
+  liveSessionId.value = session.id;
+}
+
+/** 错过项：补做（顺延到今天）或只加练。 */
+function doMissed(action: 'makeup' | 'extra'): void {
+  const target = missedDay.value;
+  if (!target) return;
+  missedDay.value = null;
+  if (action === 'makeup' && target.occurrenceId) {
+    const error = store.runPlanCommand({ kind: 'postpone', id: target.occurrenceId, date: today });
+    if (error) {
+      push(error, 'error');
+      return;
+    }
+  }
+  const session = store.startSessionFromDay(target.dayId);
   if (!session) {
     push('模板不存在', 'error');
     return;
@@ -174,7 +206,15 @@ function dayChip(dayId: string): { text: string; cls: string } | null {
   // 今天 = 可执行、要去点它，用主色；已豁免 = 本周不做了，用中性灰。
     // 两者原来都用 chip--sky，颜色一样语义相反，用户分不出哪个该动。
     if (info.status === 'open') return { text: '今天', cls: 'chip--on' };
-  if (info.status === 'later') return { text: shortDate(info.movedTo ?? ''), cls: '' };
+  /*
+   * 排在过去且没完成的，写"未完成"而不是只写个日期——
+   * 周目标页对同一天说的是"未达标"，两处说法不一致会让人以为漏记了。
+   */
+  if (info.status === 'later') {
+    const when = info.movedTo ?? '';
+    if (when && when < today) return { text: '未完成', cls: 'chip--warn' };
+    return { text: shortDate(when), cls: '' };
+  }
   if (info.status === 'excused') return { text: '已豁免', cls: '' };
   if (info.status === 'cancelled') return { text: '已取消', cls: '' };
   return null;
@@ -231,12 +271,27 @@ const backfillDate = ref('');
 const backfillTitle = ref('补录训练');
 const backfillSelfReported = ref(false);
 const backfillPicked = ref<string[]>([]);
+const backfillSets = ref('3');
+const backfillReps = ref('8');
+const backfillLoad = ref('');
+const backfillSearch = ref('');
+
+/** 补录动作可搜全量，不再只给前 18 个 */
+const backfillExercises = computed(() => {
+  const kw = backfillSearch.value.trim().toLowerCase();
+  const list = kw ? EXERCISES.filter((e) => e.name.toLowerCase().includes(kw)) : EXERCISES;
+  return list.slice(0, 60);
+});
 
 function openBackfill(): void {
   backfillDate.value = businessDate();
   backfillTitle.value = '补录训练';
   backfillSelfReported.value = false;
   backfillPicked.value = [];
+  backfillSets.value = '3';
+  backfillReps.value = '8';
+  backfillLoad.value = '';
+  backfillSearch.value = '';
   backfillOpen.value = true;
 }
 
@@ -247,11 +302,18 @@ function toggleBackfillExercise(id: string): void {
 }
 
 function submitBackfill(): void {
+  const num = (v: string) => {
+    const n = Number.parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
   const error = store.backfillSession({
     date: backfillDate.value,
     title: backfillTitle.value,
     exerciseIds: backfillPicked.value,
     selfReported: backfillSelfReported.value,
+    setsPerExercise: num(backfillSets.value),
+    reps: num(backfillReps.value),
+    loadKg: backfillLoad.value.trim() ? num(backfillLoad.value) : undefined,
   });
   if (error) {
     push(error, 'error');
@@ -263,6 +325,7 @@ function submitBackfill(): void {
 
 // 返回键/边缘返回：先关补录面板
 useSheetBack(backfillOpen, () => { backfillOpen.value = false; });
+useSheetBack(computed(() => missedDay.value !== null), () => { missedDay.value = null; });
 
 function groupLabel(id: string): string {
   return MUSCLES.find((m) => m.id === id)?.short ?? id;
@@ -566,10 +629,31 @@ function sessionDuration(startedAt: string): string {
 
           <template v-if="!backfillSelfReported">
             <div class="divider" />
+            <!-- 组数/次数/重量：填了才生成真实完成的组，否则记录会被统计过滤掉 -->
+            <div class="row gap-8" style="margin-top: 4px">
+              <div class="field" style="flex: 1">
+                <label class="tiny">每个动作几组</label>
+                <input v-model="backfillSets" class="input" inputmode="numeric" placeholder="3" />
+              </div>
+              <div class="field" style="flex: 1">
+                <label class="tiny">每组次数</label>
+                <input v-model="backfillReps" class="input" inputmode="numeric" placeholder="8" />
+              </div>
+              <div class="field" style="flex: 1">
+                <label class="tiny">重量 kg</label>
+                <input v-model="backfillLoad" class="input" inputmode="decimal" placeholder="选填" />
+              </div>
+            </div>
+            <p class="tiny" style="margin-top: 6px">
+              不填组数就按"只确认练过"记（计入次数与周目标，不计容量）。
+            </p>
+
+            <div class="divider" />
             <p class="tiny">选择动作（{{ backfillPicked.length }} 个已选）</p>
-            <div class="pick-grid">
+            <input v-model="backfillSearch" class="input" type="search" placeholder="搜索动作" style="margin-bottom: 8px" />
+            <div class="pick-grid pick-grid--scroll">
               <button
-                v-for="ex in EXERCISES.slice(0, 18)"
+                v-for="ex in backfillExercises"
                 :key="ex.id"
                 class="chip"
                 :class="{ 'chip--on': backfillPicked.includes(ex.id) }"
@@ -583,6 +667,32 @@ function sessionDuration(startedAt: string): string {
           <button class="btn btn--lime btn--block btn--lg" style="margin-top: 16px" @click="submitBackfill">
             保存补录
           </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 错过的计划项：补做还是只加练 -->
+    <Transition name="sheet">
+      <div v-if="missedDay" class="sheet" @click.self="missedDay = null">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">{{ shortDate(missedDay.date) }} · 没练</p>
+              <h2 class="h2">{{ missedDay.title }}</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="missedDay = null">✕</button>
+          </div>
+          <p class="small">
+            这一项排在那天但没完成。补做会把它顺延到今天，计入本周目标；只加练不改计划。
+          </p>
+          <div class="stack gap-8" style="margin-top: 14px">
+            <button class="btn btn--lime btn--block btn--lg" @click="doMissed('makeup')">
+              补做这一项（顺延到今天）
+            </button>
+            <button class="btn btn--ghost btn--block" @click="doMissed('extra')">
+              只加练，不改计划
+            </button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -752,6 +862,40 @@ function sessionDuration(startedAt: string): string {
 .tpl.is-on .label,
 .tpl.is-on .tiny {
   color: rgba(var(--inv-rgb), 0.55);
+}
+
+/*
+ * 编辑 / 复制：原来完全没有样式，按钮只有 22px 高（PM 深评 P1-12）。
+ * 补到 44px 最小触控区，视觉上用描边按钮，不抢模板卡本身的注意力。
+ */
+.tpl__tools {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tpl__tool {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tpl__tool:active {
+  background: rgba(var(--ink-rgb), 0.06);
+}
+
+/* 选中的模板卡是深色底，描边与文字要反相，否则按钮看不见 */
+.tpl.is-on .tpl__tool {
+  border-color: rgba(var(--inv-rgb), 0.24);
+  color: var(--text-inverse);
 }
 
 .history__summary {

@@ -4,12 +4,13 @@
 > （自重、器械、计时、距离类都支持），不再局限于铁馆这一个场景。
 > 内部标识（包名 app.lianji.fit、存储键 lianji.*）已同步更新，旧数据会自动迁移。
 
-**当前状态（2026-10-26）**
+**当前状态（2026-10-27）**
 
 - 前端已完成 **Vue 3 + Vite + TypeScript** 重写，`src/` 为唯一实现；PWA 可直接部署，Capacitor Android 壳已适配新构建（`webDir: 'dist'`，`applicationId com.tieguan.fit`，`versionCode 2` / `versionName 1.1`）。
 - 旧版 demo（`js/`、`css/`、`server.js`、`sw.js`、`android/www`）已在重写中**删除**；根目录 `index.html` 是 Vite 入口，不是旧 demo。
 - 数据安全六项修复已落地（详见 [QA 数据安全](docs/qa/2026-10-26-data-safety-fixes.md)）：落盘前脱离 Vue Proxy 的固定快照、IndexedDB 与 localStorage 双副本带设备保存序号、损坏数据进入恢复阻塞界面、同步以共同基线哈希保护本地修改。
-- 测试：**962 个单元用例（47 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `build`）。
+- 新增**每日饮水**与**本地提醒**：饮水按条记录，今日页显示总量/目标进度与快捷添加；训练与喝水提醒在原生端用 `@capacitor/local-notifications`（App 关闭也能响），网页端在页面打开时生效。详见 [变更日志](CHANGELOG.md)。
+- 测试：**1059 个单元用例（56 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `build`）。
 - 已知缺口：① **自适应 TDEE 未实现**——仅有静态 `BMR × 活动系数` 估算，按 [00 · v1 基线](docs/00-v1-baseline.md) D06 后置；② **AI 教练 BYOK 在浏览器/PWA 受 CORS 拦截**（[24 · 待研究问题](docs/24-open-questions.md) Q-001，用户明确"后面再研究"）；③ v1 验收（[12 · 验收](docs/12-v1-acceptance.md)）尚未全部点亮。
 
 ## 快速开始
@@ -93,6 +94,7 @@ src/
 
 - 模板/自建计划、逐组训练、计时恢复、换动作、历史更正和进步反馈。
 - 手工/搜索/常吃/可选文字解析的实际饮食记录，体重与初始营养目标。
+- 每日饮水记录与目标；训练 / 喝水本地提醒（不依赖账号与服务器）。
 - 可解释的周目标和日历，顺延不减少目标，豁免无额度，真实训练可补录。
 - 事务性本地保存、完整 JSON 导入导出、可选单人多设备自托管同步。
 - Android 与 HTTPS PWA；完整离线、错误、更新和隐私说明。

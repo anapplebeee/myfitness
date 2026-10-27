@@ -16,6 +16,7 @@ import {
   updateSet,
 } from './amend';
 import type { Session, SetRecord } from './types';
+import { isValidCompletedSession } from './week';
 
 let n = 0;
 const idFactory = (p: string) => `${p}_${++n}`;
@@ -79,14 +80,40 @@ describe('补充 · buildBackfill', () => {
     expect(r.session!.completionBasis).toBe('selfReported');
     expect(r.session!.exercises).toHaveLength(0);
   });
-  it('非自报生成 3 个 planned 空组', () => {
+  it('不填组数时按自报处理，不生成空壳组', () => {
     const r = buildBackfill({ date: '2026-10-01', title: 't', exerciseIds: ['bb-squat', 'bb-bench'], selfReported: false }, '2026-10-20', idFactory);
     expect(r.session!.exercises).toHaveLength(2);
     for (const ex of r.session!.exercises) {
-      expect(ex.sets).toHaveLength(3);
-      expect(ex.sets.every((s) => s.status === 'planned')).toBe(true);
-      expect(ex.sets.every((s) => s.loadGrams === null && s.reps === null)).toBe(true);
+      expect(ex.sets).toHaveLength(0);
     }
+    expect(r.session!.completionBasis).toBe('selfReported');
+  });
+
+  /*
+   * 回归：补录曾经"存了等于没存"——生成的全是 planned 组，
+   * 而有效训练要求至少 1 个 completed 工作组，于是被历史/累计/周目标全部过滤。
+   */
+  it('补录后必须能被算作有效训练（出现在历史里）', () => {
+    const r = buildBackfill(
+      { date: '2026-10-01', title: '补录', exerciseIds: ['bb-squat'], selfReported: false, setsPerExercise: 3, reps: 8, loadKg: 60 },
+      '2026-10-20',
+      idFactory,
+    );
+    expect(isValidCompletedSession(r.session!)).toBe(true);
+    const sets = r.session!.exercises[0]!.sets;
+    expect(sets).toHaveLength(3);
+    expect(sets.every((s) => s.status === 'completed')).toBe(true);
+    expect(sets.every((s) => s.reps === 8 && s.loadGrams === 60000)).toBe(true);
+  });
+
+  it('不填组数时自动走自报口径，仍然可见', () => {
+    const r = buildBackfill(
+      { date: '2026-10-01', title: '补录', exerciseIds: ['bb-squat'], selfReported: false, setsPerExercise: 0 },
+      '2026-10-20',
+      idFactory,
+    );
+    expect(r.session!.completionBasis).toBe('selfReported');
+    expect(isValidCompletedSession(r.session!)).toBe(true);
   });
   it('生成的 set id 唯一', () => {
     const r = buildBackfill({ date: '2026-10-01', title: 't', exerciseIds: ['a', 'b', 'c'], selfReported: false }, '2026-10-20', idFactory);

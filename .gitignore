@@ -19,6 +19,7 @@ android/app/src/main/assets/
 
 # 构建产物与本地调试残留
 dist/
+dist-old-*/
 shots/
 coverage/
 .npm-cache/

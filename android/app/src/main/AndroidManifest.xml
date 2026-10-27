@@ -48,4 +48,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        本地提醒（@capacitor/local-notifications）：
+        - POST_NOTIFICATIONS：Android 13+ 必须显式申请，否则通知不会显示；
+        - SCHEDULE_EXACT_ALARM：Android 12+ 的定时提醒；
+        - RECEIVE_BOOT_COMPLETED：重启后恢复已排的提醒。
+        三者都只影响系统在本机按时叫醒用户，不涉及任何数据上传。
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
