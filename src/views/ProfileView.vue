@@ -4,6 +4,9 @@ import { store, derived } from '../store/appStore';
 import { EXERCISE_PACKS, packSummary } from '../content/packs';
 import GoalsPanel from '../components/GoalsPanel.vue';
 import Sparkline from '../components/Sparkline.vue';
+import { weightTrendTone } from '../domain/weight';
+import { ageFromBirthYear, mifflinStJeor } from '../domain/bmr';
+import { computeTargets } from '../domain/nutrition-policy';
 import { shortDate, weekdayLabel } from '../domain/units';
 import { trainingCount } from '../domain/metrics';
 import { useToast } from '../composables/useToast';
@@ -150,6 +153,13 @@ const delta = computed(() => {
   const b = series.value[series.value.length - 1]!;
   return (b.grams - a.grams) / 1000;
 });
+
+/* 体重变化只相对目标方向评价；没设目标时不给颜色 */
+const weightTone = computed(() => {
+  const last = series.value[series.value.length - 1]?.grams ?? 0;
+  const g = store.state.bodyGoalGrams;
+  return weightTrendTone(delta.value, last / 1000, g === null ? null : g / 1000);
+});
 const bmi = computed(() => {
   const h = store.state.profile.heightCm;
   const w = latest.value?.grams;
@@ -171,11 +181,68 @@ function bmiPos(v: number): number {
 const bmiInfo = computed(() => {
   const v = bmi.value;
   if (!v) return null;
-  if (v < 18.5) return { label: '偏瘦', hint: `距正常下限 ${(18.5 - v).toFixed(1)}`, pos: bmiPos(v) };
-  if (v < 24) return { label: '正常', hint: '保持在正常区间', pos: bmiPos(v) };
-  if (v < 28) return { label: '超重', hint: `距正常上限 ${(v - 24).toFixed(1)}`, pos: bmiPos(v) };
-  return { label: '肥胖', hint: `距正常上限 ${(v - 24).toFixed(1)}`, pos: bmiPos(v) };
+  /*
+   * 只描述"落在标准区间的哪一侧"，不下"超重/肥胖"的结论。
+   *
+   * BMI 不区分肌肉与脂肪。对规律做力量训练的人，24–28 很常见
+   * 且完全健康；给这类用户贴"超重"，等于用一把不合适的尺子
+   * 否定他的训练成果。数字照给，判断权交回用户。
+   */
+  if (v < 18.5) return { label: '低于标准区间', hint: '标准区间为 18.5–24', pos: bmiPos(v) };
+  if (v < 24) return { label: '标准区间内', hint: '标准区间为 18.5–24', pos: bmiPos(v) };
+  if (v < 28) return { label: '高于标准区间', hint: '规律力量训练者常在此区间', pos: bmiPos(v) };
+  return { label: '明显高于标准区间', hint: '建议结合体脂率一起看', pos: bmiPos(v) };
 });
+
+/*
+ * 按身体数据估算营养目标。
+ *
+ * 之前 computeTargets（含热量下限、蛋白区间、不适用人群声明）写好了
+ * 但没有任何生产调用——用户只能自己拍两个数字。
+ * 这里把它接上：用 Mifflin-St Jeor 算 BMR，乘活动系数得 TDEE，
+ * 再按目标方向（减脂/维持/增肌）给出建议值。
+ *
+ * 原则不变：这是**估算**，填进去之后用户仍可手改，
+ * 界面上也要说明数字是怎么来的。
+ */
+function estimateTargets(): void {
+  const w = latest.value?.grams;
+  const height = store.state.profile.heightCm;
+  const sex = store.state.profile.sex;
+  const activity = store.state.profile.activity;
+  const age = ageFromBirthYear(store.state.profile.birthYear);
+
+  const missing: string[] = [];
+  if (!w) missing.push('体重');
+  if (!height) missing.push('身高');
+  if (!sex) missing.push('性别');
+  if (!activity) missing.push('活动量');
+  if (!age) missing.push('出生年');
+  if (missing.length > 0) {
+    push(`还缺${missing.join('、')}，填完才能估算`, 'error');
+    return;
+  }
+
+  const bmr = mifflinStJeor({ weightKg: w! / 1000, heightCm: height!, ageYears: age!, sex: sex! });
+  if (!bmr) {
+    push('身体数据不合理，无法估算', 'error');
+    return;
+  }
+
+  const goalGrams = store.state.bodyGoalGrams;
+  const goal: 'cut' | 'maintain' | 'bulk' =
+    goalGrams === null ? 'maintain' : goalGrams < w! ? 'cut' : goalGrams > w! ? 'bulk' : 'maintain';
+
+  const r = computeTargets({ bmr: bmr.bmr, activityLevel: activity!, goal, weightKg: w! / 1000 });
+  if (r.blocked) {
+    // 不适用人群（如孕期、进食障碍史）不要硬给数字
+    push(`无法给出建议：${r.blocked}`, 'error');
+    return;
+  }
+
+  store.setTargets(r.kcal, r.proteinG);
+  push(`已按估算填入：${r.kcal} kcal / 蛋白 ${r.proteinG} g，可手动改`, 'success');
+}
 
 /** 体重记录默认折叠到 7 条；14 条全展开会把设置入口推到很下面。 */
 const showAllWeights = ref(false);
@@ -322,7 +389,7 @@ function clearNutrition(): void {
             <p class="weight__value">
               {{ latest ? (latest.grams / 1000).toFixed(1) : '—' }}<span>kg</span>
             </p>
-            <p class="weight__delta" :class="delta <= 0 ? 'is-down' : 'is-up'">
+            <p class="weight__delta" :class="`tone-${weightTone}`">
               {{ delta > 0 ? '+' : '' }}{{ delta.toFixed(1) }} kg · 近 {{ series.length }} 次记录
             </p>
           </div>
@@ -430,12 +497,13 @@ function clearNutrition(): void {
             />
           </label>
         </div>
-        <div class="row between nutrition-actions">
+        <div class="nutrition-actions">
           <p class="tiny">
             蛋白参考 <strong>{{ proteinHint ?? '—' }} g</strong>（按当前体重 1.8 g/kg）
           </p>
-          <div class="row gap-8">
-            <button v-if="proteinHint" class="btn btn--ghost btn--sm" @click="useProteinHint">用这个</button>
+          <div class="nutrition-actions__btns">
+            <button class="btn btn--ghost btn--sm" @click="estimateTargets">按身体数据估算</button>
+            <button v-if="proteinHint" class="btn btn--ghost btn--sm" @click="useProteinHint">用蛋白参考</button>
             <button
               v-if="store.state.targetKcal || store.state.targetProtein"
               class="btn btn--ghost btn--sm"
@@ -778,14 +846,21 @@ function clearNutrition(): void {
   font-size: 12.5px;
 }
 
-.weight__delta.is-down {
+/*
+ * 涨跌颜色只表达"是否朝目标走"，不再默认"掉秤=好"。
+ * 没设目标体重时用中性灰：App 不知道你在增肌还是减脂。
+ */
+.weight__delta.tone-good {
   color: var(--lime);
 }
 
-.weight__delta.is-up {
+.weight__delta.tone-bad {
   color: var(--on-ink-warn);
 }
 
+.weight__delta.tone-neutral {
+  color: rgba(var(--inv-rgb), 0.6);
+}
 .weight__goal {
   text-align: right;
   display: flex;
@@ -899,9 +974,22 @@ function clearNutrition(): void {
 }
 
 .nutrition-actions {
+  /*
+   * 原来是"一行左右分栏"。360px 下三个按钮 + 一段说明文字
+   * 挤在同一行，文字换行后与按钮不齐，视觉审计判为行内错位。
+   * 改成上下两段：说明一行，按钮一行且允许换行。
+   */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   margin-top: 12px;
-  align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.nutrition-actions__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* 数据页"我的数据"三行 */
@@ -1051,6 +1139,7 @@ function clearNutrition(): void {
   line-height: 1.5;
 }
 </style>
+
 
 
 

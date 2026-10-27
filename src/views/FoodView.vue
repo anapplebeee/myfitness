@@ -58,6 +58,8 @@ const count = ref(1);
 const byCount = ref(true);
 const manualKcal = ref('');
 const manualProtein = ref('');
+const manualCarb = ref('');
+const manualFat = ref('');
 
 // 返回键/边缘返回先关面板
 useSheetBack(computed(() => sheet.value !== null), () => { sheet.value = null; });
@@ -69,6 +71,17 @@ const totals = computed(() => ({
   // carb/fat 一直在采集，但之前界面只显示热量与蛋白，等于白采（PM 评审 §3.7）
   carb: foodsOnDate.value.reduce((s, f) => s + (f.carb ?? 0), 0),
   fat: foodsOnDate.value.reduce((s, f) => s + (f.fat ?? 0), 0),
+}));
+
+/*
+ * 碳水/脂肪是否"真的记录过"。
+ *
+ * totals 里用 ?? 0 兜底是为了求和方便，但直接显示就成了
+ * "没记录 = 0 克"。1000 kcal 的餐显示 0 g 碳水，用户一算就发现对不上。
+ */
+const macroRecorded = computed(() => ({
+  carb: foodsOnDate.value.some((f) => typeof f.carb === 'number'),
+  fat: foodsOnDate.value.some((f) => typeof f.fat === 'number'),
 }));
 
 /*
@@ -312,11 +325,16 @@ function removeEntry(id: string): void {
         </div>
         <div>
           <span class="tiny">碳水</span>
-          <strong>{{ Math.round(totals.carb) }} g</strong>
+          <!--
+            没记录过碳水就显示"—"，不要显示 0 g。
+            "0 g" 会让用户以为碳水真的是 0，而热量却有一千多，
+            数字自己算不平，信任从这一处开始崩。
+          -->
+          <strong>{{ macroRecorded.carb ? `${Math.round(totals.carb)} g` : '—' }}</strong>
         </div>
         <div>
           <span class="tiny">脂肪</span>
-          <strong>{{ Math.round(totals.fat) }} g</strong>
+          <strong>{{ macroRecorded.fat ? `${Math.round(totals.fat)} g` : '—' }}</strong>
         </div>
       </div>
     </section>
@@ -440,10 +458,17 @@ function removeEntry(id: string): void {
             </div>
             <div class="divider" />
             <p class="tiny">找不到？直接填总量</p>
-            <div class="row gap-8" style="margin-top: 8px">
+            <!--
+              四个字段放两行：一行塞四个 input 在 390px 下每个只有 60px，
+              连"1200"都显示不全。
+              碳水/脂肪是可选：不填就存 undefined，界面显示"—"而不是 0 g。
+            -->
+            <div class="manual">
               <input v-model="manualKcal" class="input" inputmode="numeric" placeholder="热量 kcal" />
               <input v-model="manualProtein" class="input" inputmode="decimal" placeholder="蛋白 g" />
-              <button class="btn btn--primary btn--sm" @click="addManual">记录</button>
+              <input v-model="manualCarb" class="input" inputmode="decimal" placeholder="碳水 g（可选）" />
+              <input v-model="manualFat" class="input" inputmode="decimal" placeholder="脂肪 g（可选）" />
+              <button class="btn btn--primary btn--sm manual__go" @click="addManual">记录</button>
             </div>
           </template>
 
@@ -827,3 +852,15 @@ function removeEntry(id: string): void {
 
 
 
+
+/* 手动录入：两行两列 + 一个整行按钮 */
+.manual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.manual__go {
+  grid-column: 1 / -1;
+}

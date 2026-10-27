@@ -195,8 +195,9 @@ test('上传期间新增本地变更，旧响应不能确认新generation', asyn
   await page.getByRole('button', { name: '立即同步' }).click();
   await waiting;
   await goTab(page, '我的'); await goSeg(page, '设置');
-  await page.locator('.me input[type=number]').fill('6');
-  await page.locator('.me input[type=number]').dispatchEvent('change');
+  // 设置段现在有两个数字输入（每周目标 + 饮水目标），必须按 max 区分
+  await page.locator('.me input[type=number][max="7"]').fill('6');
+  await page.locator('.me input[type=number][max="7"]').dispatchEvent('change');
   await expect.poll(async () => (await readState(page))?.weeklyGoal).toBe(6);
   release();
   await expect.poll(async () => page.evaluate(() => {
@@ -206,5 +207,6 @@ test('上传期间新增本地变更，旧响应不能确认新generation', asyn
   const checkpoint = await page.evaluate(() => JSON.parse(localStorage.getItem('lianji.sync.state')!) as { generation: number; ackedGeneration: number });
   expect(checkpoint.generation).toBeGreaterThan(checkpoint.ackedGeneration);
 });
+
 
 

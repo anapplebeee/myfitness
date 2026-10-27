@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { weightTrendTone } from '../domain/weight';
 import { computed } from 'vue';
 import { store, derived } from '../store/appStore';
 import { exerciseName } from '../content/exercises';
@@ -129,6 +130,16 @@ const weightWindow = computed(() => {
   const cutoff = addDays(today, -41);
   const inWindow = series.filter((w) => w.date >= cutoff);
   return inWindow.length >= 2 ? inWindow : series;
+});
+
+/*
+ * 体重变化只相对目标方向评价。
+ * 没设目标体重时不给颜色，因为 App 不知道你在增肌还是减脂。
+ */
+const weightTone = computed(() => {
+  const last = weightWindow.value[weightWindow.value.length - 1]?.grams ?? 0;
+  const goal = store.state.bodyGoalGrams;
+  return weightTrendTone(weightDelta.value, last / 1000, goal === null ? null : goal / 1000);
 });
 
 const weightDelta = computed(() => {
@@ -489,7 +500,7 @@ function goFood(): void {
         <p class="stat__value">
           {{ latestWeight ? (latestWeight.grams / 1000).toFixed(1) : '—' }}<span class="stat__unit">kg</span>
         </p>
-        <p class="tiny" :class="weightDelta <= 0 ? 'down' : 'up'">
+        <p class="tiny" :class="`tone-${weightTone}`">
           {{ weightDelta > 0 ? '+' : '' }}{{ weightDelta.toFixed(1) }} kg · {{ weightSpanLabel }}
         </p>
         <Sparkline :points="weightTrend" :height="36" tone="clay" />
@@ -1000,6 +1011,8 @@ function goFood(): void {
   min-width: 0;
 }
 </style>
+
+
 
 
 
