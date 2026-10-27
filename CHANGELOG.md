@@ -9,6 +9,7 @@
 - **本地提醒**：训练提醒（每日固定时间）+ 喝水提醒（时段内按间隔，默认 09:00–21:00 每 120 分钟）。原生端用 `@capacitor/local-notifications`，App 关闭也能提醒；网页/PWA 用插件 Web 实现，页面开着时生效。设置进 AppState，换机后不用重设
 - **我的 → 身体**：补「当前体重」，并把 BMI 标注为「按当前体重」——原来这张卡只有「目标体重」，用户看到 BMI 25.2 却找不到它是按哪个体重算的
 - **Android**：新增 `POST_NOTIFICATIONS` / `SCHEDULE_EXACT_ALARM` / `RECEIVE_BOOT_COMPLETED` 权限；`cap sync` 已注册 `@capacitor/local-notifications@8.3.1`。`versionCode 3` / `versionName 1.2`，APK 已产出并复制到 `dist-apk/lianji-debug-20261027-v1.2.apk`
+- **安装包 ID 改为 `app.lianji.fit`**：品牌改名后包 ID 随之改变，与旧包 `com.tieguan.fit` **不兼容覆盖升级**。迁移路径：旧版「数据与备份 → 导出」→ 装新版 → 导入。若需直接覆盖，可把 `applicationId` 改回 `com.tieguan.fit`（签名未变，改回即可覆盖）
 - **构建脚本**：`build-android.mjs` 现在会自动探测项目自带的 `~/.android-toolchain/{jdk,sdk}`、Android Studio JBR 与 `local.properties`；产物自动复制到 `dist-apk/` 并按日期+版本命名
 
 ### 修复（2026-10-27 PM 深评第二轮）

@@ -55,6 +55,15 @@ android {
     namespace "app.lianji.fit"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
+        /*
+         * 安装包 ID 跟随品牌改为 app.lianji.fit（v1.2 起）。
+         *
+         * 代价：新旧包在系统里是两个应用。已装 v1.1（com.tieguan.fit）的设备
+         * **不能覆盖升级**，旧数据也不会自动跟过来。升级路径：
+         *   旧版「我的 → 数据与备份 → 导出」→ 装新版 → 导入。
+         * 如果需要恢复"直接覆盖升级"，把这里和 capacitor.config.ts 的 appId
+         * 一起改回 com.tieguan.fit（签名未变，改回即可覆盖）。
+         */
         applicationId "app.lianji.fit"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion

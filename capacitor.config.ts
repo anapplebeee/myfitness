@@ -14,6 +14,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const isDebug = process.env.CAP_BUILD_TYPE === 'debug';
 
 const config: CapacitorConfig = {
+  /*
+   * 与 android/app/build.gradle 的 applicationId 保持一致。
+   *
+   * 品牌改名「练迹」后安装包 ID 也改为 app.lianji.fit。
+   * 代价：已装旧包 com.tieguan.fit 的设备不能覆盖升级，需先导出再导入。
+   */
   appId: 'app.lianji.fit',
   appName: '练迹',
   webDir: 'dist',

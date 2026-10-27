@@ -170,6 +170,7 @@ if (existsSync(aapt)) {
 
     const badging = execFileSync(aapt, ['dump', 'badging', apkPath], { encoding: 'utf8' });
     const pkg = /package: name='([^']+)'/.exec(badging)?.[1];
+    // 包名跟随品牌改为 app.lianji.fit（v1.2 起）；旧包不能覆盖，升级需导出再导入
     record('包名为 app.lianji.fit', pkg === 'app.lianji.fit', pkg ?? '');
     const label = /application-label:'([^']+)'/.exec(badging)?.[1];
     // 应用已从「铁馆」改名「练迹」，这里跟随当前品牌名
