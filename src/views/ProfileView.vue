@@ -7,6 +7,7 @@ import Sparkline from '../components/Sparkline.vue';
 import { weightTrendTone } from '../domain/weight';
 import { ageFromBirthYear, mifflinStJeor } from '../domain/bmr';
 import { computeTargets } from '../domain/nutrition-policy';
+import { ACTIVITY_FACTORS } from '../domain/nutrition-policy';
 import { shortDate, weekdayLabel } from '../domain/units';
 import { trainingCount } from '../domain/metrics';
 import { useToast } from '../composables/useToast';
@@ -205,6 +206,12 @@ const bmiInfo = computed(() => {
  * 原则不变：这是**估算**，填进去之后用户仍可手改，
  * 界面上也要说明数字是怎么来的。
  */
+function saveActivity(v: string): void {
+  const n = Number.parseFloat(v);
+  if (!Number.isFinite(n) || n <= 0) return;
+  store.updateProfile({ activity: n });
+}
+
 function estimateTargets(): void {
   const w = latest.value?.grams;
   const height = store.state.profile.heightCm;
@@ -233,7 +240,9 @@ function estimateTargets(): void {
   const goal: 'cut' | 'maintain' | 'bulk' =
     goalGrams === null ? 'maintain' : goalGrams < w! ? 'cut' : goalGrams > w! ? 'bulk' : 'maintain';
 
-  const r = computeTargets({ bmr: bmr.bmr, activityLevel: activity!, goal, weightKg: w! / 1000 });
+  // profile.activity 是**乘数**（1.4/1.5），不是 1–5 的等级。
+  // 之前把它当等级传进去，find 永远命中不到，功能 100% 失败。
+  const r = computeTargets({ bmr: bmr.bmr, activityFactor: activity!, goal, weightKg: w! / 1000 });
   if (r.blocked) {
     // 不适用人群（如孕期、进食障碍史）不要硬给数字
     push(`无法给出建议：${r.blocked}`, 'error');
@@ -447,6 +456,23 @@ function clearNutrition(): void {
               placeholder="未设置"
               @change="saveGoalWeight(($event.target as HTMLInputElement).value)"
             />
+          </label>
+          <!--
+            活动量：估算热量必须用，但原来全 App 没有任何入口，
+            所有人都用默认 1.5（中度）。用户改不了，估算就只能靠猜。
+            这里存的是**乘数**（1.2–1.9），与 computeTargets 的口径一致。
+          -->
+          <label class="bodyfield">
+            <span class="tiny">日常活动量</span>
+            <select
+              class="input"
+              :value="store.state.profile.activity ?? 1.375"
+              @change="saveActivity(($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="a in ACTIVITY_FACTORS" :key="a.level" :value="a.factor">
+                {{ a.label }} · {{ a.description }}
+              </option>
+            </select>
           </label>
         </div>
         <!-- BMI 不只是一个数字：给分区、给距离、给刻度 -->
@@ -935,9 +961,16 @@ function clearNutrition(): void {
   height: 100%;
 }
 
+/*
+ * 刻度条只标"标准区间在哪"，不再用绿→红表达好坏。
+ *
+ * 原来 18.5–24 是绿的、往上依次黄、红，用户 25.2 的点落在粉红段里，
+ * 视觉上仍被判成"不好"——措辞改成中性，颜色却还在下判断，等于没改。
+ * 现在只有"标准区间"高亮，两侧都是中性灰，位置由点表示。
+ */
 .bmi__seg--low {
   flex: 21;
-  background: var(--sky-soft);
+  background: rgba(var(--ink-rgb), 0.08);
   border-radius: 999px 0 0 999px;
 }
 
@@ -948,12 +981,12 @@ function clearNutrition(): void {
 
 .bmi__seg--warn {
   flex: 24;
-  background: var(--warn-soft);
+  background: rgba(var(--ink-rgb), 0.08);
 }
 
 .bmi__seg--high {
   flex: 23;
-  background: var(--clay-soft);
+  background: rgba(var(--ink-rgb), 0.08);
   border-radius: 0 999px 999px 0;
 }
 
@@ -1139,6 +1172,7 @@ function clearNutrition(): void {
   line-height: 1.5;
 }
 </style>
+
 
 
 

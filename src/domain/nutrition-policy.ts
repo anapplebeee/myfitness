@@ -191,7 +191,20 @@ export interface MacroResult {
  */
 export function computeTargets(input: {
   bmr: number;
-  activityLevel: number;
+  /**
+   * 活动等级 1–5（对应 ACTIVITY_FACTORS 里的档位）。
+   * 与 activityFactor 二选一；两个都给时以 activityFactor 为准。
+   */
+  activityLevel?: number;
+  /**
+   * 活动乘数（如 1.4 / 1.55）。
+   *
+   * 为什么需要它：UserProfile 里存的本来就是乘数，不是 1–5 的等级。
+   * 之前只接受等级，调用方把乘数当等级传进来，find 永远命中不到，
+   * 于是"估算"功能对任何用户都返回"活动系数无效"——一个必然失败的接线。
+   * 数学上真正需要的就是这个乘数，等级表只是选它的一种方式。
+   */
+  activityFactor?: number;
   goal: 'cut' | 'maintain' | 'bulk';
   weightKg: number;
   policy?: PolicyParams;
@@ -199,12 +212,18 @@ export function computeTargets(input: {
   const p = input.policy ?? DEFAULT_POLICY;
   const notes: string[] = [];
 
-  const af = ACTIVITY_FACTORS.find((a) => a.level === input.activityLevel);
-  if (!af) {
-    return { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, notes, blocked: '活动系数无效' };
+  let factor: number | null = null;
+  if (typeof input.activityFactor === 'number' && Number.isFinite(input.activityFactor) && input.activityFactor > 0) {
+    factor = input.activityFactor;
+  } else {
+    const af = ACTIVITY_FACTORS.find((a) => a.level === input.activityLevel);
+    if (!af) {
+      return { kcal: 0, proteinG: 0, carbG: 0, fatG: 0, notes, blocked: '活动系数无效' };
+    }
+    factor = af.factor;
   }
 
-  let tdee = input.bmr * af.factor;
+  let tdee = input.bmr * factor;
   if (input.goal === 'cut') tdee *= 1 - p.deficitPct;
   else if (input.goal === 'bulk') tdee *= 1 + p.surplusPct;
 

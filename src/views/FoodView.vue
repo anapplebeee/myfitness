@@ -451,7 +451,13 @@ function removeEntry(id: string): void {
               <button v-for="f in results.slice(0, 40)" :key="f.id" class="add__item" @click="selectFood(f)">
                 <span class="recent__body">
                   <span class="h3">{{ f.name }}</span>
-                  <span class="tiny">{{ f.kcal }} kcal/100g · 蛋白 {{ f.protein }}g</span>
+                  <!--
+                    四大宏量都列出来：只显示热量和蛋白，用户选食物时
+                    看不到碳水和脂肪，补给手动录入的输入框等于白补。
+                  -->
+                  <span class="tiny">
+                    {{ f.kcal }} kcal/100g · 蛋白 {{ f.protein }}g · 碳水 {{ f.carb }}g · 脂肪 {{ f.fat }}g
+                  </span>
                 </span>
                 <span class="tiny">{{ portionText(f) }}</span>
               </button>

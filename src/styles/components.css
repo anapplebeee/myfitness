@@ -727,7 +727,11 @@
   overflow: auto;
   background: var(--card);
   border-radius: 28px;
-  padding: 22px;
+  /*
+   * 底部多留一点：面板能滚，但最后一个输入框正好卡在下边缘时，
+   * 第一眼看起来像"被切掉了"。留白本身就是"还能往下滑"的暗示。
+   */
+  padding: 22px 22px 32px;
   box-shadow: var(--shadow-float);
   overscroll-behavior: contain;
 }

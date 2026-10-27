@@ -155,3 +155,35 @@ describe('参数边界一致性', () => {
   });
 });
 
+
+describe('活动量可以传乘数，不必传等级', () => {
+  /*
+   * UserProfile 里存的是乘数（1.4 / 1.5），不是 1–5 的等级。
+   * 之前 computeTargets 只认等级，调用方把乘数传进去，
+   * find 命中不到 → 返回"活动系数无效"，估算功能对所有人都失败。
+   * 这条测试锁住"乘数也能用"这个契约。
+   */
+  it('传 activityFactor 能算出结果', () => {
+    const r = computeTargets({ bmr: 1800, activityFactor: 1.55, goal: 'maintain', weightKg: 80 });
+    expect(r.blocked).toBeFalsy();
+    expect(r.kcal).toBeGreaterThan(1800);
+  });
+
+  it('乘数与对应等级结果一致', () => {
+    const byFactor = computeTargets({ bmr: 1800, activityFactor: 1.55, goal: 'maintain', weightKg: 80 });
+    const byLevel = computeTargets({ bmr: 1800, activityLevel: 3, goal: 'maintain', weightKg: 80 });
+    expect(byFactor.kcal).toBe(byLevel.kcal);
+  });
+
+  it('非法乘数仍然拦截', () => {
+    const r = computeTargets({ bmr: 1800, activityFactor: 0, goal: 'maintain', weightKg: 80 });
+    expect(r.blocked).toBe('活动系数无效');
+  });
+
+  it('乘数优先于等级', () => {
+    const r = computeTargets({ bmr: 1800, activityFactor: 1.2, activityLevel: 5, goal: 'maintain', weightKg: 80 });
+    const only = computeTargets({ bmr: 1800, activityFactor: 1.2, goal: 'maintain', weightKg: 80 });
+    expect(r.kcal).toBe(only.kcal);
+  });
+});
+
