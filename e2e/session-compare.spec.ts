@@ -16,11 +16,11 @@ test.describe('训练后对比', () => {
     await page.getByRole('button', { name: '开始训练' }).click();
     await page.waitForTimeout(1200);
 
-    const inputs = page.locator('.set__input');
+    const inputs = page.locator('.set:not(.set--warmup) .set__input');
     await expect(inputs.first()).toBeVisible({ timeout: 10_000 });
     await inputs.nth(0).fill('100');
     await inputs.nth(1).fill('5');
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(700);
   }
 
@@ -52,10 +52,10 @@ test.describe('训练后对比', () => {
     await page.locator('.picker__item').first().click();
     await page.waitForTimeout(800);
 
-    const inputs = page.locator('.set__input');
+    const inputs = page.locator('.set:not(.set--warmup) .set__input');
     await inputs.nth(0).fill('60');
     await inputs.nth(1).fill('8');
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(700);
 
     await page.getByRole('button', { name: '结束训练' }).click();
@@ -75,5 +75,6 @@ test.describe('训练后对比', () => {
     expect(body).not.toContain('+0%');
   });
 });
+
 
 

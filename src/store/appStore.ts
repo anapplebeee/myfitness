@@ -1,6 +1,7 @@
 import { backupKey as makeBackupKey, syncBackupKey as makeSyncBackupKey } from './storageKeys';
 import { computed, reactive, readonly, ref, toRaw } from 'vue';
 import type { AppState, FoodEntry, Profile, ReminderSettings, Session, SessionExercise, SetRecord, WaterEntry, WeightEntry } from '../domain/types';
+import { buildWarmup } from '../domain/warmup';
 import { addDays, businessDate, weekStartOf } from '../domain/units';
 import { applyShift, previewShift, type OverflowStrategy, type ShiftPreview, type ShiftScope } from '../domain/shift';
 import { waterTotal } from '../domain/water';
@@ -12,7 +13,7 @@ import { stateFingerprint } from '../domain/ai-adopt';
 import { loadState, saveState } from './repository';
 import { seedState } from './seed';
 import { loadSyncState, saveSyncState } from './syncStateStore';
-import { TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
+import { EXERCISE_BY_ID, TEMPLATE_BY_ID, TEMPLATES } from '../content/exercises';
 import type { Template } from '../content/types';
 import {
   blankTemplate,
@@ -378,6 +379,17 @@ export const store = {
         const last = lastExerciseSets([...state.sessions], pe.exerciseId, null);
         const top = last.reduce<number>((max, s) => Math.max(max, s.loadGrams ?? 0), 0);
         const topReps = last.find((s) => (s.loadGrams ?? 0) === top)?.reps ?? pe.repMin;
+        /*
+         * 热身组：只在杠铃动作上生成。
+         *
+         * 模板里新手第一个动作就是杠铃深蹲，直接上工作组是受伤风险。
+         * 哑铃/器械动作负载低、递增空间小，全部生成反而让录制页变长，
+         * 用户会用"每组都要填"的印象把它关掉，等于白做。
+         */
+        const meta = EXERCISE_BY_ID.get(pe.exerciseId);
+        const warm = top > 0 && meta?.equipment === '杠铃'
+          ? buildWarmup({ workingGrams: top, isBarbell: true })
+          : [];
         return {
           id: nextId('se'),
           exerciseId: pe.exerciseId,
@@ -387,7 +399,20 @@ export const store = {
           repMax: pe.repMax,
           restSeconds: pe.restSeconds,
           incrementGrams: pe.incrementGrams,
-          sets: Array.from({ length: pe.sets }, () => ({
+          sets: [
+          // 热身组在前，标 kind: warmup——不计入容量与工作组的统计
+          ...warm.map((w) => ({
+            id: nextId('set'),
+            kind: 'warmup' as const,
+            status: 'planned' as const,
+            loadGrams: w.loadGrams,
+            reps: w.reps,
+            durationSeconds: null,
+            distanceMeters: null,
+            rpe: null,
+            completedAt: null,
+          })),
+          ...Array.from({ length: pe.sets }, () => ({
             id: nextId('set'),
             kind: 'work' as const,
             status: 'planned' as const,
@@ -398,6 +423,7 @@ export const store = {
             rpe: null,
             completedAt: null,
           })),
+          ],
         };
       }),
     });
@@ -1118,6 +1144,9 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
+
+
 
 
 

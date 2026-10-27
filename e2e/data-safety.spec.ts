@@ -29,9 +29,9 @@ test('双存储写失败时录组不报成功，输入保留并可重试', async
   await resetApp(page);
   // 从今日页直接开始：训练页点过去的日卡片会先弹"补做/加练"，那是另一条路径
   await page.getByRole('button', { name: '开始训练' }).click();
-  await expect(page.locator('.set__input').first()).toBeVisible({ timeout: 10_000 });
-  await page.locator('.set__input').nth(0).fill('100');
-  await page.locator('.set__input').nth(1).fill('5');
+  await expect(page.locator('.set:not(.set--warmup) .set__input').first()).toBeVisible({ timeout: 10_000 });
+  await page.locator('.set:not(.set--warmup) .set__input').nth(0).fill('100');
+  await page.locator('.set:not(.set--warmup) .set__input').nth(1).fill('5');
   await page.evaluate(() => {
     const set = Storage.prototype.setItem;
     const tx = IDBDatabase.prototype.transaction;
@@ -47,16 +47,20 @@ test('双存储写失败时录组不报成功，输入保留并可重试', async
       Storage.prototype.setItem = set; IDBDatabase.prototype.transaction = tx;
     } });
   });
-  await page.locator('.set__check').first().click();
+  await page.locator('.set:not(.set--warmup) .set__check').first().click();
   await expect(page.locator('.save-error')).toContainText('保存失败');
-  await expect(page.locator('.set__input').first()).toHaveValue('100');
+  await expect(page.locator('.set:not(.set--warmup) .set__input').first()).toHaveValue('100');
   await expect(page.locator('.toast', { hasText: '已保存本组' })).toHaveCount(0);
   await page.evaluate(() => (window as unknown as { __restorePersistence: () => void }).__restorePersistence());
-  await page.locator('.set__check').first().click();
+  await page.locator('.set:not(.set--warmup) .set__check').first().click();
   await expect(page.locator('.toast', { hasText: '已保存本组' })).toBeVisible();
   const stored = await idbState(page);
   const sessions = stored?.sessions as { status: string; exercises: { sets: { status: string; loadGrams: number }[] }[] }[];
-  expect(sessions.find(s => s.status === 'active')?.exercises[0]?.sets[0]?.loadGrams).toBe(100000);
+  // sets[0] 现在是热身组，取第一个工作组来断言用户输入被保留
+  const work = sessions
+    .find((s) => s.status === 'active')
+    ?.exercises[0]?.sets.find((x) => x.kind === 'work');
+  expect(work?.loadGrams).toBe(100000);
 });
 
 test('未来版本启动阻塞，原始记录不被种子覆盖', async ({ page }) => {
@@ -161,7 +165,7 @@ test('编辑过的内置模板按新组数执行，复制的自建模板可启�
   await page.getByRole('button', { name: '确认保存' }).click();
   await expect(page.locator('.editor')).toHaveCount(0);
   await page.locator('.day').first().click();
-  await expect(page.locator('.set__check')).toHaveCount(5);
+  await expect(page.locator('.set:not(.set--warmup) .set__check')).toHaveCount(5);
   await page.evaluate(() => history.back());
   await expect(page.locator('.live')).toHaveCount(0);
   await page.getByRole('button', { name: '复制', exact: true }).first().click();
@@ -207,6 +211,8 @@ test('上传期间新增本地变更，旧响应不能确认新generation', asyn
   const checkpoint = await page.evaluate(() => JSON.parse(localStorage.getItem('lianji.sync.state')!) as { generation: number; ackedGeneration: number });
   expect(checkpoint.generation).toBeGreaterThan(checkpoint.ackedGeneration);
 });
+
+
 
 
 

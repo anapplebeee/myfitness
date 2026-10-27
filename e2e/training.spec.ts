@@ -28,18 +28,18 @@ test.describe('训练主路径', () => {
     await page.waitForTimeout(1200);
 
     // 进入录制页：应至少有一个数值输入框（历史缺陷：0 个）
-    const inputs = page.locator('.set__input');
+    const inputs = page.locator('.set:not(.set--warmup) .set__input');
     await expect(inputs.first()).toBeVisible({ timeout: 10_000 });
     expect(await inputs.count()).toBeGreaterThan(0);
 
     // 填入第一组数据
     const first = inputs.first();
     await first.fill('100');
-    const reps = page.locator('.set__input').nth(1);
+    const reps = page.locator('.set:not(.set--warmup) .set__input').nth(1);
     await reps.fill('5');
 
     // 完成后应出现"已保存"标记
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(700);
     await expect(page.getByText('已保存').first()).toBeVisible();
   });
@@ -72,15 +72,15 @@ test.describe('训练主路径', () => {
     await page.waitForTimeout(700);
 
     // 计时动作应该只有"秒"输入，没有重量框
-    const labels = await page.locator('.set__input').evaluateAll((els) =>
+    const labels = await page.locator('.set:not(.set--warmup) .set__input').evaluateAll((els) =>
       els.map((e) => e.getAttribute('aria-label')),
     );
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.every((l) => l?.includes('时长'))).toBe(true);
 
     // 填入 45 秒并完成
-    await page.locator('.set__input').first().fill('45');
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__input').first().fill('45');
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(700);
     await expect(page.getByText('0:45').first()).toBeVisible();
   });
@@ -118,6 +118,7 @@ test.describe('数据持久化', () => {
     expect(after?.datasetId).toBe(before?.datasetId);
   });
 });
+
 
 
 

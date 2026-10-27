@@ -115,11 +115,11 @@ test.describe('训练完成与周目标联动', () => {
     test.skip((await todayCard.count()) === 0, '今天没有计划项（休息日），跳过联动用例');
     await todayCard.first().click();
 
-    const inputs = page.locator('.set__input');
+    const inputs = page.locator('.set:not(.set--warmup) .set__input');
     await expect(inputs.first()).toBeVisible({ timeout: 10_000 });
     await inputs.first().fill('100');
-    await page.locator('.set__input').nth(1).fill('5');
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__input').nth(1).fill('5');
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(500);
 
     await page.locator('.live__finish').click();
@@ -200,9 +200,9 @@ test.describe('记录可信度', () => {
     await page.waitForTimeout(1200);
 
     // 只完成一组
-    await page.locator('.set__input').first().fill('100');
-    await page.locator('.set__input').nth(1).fill('5');
-    await page.locator('.set__check').first().click();
+    await page.locator('.set:not(.set--warmup) .set__input').first().fill('100');
+    await page.locator('.set:not(.set--warmup) .set__input').nth(1).fill('5');
+    await page.locator('.set:not(.set--warmup) .set__check').first().click();
     await page.waitForTimeout(600);
 
     await page.locator('.live__finish').click();
@@ -241,3 +241,4 @@ test.describe('记录可信度', () => {
     await expect(page.locator('.live')).toHaveCount(0);
   });
 });
+

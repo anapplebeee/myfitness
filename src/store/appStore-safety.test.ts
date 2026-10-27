@@ -69,8 +69,16 @@ describe('数据安全与模板执行回归', () => {
     tpl.version += 1; tpl.days[0]!.exercises[0]!.sets = 5;
     expect(store.saveTemplate(tpl)).toBeNull();
     const session = store.startSessionFromDay(tpl.days[0]!.id)!;
-    expect(session.exercises[0]?.sets).toHaveLength(5);
+    // 新会话现在会在杠铃动作前插入热身组，这里只数工作组
+    const work = session.exercises[0]!.sets.filter((s) => s.kind === 'work');
+    expect(work).toHaveLength(5);
+    // 同一次开训里，热身组必须存在且都排在工作组前面
+    const warm = session.exercises[0]!.sets.filter((s) => s.kind === 'warmup');
+    expect(warm.length).toBeGreaterThan(0);
+    const firstWorkIdx = session.exercises[0]!.sets.findIndex((s) => s.kind === 'work');
+    expect(session.exercises[0]!.sets.slice(0, firstWorkIdx).every((s) => s.kind === 'warmup')).toBe(true);
     expect(JSON.stringify(store.state.sessions.slice(0, -1))).toBe(historical); await store.flush();
   });
 });
+
 

@@ -171,6 +171,20 @@ function targetHint(ex: { exerciseId: string; targetSets: number; repMin: number
   return '目标 ' + ex.targetSets + ' 组 × ' + ex.repMin + '–' + ex.repMax + ' 次';
 }
 
+
+/**
+ * 工作组序号（1 起）。
+ *
+ * 热身组不占编号：肌肉记忆里的"第 3 组"指的是第 3 个工作组，
+ * 不是列表里的第 3 行。
+ */
+function workIndex(sets: Array<{ kind: string }>, idx: number): number {
+  let n = 0;
+  for (let i = 0; i <= idx && i < sets.length; i += 1) {
+    if (sets[i]?.kind !== 'warmup') n += 1;
+  }
+  return n;
+}
 function completedSummary(exerciseId: string, set: SetRecord): string {
   const def = EXERCISES.find((e) => e.id === exerciseId);
   if (!def) return '—';
@@ -485,8 +499,20 @@ const progress = computed(() => {
       </div>
 
       <div class="sets">
-        <div v-for="(set, idx) in activeExercise.sets" :key="set.id" class="set" :class="`set--${set.status}`">
-          <span class="set__idx">{{ idx + 1 }}</span>
+        <!--
+          热身组与工作组视觉上必须能分开：
+          否则用户看到 9 行会以为这个动作要练 9 组。
+        -->
+        <div
+          v-for="(set, idx) in activeExercise.sets"
+          :key="set.id"
+          class="set"
+          :class="[`set--${set.status}`, { 'set--warmup': set.kind === 'warmup' }]"
+        >
+          <span class="set__idx">
+            <template v-if="set.kind === 'warmup'">热身</template>
+            <template v-else>{{ workIndex(activeExercise.sets, idx) }}</template>
+          </span>
           <template v-if="set.status === 'completed'">
             <span class="set__done">
               <strong>{{ completedSummary(activeExercise.exerciseId, set) }}</strong>
@@ -1257,3 +1283,16 @@ const progress = computed(() => {
 
 
 
+
+/* 热身组：弱化但不隐藏——用户要能看到"先做这些再加重量" */
+.set--warmup {
+  opacity: 0.85;
+}
+
+.set--warmup .set__idx {
+  background: transparent;
+  border: 1px dashed rgba(var(--ink-rgb), 0.28);
+  color: var(--text-3);
+  font-size: 10px;
+  letter-spacing: 0;
+}
