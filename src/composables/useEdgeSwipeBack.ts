@@ -18,7 +18,8 @@ interface EdgeSwipeOptions {
 }
 
 export function useEdgeSwipeBack(onBack: () => void, options: EdgeSwipeOptions = {}): void {
-  const edge = options.edge ?? 26;
+  // 与 useTabSwipe 的 edge 保持一致：<=28px 算边缘（返回），>28px 算页面中部（切页）
+  const edge = options.edge ?? 28;
   const threshold = options.threshold ?? 64;
 
   let tracking = false;

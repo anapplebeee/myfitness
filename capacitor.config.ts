@@ -22,7 +22,11 @@ const config: CapacitorConfig = {
    */
   appId: 'app.lianji.fit',
   appName: '练迹',
-  webDir: 'dist',
+  /*
+   * Android 构建会把前端输出到独立的 dist-build-* 目录，
+   * 通过 CAP_WEB_DIR 传进来；日常构建仍用 dist。
+   */
+  webDir: process.env.CAP_WEB_DIR ?? 'dist',
   android: {
     backgroundColor: '#F2F0EA',
     allowMixedContent: false,

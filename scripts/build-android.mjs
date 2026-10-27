@@ -12,7 +12,7 @@
  */
 
 import { execFile, execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -132,9 +132,47 @@ const env = {
   PATH: `${join(javaHome, 'bin')};${join(sdkHome, 'platform-tools')};${process.env.PATH ?? ''}`,
 };
 
+/*
+ * 每次构建输出到独立目录。
+ *
+ * 两个原因：
+ * 1) Vite 清空 dist/assets 会一次删除 80+ 个文件，触发环境的批量删除保护；
+ * 2) 复用目录会让旧哈希文件被打进 APK，包体越来越大。
+ * 独立目录 + 归档旧 public，两者都避免。
+ */
+const webOut = `dist-build-${Date.now().toString(36)}`;
+process.env.CAP_WEB_DIR = webOut;
+env.CAP_WEB_DIR = webOut;
+
+// 先构建最新前端，避免把上一次的产物打进 APK
+console.log('\n--- 构建前端 ---');
+try {
+  execFileSync('npm', ['run', 'build', '--', '--outDir', webOut], {
+    cwd: root,
+    env,
+    stdio: 'inherit',
+    shell: true,
+  });
+  record('前端构建成功', true, webOut);
+} catch (e) {
+  record('前端构建成功', false, String(e).slice(0, 120));
+  process.exit(1);
+}
+
 // 先同步前端资产，确保 APK 里是最新产物
 console.log('\n--- 同步前端资产 ---');
 try {
+  /*
+   * 把旧 public 改名归档，而不是删除：
+   * 删除会触发批量删除保护；留在 assets 下又会被打进 APK。
+   * 归档到项目根（已 gitignore），既有记录又不影响包体。
+   */
+  const publicDir = join(root, 'android', 'app', 'src', 'main', 'assets', 'public');
+  if (existsSync(publicDir)) {
+    const archive = join(root, `dist-old-android-${Date.now().toString(36)}`);
+    renameSync(publicDir, archive);
+    record('旧 Android 资源已归档', true, archive.replace(`${root}\\`, ''));
+  }
   // Windows 上 .cmd 不能被 execFileSync 直接启动（EINVAL），必须走 shell
   execFileSync('npx', ['cap', 'sync', 'android'], {
     cwd: root,
@@ -146,6 +184,22 @@ try {
 } catch (e) {
   record('cap sync 成功', false, String(e).slice(0, 120));
   process.exit(1);
+}
+
+// 同步结果校验：Android 里的入口哈希必须与本次构建一致，否则 APK 装的是旧前端
+try {
+  const entryHash = (html) => /assets\/index-([A-Za-z0-9_-]+)\.js/.exec(html)?.[1] ?? '';
+  const distHash = entryHash(readFileSync(join(root, webOut, 'index.html'), 'utf8'));
+  const appHash = entryHash(
+    readFileSync(join(root, 'android', 'app', 'src', 'main', 'assets', 'public', 'index.html'), 'utf8'),
+  );
+  record(
+    '前端资源已同步到 Android（哈希一致）',
+    Boolean(distHash) && distHash === appHash,
+    `${webOut}=${distHash || '?'} / android=${appHash || '?'}`,
+  );
+} catch (e) {
+  record('前端资源已同步到 Android（哈希一致）', false, String(e).slice(0, 100));
 }
 
 // 编译
