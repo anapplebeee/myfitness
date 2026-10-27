@@ -12,7 +12,7 @@
  */
 
 import { execFile, execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -23,23 +23,35 @@ function record(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
 }
 
+/** 在一个"装着多个 JDK 的目录"里找第一个可用的。 */
+function findJdkIn(base) {
+  if (!existsSync(base)) return null;
+  for (const dir of readdirSync(base)) {
+    const home = join(base, dir);
+    if (existsSync(join(home, 'bin', 'java.exe'))) return home;
+  }
+  return null;
+}
+
 /** 找 JDK。 */
 function findJavaHome() {
   if (process.env.JAVA_HOME && existsSync(join(process.env.JAVA_HOME, 'bin', 'java.exe'))) {
     return process.env.JAVA_HOME;
   }
   const candidates = [
+    // 本项目自带的 Android 工具链（check-android 脚本安装的位置）
+    join(homedir(), '.android-toolchain', 'jdk'),
     'C:\\Program Files\\Eclipse Adoptium',
     'C:\\Program Files\\Java',
     'C:\\Program Files\\Microsoft\\jdk',
   ];
   for (const base of candidates) {
-    if (!existsSync(base)) continue;
-    for (const dir of readdirSync(base)) {
-      const home = join(base, dir);
-      if (existsSync(join(home, 'bin', 'java.exe'))) return home;
-    }
+    const found = findJdkIn(base);
+    if (found) return found;
   }
+  // Android Studio 自带的 JBR 本身就是 JDK 根目录，不再往下扫一层
+  const jbr = 'C:\\Program Files\\Android\\Android Studio\\jbr';
+  if (existsSync(join(jbr, 'bin', 'java.exe'))) return jbr;
   return null;
 }
 
@@ -49,8 +61,27 @@ function findSdkHome() {
   if (process.env.ANDROID_SDK_ROOT && existsSync(process.env.ANDROID_SDK_ROOT)) {
     return process.env.ANDROID_SDK_ROOT;
   }
+  // 本项目自带的工具链
+  const toolchain = join(homedir(), '.android-toolchain', 'sdk');
+  if (existsSync(toolchain)) return toolchain;
   const guess = join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
-  return existsSync(guess) ? guess : null;
+  if (existsSync(guess)) return guess;
+  // 最后读 android/local.properties 的 sdk.dir（Windows 里冒号是转义的）
+  const localProps = join(root, 'android', 'local.properties');
+  if (existsSync(localProps)) {
+    const line = readFileSync(localProps, 'utf8')
+      .split(/\r?\n/)
+      .find((l) => l.trim().startsWith('sdk.dir='));
+    if (line) {
+      const dir = line
+        .slice(line.indexOf('=') + 1)
+        .trim()
+        .replace(/\\:/g, ':')
+        .replace(/\\\\/g, '\\');
+      if (existsSync(dir)) return dir;
+    }
+  }
+  return null;
 }
 
 const javaHome = findJavaHome();
@@ -141,7 +172,8 @@ if (existsSync(aapt)) {
     const pkg = /package: name='([^']+)'/.exec(badging)?.[1];
     record('包名为 app.lianji.fit', pkg === 'app.lianji.fit', pkg ?? '');
     const label = /application-label:'([^']+)'/.exec(badging)?.[1];
-    record('应用名为 铁馆', label === '铁馆', label ?? '');
+    // 应用已从「铁馆」改名「练迹」，这里跟随当前品牌名
+    record('应用名为 练迹', label === '练迹', label ?? '');
     const target = /targetSdkVersion:'(\d+)'/.exec(badging)?.[1];
     record('targetSdk >= 34', Number(target) >= 34, `targetSdk=${target}`);
     const min = /sdkVersion:'(\d+)'/.exec(badging)?.[1];
@@ -154,9 +186,14 @@ if (existsSync(aapt)) {
     record('备份排除规则已配置', tree.includes('fullBackupContent') && tree.includes('dataExtractionRules'));
 
     /*
-     * 固定签名：测试包也必须用 android/lianji-release.keystore 签。
+     * 固定签名：测试包也必须用 android/tieguan-release.keystore 签。
      * 用默认 debug keystore 的话，换一台机器签名就变，覆盖安装会被系统拒绝
      * （INSTALL_FAILED_UPDATE_INCOMPATIBLE），只能卸载重装、数据全丢。
+     *
+     * 证书 CN 仍是旧品牌 TieGuan：这是**故意保留**的。换新 keystore 会让
+     * 已安装旧包的设备无法覆盖升级（必须卸载 → 数据丢失）。
+     * 如果未来要做品牌证书迁移，必须走 Play App Signing 的密钥轮换，
+     * 不能直接换 keystore。
      */
     const apksigner = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], 'apksigner.bat');
     if (existsSync(apksigner)) {
@@ -168,7 +205,11 @@ if (existsSync(aapt)) {
           shell: process.platform === 'win32',
         });
         const dn = /certificate DN: (.+)/.exec(certs)?.[1]?.trim() ?? '';
-        record('使用固定签名（可覆盖升级）', dn.includes('CN=LianJi'), dn || '未读取到证书');
+        record(
+          '使用固定签名（可覆盖升级）',
+          dn.includes('CN=TieGuan') || dn.includes('CN=LianJi'),
+          dn || '未读取到证书',
+        );
       } catch (e) {
         record('使用固定签名（可覆盖升级）', false, String(e).slice(0, 100));
       }
@@ -178,6 +219,20 @@ if (existsSync(aapt)) {
   }
 } else {
   record('aapt 可用', false, '未找到 build-tools/aapt.exe');
+}
+
+// 复制到 dist-apk/：文件名带日期与版本，便于发给测试同事（该目录的 apk 已 gitignore）
+try {
+  const distDir = join(root, 'dist-apk');
+  mkdirSync(distDir, { recursive: true });
+  const gradle = readFileSync(join(root, 'android', 'app', 'build.gradle'), 'utf8');
+  const versionName = /versionName\s+"([^"]+)"/.exec(gradle)?.[1] ?? 'dev';
+  const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const outName = `lianji-debug-${dateTag}-v${versionName}.apk`;
+  copyFileSync(apkPath, join(distDir, outName));
+  record('APK 已复制到 dist-apk', true, outName);
+} catch (e) {
+  record('APK 已复制到 dist-apk', false, String(e).slice(0, 100));
 }
 
 const failed = results.filter((r) => !r.ok);

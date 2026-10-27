@@ -6,7 +6,7 @@
 
 **当前状态（2026-10-27）**
 
-- 前端已完成 **Vue 3 + Vite + TypeScript** 重写，`src/` 为唯一实现；PWA 可直接部署，Capacitor Android 壳已适配新构建（`webDir: 'dist'`，`applicationId com.tieguan.fit`，`versionCode 2` / `versionName 1.1`）。
+- 前端已完成 **Vue 3 + Vite + TypeScript** 重写，`src/` 为唯一实现；PWA 可直接部署，Capacitor Android 壳已适配新构建（`webDir: 'dist'`，`applicationId app.lianji.fit`，`versionCode 3` / `versionName 1.2`）。
 - 旧版 demo（`js/`、`css/`、`server.js`、`sw.js`、`android/www`）已在重写中**删除**；根目录 `index.html` 是 Vite 入口，不是旧 demo。
 - 数据安全六项修复已落地（详见 [QA 数据安全](docs/qa/2026-10-26-data-safety-fixes.md)）：落盘前脱离 Vue Proxy 的固定快照、IndexedDB 与 localStorage 双副本带设备保存序号、损坏数据进入恢复阻塞界面、同步以共同基线哈希保护本地修改。
 - 新增**每日饮水**与**本地提醒**：饮水按条记录，今日页显示总量/目标进度与快捷添加；训练与喝水提醒在原生端用 `@capacitor/local-notifications`（App 关闭也能响），网页端在页面打开时生效。详见 [变更日志](CHANGELOG.md)。

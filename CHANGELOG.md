@@ -8,7 +8,8 @@
 - **每日饮水**：按条记录（毫升），今日总量 + 目标进度条 + 快捷 +200/+300/+500；目标可在「我的 → 设置」改，默认 2000 ml 并明确标注为参考值。记录进入同步快照；没有饮水数据时快照形状与旧版一致，不会凭空产生假冲突
 - **本地提醒**：训练提醒（每日固定时间）+ 喝水提醒（时段内按间隔，默认 09:00–21:00 每 120 分钟）。原生端用 `@capacitor/local-notifications`，App 关闭也能提醒；网页/PWA 用插件 Web 实现，页面开着时生效。设置进 AppState，换机后不用重设
 - **我的 → 身体**：补「当前体重」，并把 BMI 标注为「按当前体重」——原来这张卡只有「目标体重」，用户看到 BMI 25.2 却找不到它是按哪个体重算的
-- **Android**：新增 `POST_NOTIFICATIONS` / `SCHEDULE_EXACT_ALARM` / `RECEIVE_BOOT_COMPLETED` 权限；`cap sync` 已注册 `@capacitor/local-notifications@8.3.1`
+- **Android**：新增 `POST_NOTIFICATIONS` / `SCHEDULE_EXACT_ALARM` / `RECEIVE_BOOT_COMPLETED` 权限；`cap sync` 已注册 `@capacitor/local-notifications@8.3.1`。`versionCode 3` / `versionName 1.2`，APK 已产出并复制到 `dist-apk/lianji-debug-20261027-v1.2.apk`
+- **构建脚本**：`build-android.mjs` 现在会自动探测项目自带的 `~/.android-toolchain/{jdk,sdk}`、Android Studio JBR 与 `local.properties`；产物自动复制到 `dist-apk/` 并按日期+版本命名
 
 ### 修复（2026-10-27 PM 深评第二轮）
 - **教练趋势图不再说谎**：原来柱高 = v / max(series) 且兜底 12%，6 次同重量渲染成等高柱、1.2% 波动渲染成大起大落。改为折线，按真实 min/max 缩放并标注极值，全程等值时画一条水平线；样本不足 3 次不再给涨跌百分比。几何抽到 `domain/trend.ts`，补 6 项单测
