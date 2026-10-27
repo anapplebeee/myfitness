@@ -1,9 +1,11 @@
 import { backupKey as makeBackupKey, syncBackupKey as makeSyncBackupKey } from './storageKeys';
 import { computed, reactive, readonly, ref, toRaw } from 'vue';
 import type { AppState, FoodEntry, Profile, ReminderSettings, Session, SessionExercise, SetRecord, WaterEntry, WeightEntry } from '../domain/types';
-import { addDays, businessDate } from '../domain/units';
+import { addDays, businessDate, weekStartOf } from '../domain/units';
+import { applyShift, previewShift, type OverflowStrategy, type ShiftPreview, type ShiftScope } from '../domain/shift';
 import { waterTotal } from '../domain/water';
 import { normalizeReminders } from '../domain/reminders';
+import { withoutPlanPlaceholder } from '../domain/meal-plan';
 import { lastExerciseSets } from '../domain/metrics';
 import { validateGoal, type Goal } from '../domain/goals';
 import { stateFingerprint } from '../domain/ai-adopt';
@@ -635,6 +637,11 @@ export const store = {
   },
 
   addFood(entry: Omit<FoodEntry, 'id' | 'createdAt'>): void {
+    /*
+     * 手动记录同一餐次时，先移除"按计划完成"的占位条目。
+     * 否则用户按计划勾过之后又补录实际吃的，热量会被算两遍。
+     */
+    state.foods = withoutPlanPlaceholder(state.foods, entry);
     state.foods.push({ ...entry, id: uid('f'), createdAt: new Date().toISOString() });
     schedulePersist();
   },
@@ -728,6 +735,29 @@ export const store = {
       occurrences: [...state.occurrences],
       goals: [...state.weekGoals],
       sessions: [...state.sessions],
+      recordedAt: new Date().toISOString(),
+      idFactory: uid,
+    });
+    if (result.error) return result.error;
+    state.occurrences = result.occurrences;
+    state.weekGoals = result.goals;
+    schedulePersist();
+    return null;
+  },
+
+  /** 预览后移：不落库，用来判断是否需要让用户选"减少一天 / 加入下周"。 */
+  previewPlanShift(scope: ShiftScope, date: string): ShiftPreview {
+    return previewShift(state.occurrences, weekStartOf(date), scope, date);
+  },
+
+  applyPlanShift(scope: ShiftScope, date: string, strategy: OverflowStrategy): string | null {
+    const result = applyShift({
+      occurrences: [...state.occurrences],
+      goals: [...state.weekGoals],
+      weekStart: weekStartOf(date),
+      scope,
+      date,
+      strategy,
       recordedAt: new Date().toISOString(),
       idFactory: uid,
     });

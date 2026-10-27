@@ -23,6 +23,7 @@ import {
   type WeekResult,
 } from '../domain/week';
 import { mondayOf } from '../domain/plan';
+import type { ShiftScope } from '../domain/shift';
 import { useSheetBack } from '../composables/useBackLayer';
 import { useToast } from '../composables/useToast';
 import type { NavigatePayload } from '../types/nav';
@@ -93,6 +94,9 @@ const showTargetEditor = ref(false);
 const targetInput = ref(1);
 const targetReason = ref('');
 
+/** 跨周后移的确认：记录待处理的 scope 与超出项数。 */
+const shiftAsk = ref<{ scope: ShiftScope; date: string; overflow: number } | null>(null);
+
 function openActions(o: PlannedOccurrence): void {
   acting.value = o;
   excuseReason.value = EXCUSE_REASONS[0];
@@ -130,6 +134,49 @@ function applyPostpone(): void {
     return;
   }
   push(`已顺延到 ${shortDate(postponeDate.value)}`, 'success');
+  closeActions();
+}
+
+/**
+ * 后移一天。
+ *
+ * 先预览：没跨周就直接执行；跨周则弹二选一（减少一天 / 加入下周），
+ * 不擅自替用户决定"少练一次"还是"占下周的位置"。
+ */
+function requestShift(scope: ShiftScope): void {
+  const o = acting.value;
+  if (!o) return;
+  const preview = store.previewPlanShift(scope, o.scheduledDate);
+  if (preview.error) {
+    push(preview.error, 'error');
+    return;
+  }
+  if (preview.overflow.length) {
+    shiftAsk.value = { scope, date: o.scheduledDate, overflow: preview.overflow.length };
+    return;
+  }
+  const error = store.applyPlanShift(scope, o.scheduledDate, 'drop');
+  if (error) {
+    push(error, 'error');
+    return;
+  }
+  push(`已后移 ${preview.moving.length} 项`, 'success');
+  closeActions();
+}
+
+function confirmShift(strategy: 'drop' | 'next-week'): void {
+  const ask = shiftAsk.value;
+  if (!ask) return;
+  const error = store.applyPlanShift(ask.scope, ask.date, strategy);
+  if (error) {
+    push(error, 'error');
+    return;
+  }
+  shiftAsk.value = null;
+  push(
+    strategy === 'drop' ? '已后移，超出的项已移除（本周少一天）' : '已后移，超出的项进入下周',
+    'success',
+  );
   closeActions();
 }
 
@@ -430,6 +477,45 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
               <button class="btn btn--primary btn--sm" @click="applyPostpone">顺延</button>
             </div>
           </div>
+
+          <!-- 后移：整天的安排往后挪，冲突链式跟进 -->
+          <template v-if="acting.disposition === 'scheduled'">
+            <div class="divider" />
+            <div class="field">
+              <label class="tiny">后移一天（按周计）</label>
+              <div class="row gap-8">
+                <button class="btn btn--ghost btn--sm" @click="requestShift('day')">这一天后移</button>
+                <button class="btn btn--ghost btn--sm" @click="requestShift('tail')">本周剩余后移</button>
+              </div>
+              <p class="tiny" style="margin-top: 6px">
+                后面那天已有安排时会一起往后推；越过周日会让你选「减少一天」或「加入下周」。
+              </p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 跨周后移：不替用户决定少练一次还是占下周 -->
+    <Transition name="sheet">
+      <div v-if="shiftAsk" class="sheet" @click.self="shiftAsk = null">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">跨周提示</p>
+              <h2 class="h2">后移会超出本周</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="shiftAsk = null">✕</button>
+          </div>
+          <p class="small">
+            有 {{ shiftAsk.overflow }} 项会越过周日。两种处理方式：
+          </p>
+          <button class="btn btn--ghost btn--block" style="margin-top: 14px" @click="confirmShift('drop')">
+            减少一天训练（移除超出的项）
+          </button>
+          <button class="btn btn--primary btn--block" style="margin-top: 10px" @click="confirmShift('next-week')">
+            加入下周
+          </button>
         </div>
       </div>
     </Transition>

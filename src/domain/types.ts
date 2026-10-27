@@ -106,6 +106,11 @@ export interface FoodEntry {
   protein: number;
   carb?: number;
   fat?: number;
+  /**
+   * 来源。`plan` 表示"按计划完成"的占位条目：
+   * 手动记录同一餐次时会自动替换它，避免计划与实际重复计数。
+   */
+  source?: 'plan' | 'manual';
   createdAt: string;
 }
 

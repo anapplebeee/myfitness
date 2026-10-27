@@ -14,8 +14,9 @@ import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
 import { filterFoods } from '../domain/allergens';
 import { ALLERGEN_CODES, FOOD_ALLERGENS } from '../content/allergens';
-import type { DietRestriction } from '../domain/types';
+import type { DietRestriction, FoodEntry } from '../domain/types';
 import type { Slot } from '../domain/types';
+import { buildMealPlan, planForSlot, type MealPlanItem } from '../domain/meal-plan';
 
 
 const { push } = useToast();
@@ -84,6 +85,35 @@ function addWater(ml: number): void {
   store.addWater(ml, selectedDate.value);
 }
 
+/*
+ * 饮食计划：把每日目标拆到四个餐次。
+ * 用户按计划吃完就勾完成；吃的不一样就走手动录入——
+ * store.addFood 会自动移除同餐次的"按计划"占位，避免重复计数。
+ */
+const mealPlan = computed(() => buildMealPlan(targetKcal.value, targetProtein.value));
+
+function slotEntries(slot: Slot): FoodEntry[] {
+  return foodsOnDate.value.filter((f) => f.slot === slot);
+}
+
+function slotPlan(slot: Slot): MealPlanItem | null {
+  return planForSlot(mealPlan.value, slot);
+}
+
+function completeByPlan(slot: Slot): void {
+  const plan = slotPlan(slot);
+  if (!plan) return;
+  store.addFood({
+    date: selectedDate.value,
+    slot,
+    label: '按计划',
+    kcal: plan.kcal,
+    protein: plan.protein,
+    source: 'plan',
+  });
+  push('已按计划完成', 'success');
+}
+
 /**
  * 目标只能来自用户设置。
  *
@@ -97,11 +127,6 @@ const targetProtein = computed(() => store.state.targetProtein);
 const kcalPct = computed(() =>
   targetKcal.value && targetKcal.value > 0
     ? Math.min(100, Math.round((totals.value.kcal / targetKcal.value) * 100))
-    : null,
-);
-const proteinPct = computed(() =>
-  targetProtein.value && targetProtein.value > 0
-    ? Math.min(100, Math.round((totals.value.protein / targetProtein.value) * 100))
     : null,
 );
 
@@ -284,9 +309,6 @@ function removeEntry(id: string): void {
           <strong>
             {{ Math.round(totals.protein) }}<template v-if="targetProtein"> / {{ targetProtein }}</template> g
           </strong>
-          <div class="bar">
-            <div class="bar__fill" :style="{ width: `${proteinPct ?? 0}%` }" />
-          </div>
         </div>
         <div>
           <span class="tiny">碳水</span>
@@ -348,10 +370,19 @@ function removeEntry(id: string): void {
               <p class="tiny">{{ slot.time }}</p>
             </div>
           </div>
-          <button class="btn btn--ghost btn--sm" @click="openSheet(slot.id)">添加</button>
+          <div class="meal__actions">
+            <span v-if="slotEntries(slot.id).length" class="chip chip--sm chip--lime">✓ 已完成</span>
+            <button v-else-if="slotPlan(slot.id)" class="btn btn--ghost btn--sm" @click="completeByPlan(slot.id)">
+              按计划完成
+            </button>
+            <button class="btn btn--ghost btn--sm" @click="openSheet(slot.id)">添加</button>
+          </div>
         </div>
-        <div v-if="foodsOnDate.filter((f) => f.slot === slot.id).length" class="meal__items">
-          <div v-for="f in foodsOnDate.filter((x) => x.slot === slot.id)" :key="f.id" class="meal__item">
+        <p v-if="!slotEntries(slot.id).length && slotPlan(slot.id)" class="tiny meal__plan">
+          计划 {{ slotPlan(slot.id)!.kcal }} kcal<template v-if="slotPlan(slot.id)!.protein"> · 蛋白 {{ slotPlan(slot.id)!.protein }}g</template>
+        </p>
+        <div v-if="slotEntries(slot.id).length" class="meal__items">
+          <div v-for="f in slotEntries(slot.id)" :key="f.id" class="meal__item">
             <span class="recent__body">
               <span class="h3">{{ f.label }}</span>
               <span class="tiny">
@@ -608,6 +639,17 @@ function removeEntry(id: string): void {
 .ring__num--water span {
   font-size: 9px;
   color: var(--text-3);
+}
+
+.meal__plan {
+  margin-top: 8px;
+  color: var(--text-3);
+}
+
+.meal__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .nutrition__macro {
