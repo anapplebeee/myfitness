@@ -3,6 +3,13 @@ import { computed, ref } from 'vue';
 import { store } from '../store/appStore';
 import { FOOD_GROUPS, nutritionFor, portionText, searchFoods, unitOf, type Food } from '../content/foods';
 import { addDays, businessDate, shortDate } from '../domain/units';
+import {
+  DEFAULT_WATER_GOAL_ML,
+  WATER_QUICK_ADD,
+  waterProgress,
+  waterText,
+  waterTotal,
+} from '../domain/water';
 import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
 import { filterFoods } from '../domain/allergens';
@@ -62,6 +69,20 @@ const totals = computed(() => ({
   carb: foodsOnDate.value.reduce((s, f) => s + (f.carb ?? 0), 0),
   fat: foodsOnDate.value.reduce((s, f) => s + (f.fat ?? 0), 0),
 }));
+
+/*
+ * 饮水：与饮食共用同一个 selectedDate，补记昨天时水量也落在昨天。
+ * 环形进度用冷色，和热量环的酸橙分开，避免两个环看起来是同一个指标。
+ */
+const waterQuickAdd = WATER_QUICK_ADD;
+const waterGoal = computed(() => store.state.waterGoalMl ?? DEFAULT_WATER_GOAL_ML);
+const waterTotalMl = computed(() => waterTotal(store.state.water, selectedDate.value));
+const waterPct = computed(() => waterProgress(waterTotalMl.value, waterGoal.value));
+const waterHint = computed(() => waterText(waterTotalMl.value, waterGoal.value));
+
+function addWater(ml: number): void {
+  store.addWater(ml, selectedDate.value);
+}
 
 /**
  * 目标只能来自用户设置。
@@ -275,6 +296,44 @@ function removeEntry(id: string): void {
           <span class="tiny">脂肪</span>
           <strong>{{ Math.round(totals.fat) }} g</strong>
         </div>
+      </div>
+    </section>
+
+    <!-- 饮水：和饮食同一天；环形进度，中间水滴 -->
+    <section class="card water-card">
+      <div class="water-card__main">
+        <div class="water-card__text">
+          <p class="label">今日饮水</p>
+          <p class="h3">{{ waterTotalMl }}<span class="tiny"> / {{ waterGoal }} ml</span></p>
+          <p class="tiny">{{ waterHint }}</p>
+        </div>
+        <div
+          class="ring ring--water"
+          :style="{ '--pct': waterPct ?? 0 }"
+          role="img"
+          :aria-label="`饮水 ${waterTotalMl} 毫升，目标 ${waterGoal} 毫升`"
+        >
+          <div class="ring__inner ring__inner--water">
+            <svg
+              class="water-drop"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3.2c3.2 4 5.4 6.7 5.4 9.6a5.4 5.4 0 1 1-10.8 0c0-2.9 2.2-5.6 5.4-9.6Z" />
+            </svg>
+            <span class="ring__num ring__num--water">{{ waterPct ?? 0 }}<span>%</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="water-card__actions">
+        <button v-for="ml in waterQuickAdd" :key="ml" class="btn btn--ghost btn--sm" @click="addWater(ml)">
+          +{{ ml }} ml
+        </button>
       </div>
     </section>
 
@@ -495,6 +554,60 @@ function removeEntry(id: string): void {
 .ring__num span {
   font-size: 12px;
   color: rgba(var(--inv-rgb), 0.5);
+}
+
+/* 饮水卡：环形用冷色，和热量环的酸橙区分开 */
+.water-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.water-card__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.water-card__text {
+  min-width: 0;
+}
+
+.water-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.water-card__actions .btn {
+  flex: 1;
+}
+
+.ring--water {
+  --size: 84px;
+  background:
+    radial-gradient(closest-side, var(--card) 76%, transparent 77% 100%),
+    conic-gradient(var(--sky) calc(var(--pct) * 1%), rgba(var(--ink-rgb), 0.08) 0);
+}
+
+.ring__inner--water {
+  gap: 1px;
+}
+
+.water-drop {
+  width: 20px;
+  height: 20px;
+  color: var(--sky);
+}
+
+.ring__num--water {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ring__num--water span {
+  font-size: 9px;
+  color: var(--text-3);
 }
 
 .nutrition__macro {

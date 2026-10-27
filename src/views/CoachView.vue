@@ -17,6 +17,11 @@ import {
 defineProps<{ greetingName?: string }>();
 const emit = defineEmits<{ (e: 'navigate', payload: NavigatePayload): void }>();
 
+/** 点容量卡：去「训练 → 历史」，看这些容量是怎么攒出来的。 */
+function openHistory(): void {
+  emit('navigate', { to: 'train', from: 'coach', focus: { kind: 'history' } });
+}
+
 const unit = ref<'kg' | 'lb'>('kg');
 const openId = ref<string | null>(null);
 
@@ -190,14 +195,19 @@ function groupOf(id: string): string {
 
     <template v-else>
     <section class="card card--ink coach__hero">
-      <div class="coach__hero-top">
-        <div>
-          <p class="label">累计训练容量</p>
-          <p class="coach__volume">{{ totalVolume }}</p>
-          <p class="tiny coach__hero-sub">{{ sessions.length }} 场训练 · 全部来自本机记录</p>
-        </div>
-        <span class="chip chip--lime chip--sm">可比较工作组</span>
-      </div>
+      <!-- 整块可点：容量数字不是装饰，点进去看它怎么攒出来的 -->
+      <button type="button" class="coach__hero-top coach__hero-tap" @click="openHistory">
+        <span class="coach__hero-main">
+          <span class="label">累计训练容量</span>
+          <span class="coach__volume">{{ totalVolume }}</span>
+          <span class="tiny coach__hero-sub">{{ sessions.length }} 场训练 · 全部来自本机记录</span>
+        </span>
+        <span class="coach__hero-side">
+          <!-- 深色卡上用中性标签：lime 留给底部激活标签，避免"哪个能点"混淆 -->
+          <span class="chip chip--on-dark chip--sm">可比较工作组</span>
+          <span class="coach__go" aria-hidden="true">›</span>
+        </span>
+      </button>
       <div class="seg coach__unit">
         <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="unit = 'kg'">kg</button>
         <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="unit = 'lb'">lb</button>
@@ -323,6 +333,41 @@ function groupOf(id: string): string {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* 整块卡头是按钮：去掉默认外观，保持原有排版 */
+.coach__hero-tap {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.coach__hero-tap:active {
+  opacity: 0.82;
+}
+
+.coach__hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+}
+
+.coach__hero-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.coach__go {
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(var(--inv-rgb), 0.45);
 }
 
 .coach__volume {

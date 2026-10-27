@@ -383,6 +383,18 @@
   color: var(--lime-ink);
 }
 
+/*
+ * 深色卡上的中性标签。
+ *
+ * 之前这里用 chip--lime，和底部激活标签的酸橙撞色：
+ * 一个只是说明文字，一个是真的可点，视觉上却一样亮。
+ */
+.chip--on-dark {
+  background: rgba(var(--inv-rgb), 0.1);
+  border: 1px solid rgba(var(--inv-rgb), 0.22);
+  color: rgba(var(--inv-rgb), 0.82);
+}
+
 .chip--clay {
   background: var(--clay-soft);
   color: var(--clay);

@@ -255,6 +255,22 @@ function startWorkout(): void {
 function openRecent(id: string): void {
   openSession(id);
 }
+
+/**
+ * 点 hero 标题区。
+ *
+ * 大块深色区域看起来最像"能点"，之前点了没反应（用户实测）。
+ * 有当天会话（进行中 / 已完成 / 部分完成）就打开会话；
+ * 否则去训练页选今天的计划。
+ */
+function tapHeroHead(): void {
+  const info = todayInfo.value;
+  if (info.session && (info.state === 'live' || info.state === 'done' || info.state === 'partial')) {
+    openSession(info.session.id);
+    return;
+  }
+  emit('navigate', 'train');
+}
 </script>
 
 <template>
@@ -262,16 +278,35 @@ function openRecent(id: string): void {
     <!-- hero -->
     <section class="hero card card--ink">
       <div class="hero__head">
-        <div>
+        <!-- 整块可点：有当天会话就打开会话，否则去训练页 -->
+        <div
+          class="hero__head-main"
+          role="button"
+          tabindex="0"
+          :aria-label="todayInfo.session ? '打开今天的训练' : '去训练页选今天的计划'"
+          @click="tapHeroHead"
+          @keydown.enter.prevent="tapHeroHead"
+          @keydown.space.prevent="tapHeroHead"
+        >
           <p class="hero__eyebrow">{{ greetingName }}，今天练什么</p>
-          <h1 class="hero__title">{{ heroTitle }}</h1>
+          <h1 class="hero__title">
+            {{ heroTitle }}
+            <span class="hero__go" aria-hidden="true">›</span>
+          </h1>
         </div>
-        <div class="ring" :style="{ '--pct': weekPct }" :aria-label="`本周完成 ${doneThisWeek} 次，目标 ${weekGoal} 次`">
-          <div class="ring__inner">
+        <!-- 圆环是周目标进度，点了要能进周目标，而不是只能看 -->
+        <button
+          type="button"
+          class="ring ring--tap"
+          :style="{ '--pct': weekPct }"
+          :aria-label="`本周完成 ${doneThisWeek} 次，目标 ${weekGoal} 次，打开周目标`"
+          @click="emit('navigate', { to: 'plan', from: 'today' })"
+        >
+          <span class="ring__inner">
             <span class="ring__num">{{ doneThisWeek }}<span>/{{ weekGoal }}</span></span>
             <span class="ring__cap">本周</span>
-          </div>
-        </div>
+          </span>
+        </button>
       </div>
 
       <div v-if="todayInfo.state === 'live' && todayInfo.session" class="hero__live">
@@ -567,6 +602,44 @@ function openRecent(id: string): void {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+/* 大块深色区域必须可点：之前整块没反应，用户会以为界面卡死 */
+.hero__head-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.hero__head-main:active {
+  opacity: 0.72;
+}
+
+.hero__head-main:focus-visible {
+  outline: 2px solid rgba(var(--inv-rgb), 0.5);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.hero__go {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.62em;
+  opacity: 0.45;
+  transform: translateY(-0.12em);
+}
+
+/* 圆环从 div 改成 button，去掉浏览器默认外观 */
+.ring--tap {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ring--tap:active {
+  transform: scale(0.97);
 }
 
 .hero__eyebrow {

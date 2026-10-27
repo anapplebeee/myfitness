@@ -24,6 +24,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { requestBack, resetBackLayers, setBackFallback } from './composables/useBackLayer';
 import { useEdgeSwipeBack } from './composables/useEdgeSwipeBack';
+import { useTabSwipe } from './composables/useTabSwipe';
 
 const route = ref<Route>('today');
 const booted = ref(false);
@@ -176,6 +177,33 @@ function recoverFromCrash(): void {
 }
 useEdgeSwipeBack(() => {
   requestBack();
+});
+
+/**
+ * 左右滑动切换标签页。
+ *
+ * 只在六个标签之间生效；训练中 / 会话详情 / 模板编辑时禁用，
+ * 避免用户在横向滑动图表或拖拽时误切页。
+ * 屏幕边缘 28px 让给返回手势，横向滚动容器（.scroll-x）不接管。
+ */
+const TAB_ORDER: Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
+useTabSwipe({
+  enabled: () =>
+    TAB_ORDER.includes(route.value) &&
+    !liveSessionId.value &&
+    !openSessionId.value &&
+    !editingTemplateId.value &&
+    !store.initError.value,
+  onNext: () => {
+    const i = TAB_ORDER.indexOf(route.value);
+    const next = TAB_ORDER[i + 1];
+    if (next) go(next);
+  },
+  onPrev: () => {
+    const i = TAB_ORDER.indexOf(route.value);
+    const prev = TAB_ORDER[i - 1];
+    if (prev) go(prev);
+  },
 });
 </script>
 
