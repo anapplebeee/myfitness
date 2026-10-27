@@ -17,6 +17,15 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 const root = process.cwd();
+
+/*
+ * 让 capacitor.config.ts 在本次同步时打开 WebView 调试（debug 包专用）。
+ *
+ * 必须设在 process.env 上：Windows 下 execFileSync 的 env 选项配合 shell:true
+ * 并不总是传到 npx 那一层，实测会让 webContentsDebuggingEnabled 仍是 false，
+ * 导致真机 CDP 自动化连不上 WebView。
+ */
+process.env.CAP_BUILD_TYPE = 'debug';
 const results = [];
 function record(name, ok, detail = '') {
   results.push({ name, ok, detail });
@@ -111,6 +120,12 @@ record('android/local.properties 存在', existsSync(localProps));
 // 环境
 const env = {
   ...process.env,
+  /*
+   * 让 capacitor.config.ts 打开 WebView 调试（webContentsDebuggingEnabled）。
+   * 只有 debug 包需要：真机 CDP 自动化（scripts/android-cdp.mjs）依赖它，
+   * 否则 WebView 不暴露 devtools socket，自动化完全连不上。
+   */
+  CAP_BUILD_TYPE: 'debug',
   JAVA_HOME: javaHome,
   ANDROID_HOME: sdkHome,
   ANDROID_SDK_ROOT: sdkHome,

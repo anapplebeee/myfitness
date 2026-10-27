@@ -15,7 +15,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { writeFile } from 'node:fs/promises';
@@ -36,8 +36,25 @@ function findSdk() {
   for (const p of [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT]) {
     if (p && existsSync(p)) return p;
   }
+  const toolchain = join(homedir(), '.android-toolchain', 'sdk');
+  if (existsSync(toolchain)) return toolchain;
   const guess = join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
-  return existsSync(guess) ? guess : null;
+  if (existsSync(guess)) return guess;
+  const localProps = join(root, 'android', 'local.properties');
+  if (existsSync(localProps)) {
+    const line = readFileSync(localProps, 'utf8')
+      .split(/\r?\n/)
+      .find((l) => l.trim().startsWith('sdk.dir='));
+    if (line) {
+      const dir = line
+        .slice(line.indexOf('=') + 1)
+        .trim()
+        .replace(/\\:/g, ':')
+        .replace(/\\\\/g, '\\');
+      if (existsSync(dir)) return dir;
+    }
+  }
+  return null;
 }
 
 const sdk = findSdk();
@@ -153,7 +170,7 @@ const clickText = async (selector, text) =>
 
 // ---------- 1. 渲染与资源 ----------
 
-record('页面标题正确', (await ev('document.title')).includes('铁馆'));
+record('页面标题正确', (await ev('document.title')).includes('练迹'));
 record('URL 为 Capacitor 本地域', page.url.startsWith('https://localhost'), page.url);
 
 const cssOk = await ev(`(() => {
@@ -217,7 +234,13 @@ record('今日页主标题存在', Boolean(titleInfo), JSON.stringify(titleInfo)
 const startedNow = await ev(`(() => {
   const live = document.querySelector('.live');
   if (live) return 'ALREADY_LIVE';
-  const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === '开始训练');
+  /*
+   * 今日页可能是四种状态：待训练（开始训练）、进行中（继续训练）、
+   * 部分完成（继续这场）、已完成（再练一场）。只认「开始训练」会在
+   * 有未结束会话时直接失败，这里把这几种主按钮都认上。
+   */
+  const labels = ['开始训练', '继续训练', '继续这场', '再练一场'];
+  const b = [...document.querySelectorAll('button')].find((x) => labels.includes(x.textContent.trim()));
   if (b) { b.click(); return 'STARTED'; }
   const resume = document.querySelector('.resume');
   if (resume) { resume.click(); return 'RESUMED'; }
@@ -240,7 +263,8 @@ if (inputCount >= 2) {
   await sleep(300);
   await ev(`(() => {
     const st = document.querySelector('.set');
-    const b = st && st.querySelector('.btn--lime');
+    // 完成按钮从 .btn--lime 改成了 .set__check（44×44 触控区）
+    const b = st && (st.querySelector('.set__check') || st.querySelector('.btn--lime'));
     if (b) b.click();
     return true;
   })()`);

@@ -13,7 +13,7 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { writeFile } from 'node:fs/promises';
@@ -29,8 +29,27 @@ function findSdk() {
   for (const p of [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT]) {
     if (p && existsSync(p)) return p;
   }
+  // 本项目自带的工具链（与 build-android.mjs 用同一处）
+  const toolchain = join(homedir(), '.android-toolchain', 'sdk');
+  if (existsSync(toolchain)) return toolchain;
   const guess = join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
-  return existsSync(guess) ? guess : null;
+  if (existsSync(guess)) return guess;
+  // 最后读 android/local.properties 的 sdk.dir（Windows 冒号是转义的）
+  const localProps = join(root, 'android', 'local.properties');
+  if (existsSync(localProps)) {
+    const line = readFileSync(localProps, 'utf8')
+      .split(/\r?\n/)
+      .find((l) => l.trim().startsWith('sdk.dir='));
+    if (line) {
+      const dir = line
+        .slice(line.indexOf('=') + 1)
+        .trim()
+        .replace(/\\:/g, ':')
+        .replace(/\\\\/g, '\\');
+      if (existsSync(dir)) return dir;
+    }
+  }
+  return null;
 }
 
 const sdk = findSdk();
