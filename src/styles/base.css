@@ -159,7 +159,29 @@ a {
 }
 
 /*
- * 左右切页：方向由 go() 按标签顺序决定。
+ * 跟手拖拽的舞台：当前页在流内，邻页绝对定位到旁边，
+ * 位移全部由 JS 写 transform，松手后加 stage--anim 播放收尾。
+ */
+.stage {
+  position: relative;
+}
+
+.stage__pane {
+  will-change: transform;
+}
+
+.stage__pane--neighbor {
+  position: absolute;
+  inset: 0;
+}
+
+.stage--anim .stage__pane {
+  transition: transform 0.24s var(--ease-out);
+  pointer-events: none;
+}
+
+/*
+ * 左右切页（点标签时）：纯推挤，两页都不透明、并排移动。
  * next = 新页从右进、旧页往左退；prev 反之。
  * 离场页绝对定位，避免两页同时存在时把容器撑高。
  */
@@ -167,20 +189,15 @@ a {
 .slide-next-leave-active,
 .slide-prev-enter-active,
 .slide-prev-leave-active {
-  transition: transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
+  transition: transform 0.3s var(--ease-out);
   will-change: transform;
 }
 
-/*
- * 入场页必须有底：视图根节点本身是透明的，
- * 不加底色时旧页会从新页的空白处透出来，滑动看起来像重影。
- */
+/* 入场页提一层：离场页是绝对定位，亚像素重叠时保证新页在上 */
 .slide-next-enter-active,
 .slide-prev-enter-active {
-  /* 离场页是绝对定位，会盖在流内元素上；入场页必须提一层才遮得住 */
   position: relative;
   z-index: 1;
-  background: var(--paper);
 }
 
 .slide-next-leave-active,
@@ -196,8 +213,7 @@ a {
 }
 
 .slide-next-leave-to {
-  transform: translateX(-28%);
-  opacity: 0.65;
+  transform: translateX(-100%);
 }
 
 .slide-prev-enter-from {
@@ -205,8 +221,7 @@ a {
 }
 
 .slide-prev-leave-to {
-  transform: translateX(28%);
-  opacity: 0.65;
+  transform: translateX(100%);
 }
 
 .sheet-enter-active,

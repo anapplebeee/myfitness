@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onErrorCaptured, onMounted, ref } from 'vue';
+import { computed, onErrorCaptured, onMounted, reactive, ref } from 'vue';
 import TodayView from './views/TodayView.vue';
 import TrainView from './views/TrainView.vue';
 import CoachView from './views/CoachView.vue';
@@ -77,8 +77,8 @@ const greeting = computed(() => {
   return name ? name.slice(0, 1) : '你';
 });
 
-const view = computed(() => {
-  switch (route.value) {
+function viewFor(r: Route) {
+  switch (r) {
     case 'train':
       return TrainView;
     case 'plan':
@@ -94,7 +94,9 @@ const view = computed(() => {
     default:
       return TodayView;
   }
-});
+}
+
+const view = computed(() => viewFor(route.value));
 
 /**
  * 标签顺序。滑动切页与切换动画方向都按它算。
@@ -105,6 +107,39 @@ const TAB_ORDER: Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
 /** 切页动画方向；非标签路由（数据页等）用 none，保留原来的上浮淡入。 */
 const slideDir = ref<'next' | 'prev' | 'none'>('none');
 const transitionName = computed(() => (slideDir.value === 'none' ? 'rise' : `slide-${slideDir.value}`));
+
+/*
+ * 跟手拖拽：拖动时当前页与邻页并排跟手指走，
+ * 松手过阈值就先播完推挤动画再提交路由，不够就回弹。
+ */
+const stageEl = ref<HTMLElement | null>(null);
+const drag = reactive({
+  phase: 'idle' as 'idle' | 'dragging' | 'animating',
+  dir: 'next' as 'next' | 'prev',
+  dx: 0,
+  neighbor: null as Route | null,
+  paneW: 0,
+  commit: false,
+});
+
+const neighborView = computed(() => (drag.neighbor ? viewFor(drag.neighbor) : null));
+
+function neighborOf(dir: 'next' | 'prev'): Route | null {
+  const i = TAB_ORDER.indexOf(route.value);
+  const j = dir === 'next' ? i + 1 : i - 1;
+  return j >= 0 && j < TAB_ORDER.length ? TAB_ORDER[j]! : null;
+}
+
+const paneStyleCurrent = computed(() => {
+  const x =
+    drag.phase === 'animating' && drag.commit ? (drag.dir === 'next' ? -drag.paneW : drag.paneW) : drag.dx;
+  return { transform: `translateX(${x}px)` };
+});
+
+const paneStyleNeighbor = computed(() => {
+  if (drag.phase === 'animating' && drag.commit) return { transform: 'translateX(0)' };
+  return { transform: `translateX(calc(${drag.dir === 'next' ? '100%' : '-100%'} + ${drag.dx}px))` };
+});
 
 /**
  * 切换标签。
@@ -213,7 +248,8 @@ useTabSwipe({
     !liveSessionId.value &&
     !openSessionId.value &&
     !editingTemplateId.value &&
-    !store.initError.value,
+    !store.initError.value &&
+    drag.phase === 'idle',
   onNext: () => {
     const i = TAB_ORDER.indexOf(route.value);
     const next = TAB_ORDER[i + 1];
@@ -223,6 +259,48 @@ useTabSwipe({
     const i = TAB_ORDER.indexOf(route.value);
     const prev = TAB_ORDER[i - 1];
     if (prev) go(prev);
+  },
+  onDragStart: (dir) => {
+    const neighbor = neighborOf(dir);
+    // 没有邻页（已在最左/最右）就不跟手，保持原样
+    if (!neighbor) return;
+    drag.phase = 'dragging';
+    drag.dir = dir;
+    drag.dx = 0;
+    drag.commit = false;
+    drag.neighbor = neighbor;
+    drag.paneW = stageEl.value?.getBoundingClientRect().width || window.innerWidth;
+  },
+  onDragMove: (dx) => {
+    if (drag.phase === 'dragging') drag.dx = dx;
+  },
+  onDragEnd: (dx, dir) => {
+    if (drag.phase !== 'dragging') return;
+    const width = drag.paneW || window.innerWidth;
+    const shouldSwitch = Math.abs(dx) > Math.max(70, width * 0.22);
+    drag.commit = shouldSwitch;
+    drag.phase = 'animating';
+    drag.dx = shouldSwitch ? (dir === 'next' ? -width : width) : 0;
+    setTimeout(() => {
+      if (drag.commit && drag.neighbor) {
+        const target = drag.neighbor;
+        // 与点标签一致：这次跳转没有"来处"
+        forgetArrival(target);
+        route.value = target;
+        if (window.location.hash.replace('#', '') !== target) window.location.hash = target;
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+      drag.phase = 'idle';
+      drag.neighbor = null;
+      drag.dx = 0;
+      drag.commit = false;
+    }, 250);
+  },
+  onDragCancel: () => {
+    drag.phase = 'idle';
+    drag.neighbor = null;
+    drag.dx = 0;
+    drag.commit = false;
   },
 });
 </script>
@@ -299,13 +377,37 @@ useTabSwipe({
           :session-id="openSessionId"
           @close="openSessionId = null"
         />
-        <Transition
+        <div
           v-else
-          :name="transitionName"
-          :mode="slideDir === 'none' ? 'out-in' : 'default'"
+          ref="stageEl"
+          class="stage"
+          :class="{ 'stage--anim': drag.phase === 'animating' }"
         >
-          <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
-        </Transition>
+          <template v-if="drag.phase !== 'idle'">
+            <div class="stage__pane" :style="paneStyleCurrent">
+              <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
+            </div>
+            <div
+              v-if="drag.neighbor && neighborView"
+              class="stage__pane stage__pane--neighbor"
+              :style="paneStyleNeighbor"
+            >
+              <component
+                :is="neighborView"
+                :key="drag.neighbor"
+                :greeting-name="greeting"
+                @navigate="go"
+              />
+            </div>
+          </template>
+          <Transition
+            v-else
+            :name="transitionName"
+            :mode="slideDir === 'none' ? 'out-in' : 'default'"
+          >
+            <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
+          </Transition>
+        </div>
       </main>
 
       <div v-else-if="!booted" class="boot">

@@ -12,7 +12,7 @@
  */
 
 import { execFile, execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -161,6 +161,25 @@ try {
 
 // 先同步前端资产，确保 APK 里是最新产物
 console.log('\n--- 同步前端资产 ---');
+
+/** Windows 下目录可能被杀软/索引器短暂占用，rename 会 EPERM；重试几次。 */
+function archivePublic(publicDir) {
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const archive = join(root, `dist-old-android-${Date.now().toString(36)}-${attempt}`);
+      renameSync(publicDir, archive);
+      return archive;
+    } catch {
+      const end = Date.now() + 250;
+      while (Date.now() < end) {
+        /* 同步等待后重试 */
+      }
+    }
+  }
+  return null;
+}
+
+let archived = false;
 try {
   /*
    * 把旧 public 改名归档，而不是删除：
@@ -169,9 +188,14 @@ try {
    */
   const publicDir = join(root, 'android', 'app', 'src', 'main', 'assets', 'public');
   if (existsSync(publicDir)) {
-    const archive = join(root, `dist-old-android-${Date.now().toString(36)}`);
-    renameSync(publicDir, archive);
-    record('旧 Android 资源已归档', true, archive.replace(`${root}\\`, ''));
+    const archive = archivePublic(publicDir);
+    if (archive) {
+      archived = true;
+      record('旧 Android 资源已归档', true, archive.replace(`${root}\\`, ''));
+    } else {
+      // 重试仍被占用：不归档，靠 cap sync + 强制覆盖 + 哈希校验兜底
+      record('旧资源归档失败（被占用），改用覆盖模式', true);
+    }
   }
   // Windows 上 .cmd 不能被 execFileSync 直接启动（EINVAL），必须走 shell
   execFileSync('npx', ['cap', 'sync', 'android'], {
@@ -180,6 +204,10 @@ try {
     stdio: 'inherit',
     shell: true,
   });
+  if (!archived) {
+    // Capacitor 在 Windows 上可能不覆盖已存在的 assets 子目录：强制覆盖一遍
+    cpSync(join(root, webOut), publicDir, { recursive: true, force: true });
+  }
   record('cap sync 成功', true);
 } catch (e) {
   record('cap sync 成功', false, String(e).slice(0, 120));

@@ -6,7 +6,13 @@
  * - 页面中部横向拖动 = 切上一页 / 下一页；
  * - 竖向为主 = 用户想滚动，立刻放弃。
  *
- * 横向滚动容器（.scroll-x）、输入框内起手也不接管。
+ * 嵌套横滑：页面内的小标签（.scroll-x）优先滚动，
+ * 只有内层已经在边界上，这次手势才交给切页。
+ *
+ * 两种模式：
+ * - 跟手：提供 onDragStart/onDragMove/onDragEnd 时，拖动过程实时回报位移，
+ *   松手由外部决定切页还是回弹（页面跟着手指走）；
+ * - 兜底：不提供时松手超过阈值才触发 onNext/onPrev。
  */
 
 import { onBeforeUnmount, onMounted } from 'vue';
@@ -27,6 +33,11 @@ interface TabSwipeOptions {
   enabled: () => boolean;
   onNext: () => void;
   onPrev: () => void;
+  /** 提供即进入"跟手"模式：实时回报位移，松手由外部决定切页/回弹。 */
+  onDragStart?: (dir: 'next' | 'prev') => void;
+  onDragMove?: (dx: number) => void;
+  onDragEnd?: (dx: number, dir: 'next' | 'prev') => void;
+  onDragCancel?: () => void;
   threshold?: number;
   edge?: number;
 }
@@ -34,12 +45,15 @@ interface TabSwipeOptions {
 export function useTabSwipe(options: TabSwipeOptions): void {
   const threshold = options.threshold ?? 56;
   const edge = options.edge ?? 28;
+  const dragMode = Boolean(options.onDragStart && options.onDragEnd);
 
   let tracking = false;
   let startX = 0;
   let startY = 0;
   let dx = 0;
   let dy = 0;
+  /** 方向锁定：第一次明显横移后不再变，避免左右抖动时页面来回跳。 */
+  let dirLocked: 'next' | 'prev' | null = null;
   /** 本次手势起点所在的横向滚动容器（页面内的小标签条）。 */
   let scroller: HTMLElement | null = null;
   let atLeftStart = true;
@@ -49,9 +63,16 @@ export function useTabSwipe(options: TabSwipeOptions): void {
     tracking = false;
     dx = 0;
     dy = 0;
+    dirLocked = null;
     scroller = null;
     atLeftStart = true;
     atRightStart = true;
+  }
+
+  function cancelDrag(): void {
+    const wasDragging = dirLocked !== null;
+    reset();
+    if (wasDragging) options.onDragCancel?.();
   }
 
   function onStart(event: TouchEvent): void {
@@ -87,46 +108,71 @@ export function useTabSwipe(options: TabSwipeOptions): void {
   }
 
   function onMove(event: TouchEvent): void {
-    if (!tracking || event.touches.length !== 1) return;
+    if (!tracking || event.touches.length !== 1) {
+      console.log('[swipe:skip]', tracking, event.touches.length);
+      return;
+    }
     const touch = event.touches[0]!;
     dx = touch.clientX - startX;
     dy = touch.clientY - startY;
     // 竖向为主：交还滚动
-    if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) reset();
+    if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) {
+      cancelDrag();
+      return;
+    }
 
     if (scroller) {
       // 手指左滑 = 内容往右滚（scrollLeft 增大）；没到最右就先给内层
       if (dx < 0 && !atRightStart) {
-        reset();
+        cancelDrag();
         return;
       }
       // 手指右滑 = 内容往左滚；没到最左就先给内层
       if (dx > 0 && !atLeftStart) {
-        reset();
+        cancelDrag();
         return;
       }
     }
+
+    // 锁定方向后进入跟手回报
+    if (dirLocked === null && Math.abs(dx) > 8) {
+      dirLocked = dx < 0 ? 'next' : 'prev';
+      options.onDragStart?.(dirLocked);
+    }
+    if (dirLocked) options.onDragMove?.(dx);
   }
 
   function onEnd(): void {
     if (!tracking) return;
-    const direction = resolveTabSwipe(dx, dy, threshold);
+    const locked = dirLocked;
+    const lastDx = dx;
+    const lastDy = dy;
     reset();
+    if (dragMode && locked) {
+      options.onDragEnd?.(lastDx, locked);
+      return;
+    }
+    const direction = resolveTabSwipe(lastDx, lastDy, threshold);
     if (direction === 'next') options.onNext();
     if (direction === 'prev') options.onPrev();
+  }
+
+  function onCancel(): void {
+    if (!tracking) return;
+    cancelDrag();
   }
 
   onMounted(() => {
     window.addEventListener('touchstart', onStart, { passive: true });
     window.addEventListener('touchmove', onMove, { passive: true });
     window.addEventListener('touchend', onEnd, { passive: true });
-    window.addEventListener('touchcancel', reset, { passive: true });
+    window.addEventListener('touchcancel', onCancel, { passive: true });
   });
 
   onBeforeUnmount(() => {
     window.removeEventListener('touchstart', onStart);
     window.removeEventListener('touchmove', onMove);
     window.removeEventListener('touchend', onEnd);
-    window.removeEventListener('touchcancel', reset);
+    window.removeEventListener('touchcancel', onCancel);
   });
 }
