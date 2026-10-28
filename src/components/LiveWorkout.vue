@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { store } from '../store/appStore';
 import { exerciseName, EXERCISES, MUSCLES } from '../content/exercises';
 import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from '../domain/units';
+import { formatPlates, solvePlates } from '../domain/plates';
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { completionSummary, shouldDefaultCredit } from '../domain/completion';
 import { suggestNextLoad } from '../domain/next-load';
@@ -287,6 +288,25 @@ function targetHint(ex: { exerciseId: string; targetSets: number; repMin: number
   if (mode === 'reps') return '目标 ' + ex.targetSets + ' 组 × ' + ex.repMin + '–' + ex.repMax + ' 次（自重）';
   return '目标 ' + ex.targetSets + ' 组 × ' + ex.repMin + '–' + ex.repMax + ' 次';
 }
+
+/**
+ * 杠铃片提示。
+ *
+ * Hevy / Strong 都有：加重量时不用心算"每边挂多少"。
+ * 只对杠铃动作显示；解不出精确重量时如实说明实际是多少，
+ * 而不是显示一个看起来正好、其实挂不出来的数字。
+ */
+const plateHint = computed(() => {
+  const ex = activeExercise.value;
+  if (!ex) return null;
+  const def = EXERCISES.find((e) => e.id === ex.exerciseId);
+  if (def?.equipment !== '杠铃') return null;
+  const work = ex.sets.filter((s) => s.kind === 'work');
+  const load = work.find((s) => (s.loadGrams ?? 0) > 0)?.loadGrams ?? null;
+  if (!load) return null;
+  const r = solvePlates(load);
+  return { perSide: formatPlates(r.perSide), exact: r.exact, achieved: r.achievedGrams };
+});
 
 
 /**
@@ -602,6 +622,13 @@ const progress = computed(() => {
           <p class="label">{{ MUSCLES.find((m) => m.id === EXERCISES.find((e) => e.id === activeExercise!.exerciseId)?.group)?.label }}</p>
           <h2 class="h2">{{ exerciseName(activeExercise.exerciseId) }}</h2>
           <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · {{ targetHint(activeExercise) }}</p>
+          <!-- 杠铃片：每边挂多少 -->
+          <p v-if="plateHint" class="tiny live__plates">
+            每边 {{ plateHint.perSide }}
+            <span v-if="!plateHint.exact" class="live__plates-warn">
+              · 实际 {{ (plateHint.achieved / 1000).toFixed(1) }} kg
+            </span>
+          </p>
           <p class="tiny live__counts">
             已完成 {{ setCounts.done }} · 跳过 {{ setCounts.skipped }} · 未记录 {{ setCounts.pending }}
           </p>
@@ -1498,6 +1525,15 @@ const progress = computed(() => {
   margin-top: 8px;
   color: var(--text-2);
 }
+.live__plates {
+  color: var(--lime-ink);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.live__plates-warn {
+  color: var(--clay);
+}
 </style>
 
 
@@ -1546,3 +1582,4 @@ const progress = computed(() => {
   font-size: 10px;
   letter-spacing: 0;
 }
+

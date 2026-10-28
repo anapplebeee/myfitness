@@ -88,7 +88,7 @@ test.describe('今日空状态 · 不显示 0 与默认目标', () => {
     // 第二步取消"保留示例数据"，即真正的从零开始
     await page.getByRole('button', { name: /知道了/ }).click();
     await page.waitForTimeout(300);
-    await page.locator('.onb__check').uncheck();
+    await page.locator('.onb__choice', { hasText: '从空白开始' }).click();
     await page.getByRole('button', { name: '下一步' }).click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: '开始使用' }).click();
@@ -113,3 +113,4 @@ test.describe('训练中 · 让位给这一组', () => {
     await expect(page.locator('.topbar')).toHaveCount(0);
   });
 });
+

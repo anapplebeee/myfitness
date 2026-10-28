@@ -8,6 +8,7 @@ import { formatLoad, formatVolume, shortDate } from '../domain/units';
 import { trendGeometry } from '../domain/trend';
 import AiCoachPanel from '../components/AiCoachPanel.vue';
 import WeeklyReportCard from '../components/WeeklyReportCard.vue';
+import MuscleBalanceCard from '../components/MuscleBalanceCard.vue';
 import {
   bestSet,
   isValidCompleted,
@@ -179,6 +180,9 @@ function groupOf(id: string): string {
         再叠一张全是 0 的卡片等于重复劝退。
       -->
       <WeeklyReportCard v-if="sessions.length" />
+
+      <!-- 容量回答不了"这周胸做了几组"，部位分布来回答 -->
+      <MuscleBalanceCard />
 
     <!-- 空状态：一次训练都没有时，不显示 0 kg 与空榜，直接给下一步 -->
     <section v-if="!sessions.length" class="card coach__blank">

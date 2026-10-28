@@ -228,17 +228,22 @@ test.describe('记录可信度', () => {
     await todayCard.first().click();
     await page.waitForTimeout(1200);
 
-    await page.getByRole('button', { name: '放弃' }).click();
-    await expect(page.locator('.sheet__panel')).toContainText('丢掉这场训练');
+    // 放弃被收进「更多操作」，不再是一级按钮
+    await page.getByRole('button', { name: '更多操作' }).click();
+    await page.getByRole('button', { name: '放弃这场训练' }).click();
+    // 「更多」与「放弃确认」两个面板在动画期间会同时存在，按文案限定
+    await expect(page.locator('.sheet__panel').filter({ hasText: '丢掉这场训练' })).toBeVisible();
     await page.getByRole('button', { name: '继续练' }).click();
     await page.waitForTimeout(400);
     // 仍在训练页，没有丢
     await expect(page.locator('.live')).toBeVisible();
 
-    await page.getByRole('button', { name: '放弃' }).click();
+    await page.getByRole('button', { name: '更多操作' }).click();
+    await page.getByRole('button', { name: '放弃这场训练' }).click();
     await page.getByRole('button', { name: '确认放弃' }).click();
     await page.waitForTimeout(800);
     await expect(page.locator('.live')).toHaveCount(0);
   });
 });
+
 

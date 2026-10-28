@@ -63,6 +63,16 @@ useSheetBack(computed(() => editSetId.value !== null), () => { editSetId.value =
 
 // 必须走响应式查询：更正会整体替换 sessions 数组，旧对象引用不会触发重算
 const session = computed(() => store.sessionById(props.sessionId));
+
+/** 备注只在失焦/回车时保存，不逐字写库——避免每敲一个字都触发一次持久化。 */
+function saveNote(value: string): void {
+  const s = session.value;
+  if (!s) return;
+  const next = value.trim();
+  if (next === s.note) return;
+  store.updateSession(s.id, { note: next });
+  push('备注已保存', 'success');
+}
 const isDeleted = computed(() => Boolean(session.value?.deletedAt));
 const isSelfReported = computed(() => session.value?.completionBasis === 'selfReported');
 const volume = computed(() => (session.value ? sessionVolumeGrams(session.value) : 0));
@@ -242,8 +252,23 @@ function lastHint(exerciseId: string): string {
       <p v-else-if="pending > 0" class="tiny detail__note">
         还有 {{ pending }} 个计划组没有录入，未录组不会自动算完成。
       </p>
+      <!--
+        训练备注。
+        Session.note 字段一直存在，但没有任何入口——器械设置、疼痛、
+        状态这些只有当场记得住的信息无处可写，等于白留了这个字段。
+      -->
+      <div v-if="!isDeleted" class="detail__notebox">
+        <label class="tiny detail__notelabel" for="session-note">备注</label>
+        <textarea
+          id="session-note"
+          class="input detail__noteinput"
+          rows="2"
+          placeholder="器械档位、疼痛、状态…"
+          :value="session.note"
+          @change="saveNote(($event.target as HTMLTextAreaElement).value)"
+        />
+      </div>
     </section>
-
     <div class="row gap-8 wrap">
       <button class="btn btn--ghost btn--sm" @click="openDateSheet">更正日期</button>
       <!--
@@ -607,7 +632,24 @@ function lastHint(exerciseId: string): string {
 .creditrow.is-on {
   background: rgba(201, 245, 63, 0.18);
 }
+.detail__notebox {
+  margin-top: 14px;
+}
+
+.detail__notelabel {
+  display: block;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.detail__noteinput {
+  width: 100%;
+  resize: vertical;
+  min-height: 56px;
+  font-family: inherit;
+}
 </style>
+
 
 
 
