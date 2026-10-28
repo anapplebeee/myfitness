@@ -8,7 +8,7 @@ import { weightTrendTone } from '../domain/weight';
 import { ageFromBirthYear, mifflinStJeor } from '../domain/bmr';
 import { computeTargets } from '../domain/nutrition-policy';
 import { ACTIVITY_FACTORS } from '../domain/nutrition-policy';
-import { shortDate, weekdayLabel } from '../domain/units';
+import { shortDate, weekdayLabel, businessDate } from '../domain/units';
 import { trainingCount } from '../domain/metrics';
 import { useToast } from '../composables/useToast';
 import { useSheetBack } from '../composables/useBackLayer';
@@ -17,6 +17,7 @@ import { applyTheme, loadThemePref, saveThemePref, type ThemePref } from '../sto
 import { normalizeReminders, validTime } from '../domain/reminders';
 import { useReminders } from '../composables/useReminders';
 import { restNotifyEnabled, setRestNotifyEnabled } from '../composables/useRestNotification';
+import { adaptiveTdeeFromState, adaptiveTdeeHint } from '../domain/adaptive-tdee';
 
 import { ALLERGEN_CODES } from '../content/allergens';
 
@@ -57,6 +58,16 @@ function toggleRestNotify(on: boolean): void {
   setRestNotifyEnabled(on);
   restNotify.value = on;
 }
+
+/*
+ * 自适应 TDEE：用近 4 周体重变化反推真实维持热量。
+ *
+ * 静态公式（Mifflin-St Jeor × 活动系数）误差常有 ±300–500 kcal，
+ * 而我们有体重记录与每日摄入，可以直接反推。
+ * 数据不足时宁可说"还缺什么"，也不给一个看起来精确的数字。
+ */
+const adaptive = computed(() => adaptiveTdeeFromState(store.state, businessDate(), 28));
+const adaptiveHint = computed(() => adaptiveTdeeHint(adaptive.value));
 
 function setWaterInterval(raw: string): void {
   store.updateReminders({ waterIntervalMin: Number(raw) });
@@ -548,6 +559,14 @@ function clearNutrition(): void {
             </button>
           </div>
         </div>
+
+        <!--
+          实测维持热量：有足够数据才给数值，否则只说缺什么，不猜。
+          它和上面"按身体数据估算"是两种口径：那个是公式推算，这个是实测反推。
+        -->
+        <p class="tiny adaptive" :class="{ 'adaptive--ok': adaptive.maintenanceKcal !== null }">
+          {{ adaptiveHint }}
+        </p>
       </section>
 
       <GoalsPanel />
@@ -1194,7 +1213,17 @@ function clearNutrition(): void {
   color: var(--clay);
   line-height: 1.5;
 }
+.adaptive {
+  margin-top: 10px;
+  color: var(--text-3);
+}
+
+.adaptive--ok {
+  color: var(--lime-ink);
+  font-weight: 600;
+}
 </style>
+
 
 
 
