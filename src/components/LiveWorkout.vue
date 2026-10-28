@@ -8,6 +8,7 @@ import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCo
 import { completionSummary, shouldDefaultCredit } from '../domain/completion';
 import { suggestNextLoad } from '../domain/next-load';
 import { useRestTimer } from '../composables/useRestTimer';
+import { armRestNotification, disarmRestNotification } from '../composables/useRestNotification';
 import { useToast } from '../composables/useToast';
 import ExerciseDemo from './ExerciseDemo.vue';
 import { setSummary } from '../domain/tracking';
@@ -36,7 +37,10 @@ onMounted(() => {
   const endsAt = session.value?.restEndsAt;
   if (endsAt) {
     const ms = new Date(endsAt).getTime();
-    if (Number.isFinite(ms) && ms > Date.now()) rest.restore(ms);
+    if (Number.isFinite(ms) && ms > Date.now()) {
+      rest.restore(ms);
+      void armRestNotification(ms);
+    }
   }
 });
 onBeforeUnmount(() => {
@@ -45,6 +49,8 @@ onBeforeUnmount(() => {
     window.clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
+  // 离开训练现场时清掉待触发的休息通知，避免"已经不在练了还弹"
+  void disarmRestNotification();
 });
 const session = computed(() => store.findSession(props.sessionId));
 const rest = useRestTimer();
@@ -353,6 +359,8 @@ async function complete(exId: string, set: SetRecord): Promise<void> {
   }
   if (ex) {
     rest.start(ex.restSeconds);
+rest.start(ex.restSeconds);
+  void armRestNotification(rest.endsAtMs());
     syncRestPersist();
   }
   push('已保存本组', 'success');
@@ -594,7 +602,7 @@ const progress = computed(() => {
         </div>
         <div class="row gap-6">
           <button class="btn btn--ghost btn--sm rest__btn" @click="rest.add(30); syncRestPersist()">+30s</button>
-          <button class="btn btn--lime btn--sm" @click="rest.stop(); syncRestPersist()">跳过</button>
+<button class="btn btn--lime btn--sm" @click="rest.stop(); syncRestPersist(); disarmRestNotification()">跳过</button>
         </div>
       </div>
     </Transition>

@@ -16,6 +16,7 @@ import { clearCacheAndReload, listCacheNames } from '../store/cacheControl';
 import { applyTheme, loadThemePref, saveThemePref, type ThemePref } from '../store/theme';
 import { normalizeReminders, validTime } from '../domain/reminders';
 import { useReminders } from '../composables/useReminders';
+import { restNotifyEnabled, setRestNotifyEnabled } from '../composables/useRestNotification';
 
 import { ALLERGEN_CODES } from '../content/allergens';
 
@@ -47,6 +48,14 @@ function setReminderTime(key: 'workoutTime' | 'waterStart' | 'waterEnd', value: 
   if (!validTime(value)) return;
   store.updateReminders({ [key]: value });
   void applyReminderSchedule();
+}
+
+const restNotify = ref(restNotifyEnabled());
+
+/* 组间提醒是设备偏好，不进 AppState：它不随快照同步，也不该导出给别的设备。 */
+function toggleRestNotify(on: boolean): void {
+  setRestNotifyEnabled(on);
+  restNotify.value = on;
 }
 
 function setWaterInterval(raw: string): void {
@@ -677,6 +686,20 @@ function clearNutrition(): void {
               :value="reminders.workoutTime"
               @change="setReminderTime('workoutTime', ($event.target as HTMLInputElement).value)"
             />
+          </label>
+        </div>
+
+        <div class="reminder">
+          <label class="reminder__row">
+            <input
+              type="checkbox"
+              :checked="restNotify"
+              @change="toggleRestNotify(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="reminder__text">
+              <span class="h3">组间休息提醒</span>
+              <span class="tiny">休息结束时提醒，锁屏也能收到（装成 App 后）</span>
+            </span>
           </label>
         </div>
 

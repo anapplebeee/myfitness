@@ -10,6 +10,7 @@
 | #6 | 杠铃片计算器 | 完成 |
 | #11 | 肌群周组数 | 完成 |
 | #9 | 训练备注 | 完成（字段早已存在，一直无入口） |
+| #10 | 组间休息通知 | 完成（原生 + 网页双通路） |
 
 ### #6 杠铃片计算
 
@@ -65,3 +66,26 @@
 - #10 组间本地通知 + 锁屏计时（原生能力）
 - #12–14 小组件 / 健康平台 / 成就
 - #16–20 账号、支付、帮助中心、多语言、桌面布局
+
+### #10 组间休息通知
+
+`src/composables/useRestNotification.ts`，7 项测试。
+
+两条通路，与 reminders 的分工一致：
+
+- **原生**：Capacitor Local Notifications 按结束时间戳排一条一次性通知，
+  **App 在后台/关闭也能响**；改时间（+30 秒）取消重排，跳过休息则取消。
+- **网页**：页面开着时才有效，用 setTimeout + Notification API，
+  且**只在页面不可见时弹**——页面上本来就有倒计时，再弹一次是骚扰。
+
+实现要点：
+- 固定同一个通知 id（9101）。换 id 会在改时间后留下孤儿通知。
+- 结束时间已过就不排，避免"现在就去练"这种无意义通知。
+- 排程失败静默：通知能力不该影响训练流程。
+- 离开训练现场时取消待触发通知，避免"已经不在练了还弹"。
+- 开关存在 localStorage（`lianji.restNotify`），**不进 AppState**：
+  设备偏好不该跟着快照同步，也不该导出给别的设备。
+
+Android 侧：`POST_NOTIFICATIONS` / `SCHEDULE_EXACT_ALARM` /
+`RECEIVE_BOOT_COMPLETED` 权限已具备，`npx cap sync android` 已确认
+`@capacitor/local-notifications@8.3.1` 进入原生工程。
