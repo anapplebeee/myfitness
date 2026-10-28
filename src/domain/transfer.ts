@@ -115,6 +115,11 @@ export interface ExportEnvelope {
     customTemplates: AppState['customTemplates'];
     /** 用户设定的目标（体重/力量/频率）。可缺省以兼容旧导出文件。 */
     goals?: AppState['goals'];
+    /** 饮水记录。可缺省以兼容旧导出文件（旧文件没有饮水）。 */
+    water?: AppState['water'];
+    waterGoalMl?: number;
+    /** 提醒设置。属于用户偏好，换机恢复时应一起带走。 */
+    reminders?: AppState['reminders'];
     activeTemplateId: string | null;
     activeTemplateSince: string | null;
     bodyGoalGrams: number | null;
@@ -145,6 +150,14 @@ function pickRecords(state: AppState): ExportEnvelope['records'] {
     // 目标是用户显式设定的内容，属于业务数据，必须随导出带走；
     // 之前漏了这一行，导致导出→导入后目标静默消失。
     goals: canonicalize(state.goals) as AppState['goals'],
+    /*
+     * 饮水与提醒必须随导出带走。
+     * 之前漏了 water：用户按"完整备份"导出，换机导入后饮水记录全没了，
+     * 备份承诺不成立。
+     */
+    water: canonicalize(state.water ?? []) as AppState['water'],
+    waterGoalMl: state.waterGoalMl,
+    reminders: state.reminders,
     activeTemplateId: state.activeTemplateId,
     activeTemplateSince: state.activeTemplateSince,
     bodyGoalGrams: state.bodyGoalGrams,
@@ -465,6 +478,10 @@ export function applyImport(
         weekGoals: rec.weekGoals ?? [],
         customTemplates: rec.customTemplates ?? [],
         goals: goalList,
+        /* 旧导出文件没有饮水/提醒字段时保留本地，不能因为一次导入就清空 */
+        water: Array.isArray(rec.water) ? rec.water : current.water,
+        waterGoalMl: typeof rec.waterGoalMl === 'number' ? rec.waterGoalMl : current.waterGoalMl,
+        reminders: rec.reminders ?? current.reminders,
         activeTemplateId: rec.activeTemplateId ?? null,
         activeTemplateSince: rec.activeTemplateSince ?? null,
         bodyGoalGrams: rec.bodyGoalGrams ?? null,
@@ -481,7 +498,8 @@ export function applyImport(
       added:
         (rec.sessions?.length ?? 0) +
         (rec.weights?.length ?? 0) +
-        (rec.foods?.length ?? 0),
+        (rec.foods?.length ?? 0) +
+        (rec.water?.length ?? 0),
       skipped: 0,
       conflicts: preview.conflicts.length,
       backup: current,
@@ -565,6 +583,18 @@ export function applyImport(
     }
   }
 
+  /* 饮水按条目 id 去重合并：换机导入/两份备份合并都不能丢记录 */
+  const waterIds = new Set((current.water ?? []).map((w) => w.id));
+  const nextWater = [...(current.water ?? [])];
+  for (const incoming of rec.water ?? []) {
+    if (!waterIds.has(incoming.id)) {
+      waterIds.add(incoming.id);
+      nextWater.push(incoming);
+    } else {
+      skipped += 1;
+    }
+  }
+
   /*
    * goals 的处理：
    * - 文件带 goals 数组 → 按目标类型去重后合并（用户目标是持久意图，不是派生值）
@@ -592,6 +622,10 @@ export function applyImport(
       weekGoals: nextGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : a.weekStart > b.weekStart ? 1 : 0)),
       customTemplates: nextTpl,
       goals: nextUserGoals,
+      water: nextWater,
+      /* 目标与提醒是"当前设置"，合并时以文件为准；文件没有则保留本地 */
+      waterGoalMl: typeof rec.waterGoalMl === 'number' ? rec.waterGoalMl : current.waterGoalMl,
+      reminders: rec.reminders ?? current.reminders,
     },
     // 统计口径必须覆盖全部实体类型，否则导入 10 条安排会显示"新增 0"
     added:
@@ -599,7 +633,8 @@ export function applyImport(
       (nextOcc.length - current.occurrences.length) +
       (nextGoals.length - current.weekGoals.length) +
       (nextTpl.length - current.customTemplates.length) +
-      (nextUserGoals.length - current.goals.length),
+      (nextUserGoals.length - current.goals.length) +
+      (nextWater.length - (current.water?.length ?? 0)),
     skipped,
     conflicts: preview.conflicts.length,
     backup: null,

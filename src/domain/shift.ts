@@ -10,8 +10,14 @@
  * - next-week：放进下周（同星期几优先，占用则找下周第一个空位）。
  */
 
-import type { PlannedOccurrence, WeekGoal } from './week';
-import { initialWeekGoal } from './week';
+import type { Session } from './types';
+import {
+  canDispose,
+  initialWeekGoal,
+  isValidCompletedSession,
+  type PlannedOccurrence,
+  type WeekGoal,
+} from './week';
 import { addDays } from './units';
 
 export type ShiftScope = 'day' | 'tail';
@@ -26,6 +32,8 @@ export interface ShiftPreview {
   overflow: PlannedOccurrence[];
   /** 因冲突被连带移动的项数（不含起始日） */
   cascaded: number;
+  /** 有完成/进行中会话、因此不能移动的项数 */
+  locked: number;
   error?: string;
 }
 
@@ -35,11 +43,35 @@ export interface ShiftResult {
   moved: number;
   dropped: number;
   toNextWeek: number;
+  /** 已完成/进行中、被跳过的项数 */
+  locked: number;
   error?: string;
 }
 
 function active(occurrences: PlannedOccurrence[]): PlannedOccurrence[] {
   return occurrences.filter((o) => o.disposition === 'scheduled');
+}
+
+/**
+ * 已发生的事实不能随计划后移。
+ *
+ * 复用 week.ts 的 canDispose（进行中的场次不能改计划），
+ * 再补上"已完成"这一条：已完成项目后移会把原周的完成数改掉，
+ * 用户练过的训练被重新解释。
+ */
+function lockedIds(occurrences: PlannedOccurrence[], sessions: Session[]): Set<string> {
+  const locked = new Set<string>();
+  for (const o of occurrences) {
+    if (!canDispose(o, sessions).ok) {
+      locked.add(o.id);
+      continue;
+    }
+    const done = sessions.some(
+      (s) => !s.deletedAt && s.occurrenceId === o.id && isValidCompletedSession(s),
+    );
+    if (done) locked.add(o.id);
+  }
+  return locked;
 }
 
 /** 本周最后一天（周日）。 */
@@ -56,8 +88,13 @@ export function previewShift(
   weekStart: string,
   scope: ShiftScope,
   date: string,
+  sessions: Session[] = [],
 ): ShiftPreview {
-  const inWeekActive = active(occurrences).filter((o) => o.weekStart === weekStart);
+  const locked = lockedIds(occurrences, sessions);
+  const weekActive = active(occurrences).filter((o) => o.weekStart === weekStart);
+  // 已完成/进行中的项不参与后移，只统计给界面提示
+  const inWeekActive = weekActive.filter((o) => !locked.has(o.id));
+  const lockedInWeek = weekActive.filter((o) => locked.has(o.id));
   const byDate = new Map<string, PlannedOccurrence[]>();
   for (const o of inWeekActive) {
     const list = byDate.get(o.scheduledDate) ?? [];
@@ -65,30 +102,58 @@ export function previewShift(
     byDate.set(o.scheduledDate, list);
   }
 
-  if (!byDate.has(date)) {
-    return { scope, date, moving: [], overflow: [], cascaded: 0, error: '这一天没有可后移的安排' };
-  }
-
-  let moving: PlannedOccurrence[];
-  if (scope === 'tail') {
-    moving = inWeekActive.filter((o) => o.scheduledDate >= date);
-  } else {
-    // 链式冲突：date、date+1… 连续被占用的日期都要各后移一天
-    const chain: string[] = [];
-    let cursor = date;
-    while (byDate.has(cursor) && chain.length < 7) {
-      chain.push(cursor);
-      cursor = addDays(cursor, 1);
-    }
-    const chainSet = new Set(chain);
-    moving = inWeekActive.filter((o) => chainSet.has(o.scheduledDate));
-  }
-
   const weekEnd = weekEndOf(weekStart);
-  const overflow = moving.filter((o) => addDays(o.scheduledDate, 1) > weekEnd);
-  const cascaded = scope === 'day' ? Math.max(0, moving.length - (byDate.get(date)?.length ?? 0)) : 0;
 
-  return { scope, date, moving, overflow, cascaded };
+  /*
+   * 整体后移：从 date 起所有"还能动"的项各 +1。
+   * 起始日本身已经完成也没关系——那是已发生的事实，留在原位，
+   * 后面还没做的照常往后推。
+   */
+  if (scope === 'tail') {
+    const moving = inWeekActive.filter((o) => o.scheduledDate >= date);
+    if (!moving.length) {
+      const lockedOnDate = lockedInWeek.some((o) => o.scheduledDate === date);
+      return {
+        scope,
+        date,
+        moving: [],
+        overflow: [],
+        cascaded: 0,
+        locked: lockedInWeek.length,
+        error: lockedOnDate ? '这一天已完成，本周没有可后移的安排' : '这一天之后没有可后移的安排',
+      };
+    }
+    const overflow = moving.filter((o) => addDays(o.scheduledDate, 1) > weekEnd);
+    return { scope, date, moving, overflow, cascaded: 0, locked: lockedInWeek.length };
+  }
+
+  // 单日后移：这一天必须还有可移动项；整天都完成时明确拒绝
+  if (!byDate.has(date)) {
+    const lockedOnDate = lockedInWeek.some((o) => o.scheduledDate === date);
+    return {
+      scope,
+      date,
+      moving: [],
+      overflow: [],
+      cascaded: 0,
+      locked: lockedInWeek.length,
+      error: lockedOnDate ? '这一天已完成，不能后移' : '这一天没有可后移的安排',
+    };
+  }
+
+  // 链式冲突：date、date+1… 连续被占用的日期都要各后移一天
+  const chain: string[] = [];
+  let cursor = date;
+  while (byDate.has(cursor) && chain.length < 7) {
+    chain.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+  const chainSet = new Set(chain);
+  const moving = inWeekActive.filter((o) => chainSet.has(o.scheduledDate));
+  const overflow = moving.filter((o) => addDays(o.scheduledDate, 1) > weekEnd);
+  const cascaded = Math.max(0, moving.length - (byDate.get(date)?.length ?? 0));
+
+  return { scope, date, moving, overflow, cascaded, locked: lockedInWeek.length };
 }
 
 /** 在下周找一个空位：优先同星期几，被占则从周一起找第一个空位。 */
@@ -120,11 +185,21 @@ export function applyShift(options: {
   strategy: OverflowStrategy;
   recordedAt: string;
   idFactory: (prefix: string) => string;
+  /** 关联会话：已完成/进行中的项不参与后移 */
+  sessions?: Session[];
 }): ShiftResult {
   const { weekStart, scope, date, strategy, recordedAt, idFactory } = options;
-  const preview = previewShift(options.occurrences, weekStart, scope, date);
+  const preview = previewShift(options.occurrences, weekStart, scope, date, options.sessions ?? []);
   if (preview.error) {
-    return { occurrences: options.occurrences, goals: options.goals, moved: 0, dropped: 0, toNextWeek: 0, error: preview.error };
+    return {
+      occurrences: options.occurrences,
+      goals: options.goals,
+      moved: 0,
+      dropped: 0,
+      toNextWeek: 0,
+      locked: preview.locked,
+      error: preview.error,
+    };
   }
 
   const movingIds = new Set(preview.moving.map((o) => o.id));
@@ -203,5 +278,5 @@ export function applyShift(options: {
     }
   }
 
-  return { occurrences, goals, moved: preview.moving.length, dropped, toNextWeek };
+  return { occurrences, goals, moved: preview.moving.length, dropped, toNextWeek, locked: preview.locked };
 }

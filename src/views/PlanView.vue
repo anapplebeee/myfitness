@@ -160,7 +160,12 @@ function requestShift(scope: ShiftScope): void {
     push(error, 'error');
     return;
   }
-  push(`已后移 ${preview.moving.length} 项`, 'success');
+  push(
+    preview.locked > 0
+      ? `已后移 ${preview.moving.length} 项；${preview.locked} 项已完成，未移动`
+      : `已后移 ${preview.moving.length} 项`,
+    'success',
+  );
   closeActions();
 }
 

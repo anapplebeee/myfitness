@@ -29,6 +29,8 @@ export interface Snapshot {
      */
     water?: AppState['water'];
     waterGoalMl?: number;
+    /** 提醒设置。换机恢复时跟随快照；设备侧会按它重新排程。 */
+    reminders?: AppState['reminders'];
     occurrences: AppState['occurrences'];
     weekGoals: AppState['weekGoals'];
     customTemplates: AppState['customTemplates'];
@@ -76,6 +78,7 @@ export function buildSnapshot(
       // 只有真的有饮水数据才写字段，避免旧数据哈希被改变
       ...(state.water?.length ? { water: byId(state.water) } : {}),
       ...(state.waterGoalMl ? { waterGoalMl: state.waterGoalMl } : {}),
+      ...(state.reminders ? { reminders: state.reminders } : {}),
       occurrences: byId(state.occurrences),
       weekGoals: byId(state.weekGoals),
       customTemplates: byId(state.customTemplates),

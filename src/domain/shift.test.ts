@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { applyShift, previewShift } from './shift';
+import type { Session } from './types';
 import type { PlannedOccurrence, WeekGoal } from './week';
 
 const WEEK = '2026-10-26'; // 周一，周日 = 2026-11-01
+
+/** 造一个"已完成"的关联会话：shift 不能移动它。 */
+function doneSession(occId: string): Session {
+  return {
+    id: `s_${occId}`,
+    occurrenceId: occId,
+    status: 'completed',
+    exercises: [{ sets: [{ kind: 'work', status: 'completed' }] }],
+  } as unknown as Session;
+}
 
 function occ(
   id: string,
@@ -137,6 +148,29 @@ describe('applyShift', () => {
   it('没有可移动项时原样返回并报错', () => {
     const r = run([occ('a', '2026-10-27')], { date: '2026-10-26' });
     expect(r.error).toBeTruthy();
+    expect(r.moved).toBe(0);
+  });
+
+  it('已完成项目不参与后移：原周完成数不会被改写', () => {
+    const list = [occ('done', '2026-10-26'), occ('b', '2026-10-27')];
+    const r = run(list, {
+      scope: 'tail',
+      date: '2026-10-26',
+      sessions: [doneSession('done')],
+      goals: [goal(WEEK, 2)],
+    });
+    const byId = Object.fromEntries(r.occurrences.map((o) => [o.id, o.scheduledDate]));
+    expect(byId.done).toBe('2026-10-26');
+    expect(byId.b).toBe('2026-10-28');
+    expect(r.locked).toBe(1);
+  });
+
+  it('整天的安排都已完成时拒绝后移，并说明原因', () => {
+    const r = run([occ('done', '2026-10-26')], {
+      date: '2026-10-26',
+      sessions: [doneSession('done')],
+    });
+    expect(r.error).toContain('已完成');
     expect(r.moved).toBe(0);
   });
 });

@@ -773,7 +773,7 @@ export const store = {
 
   /** 预览后移：不落库，用来判断是否需要让用户选"减少一天 / 加入下周"。 */
   previewPlanShift(scope: ShiftScope, date: string): ShiftPreview {
-    return previewShift(state.occurrences, weekStartOf(date), scope, date);
+    return previewShift(state.occurrences, weekStartOf(date), scope, date, state.sessions);
   },
 
   applyPlanShift(scope: ShiftScope, date: string, strategy: OverflowStrategy): string | null {
@@ -786,6 +786,8 @@ export const store = {
       strategy,
       recordedAt: new Date().toISOString(),
       idFactory: uid,
+      // 已完成的安排不能随计划移动，否则原周完成数会被改写
+      sessions: [...state.sessions],
     });
     if (result.error) return result.error;
     state.occurrences = result.occurrences;
@@ -1099,6 +1101,14 @@ export const store = {
     assign('bodyGoalGrams', r.bodyGoalGrams);
     assign('targetKcal', r.targetKcal);
     assign('targetProtein', r.targetProtein);
+    /*
+     * 饮水与提醒也要应用。
+     * 之前快照里有 water、这里却漏了赋值：远端 900ml 应用成功后本机仍是 300ml，
+     * "换机恢复"承诺不成立。
+     */
+    assign('water', r.water);
+    assign('waterGoalMl', r.waterGoalMl);
+    assign('reminders', r.reminders);
     assign('weeklyGoal', r.weeklyGoal);
     assign('activeTemplateId', r.activeTemplateId);
     assign('activeTemplateSince', r.activeTemplateSince);
