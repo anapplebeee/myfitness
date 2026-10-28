@@ -47,3 +47,6 @@ dist-apk/*.apk
 
 # 真机 WebView 数据备份（含真实用户数据，禁止入库）
 .phone-backup*.tar
+
+# 测试运行期临时目录
+.tmp/

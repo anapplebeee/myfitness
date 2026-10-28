@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_REMINDERS,
   clampInterval,
+  dueReminders,
   nextWaterAt,
   nextWorkoutAt,
   normalizeReminders,
@@ -99,5 +100,30 @@ describe('normalizeReminders', () => {
 
   it('空输入得到完整默认设置', () => {
     expect(normalizeReminders(null)).toEqual(DEFAULT_REMINDERS);
+  });
+});
+
+describe('dueReminders', () => {
+  const at = (h: number, m: number) => new Date(2026, 9, 27, h, m, 0, 0);
+
+  it('09:00 命中喝水提醒，带当天已喝量', () => {
+    const due = dueReminders(at(9, 0), DEFAULT_REMINDERS, 300);
+    expect(due).toHaveLength(1);
+    expect(due[0]!.kind).toBe('water');
+    expect(due[0]!.body).toContain('300');
+  });
+
+  it('09:01 不在时段点上，不触发', () => {
+    expect(dueReminders(at(9, 1), DEFAULT_REMINDERS)).toEqual([]);
+  });
+
+  it('19:00 命中训练提醒', () => {
+    const due = dueReminders(at(19, 0), DEFAULT_REMINDERS);
+    expect(due.map((d) => d.kind)).toContain('workout');
+  });
+
+  it('关闭提醒后不再触发', () => {
+    const off = { ...DEFAULT_REMINDERS, workoutEnabled: false, waterEnabled: false };
+    expect(dueReminders(at(19, 0), off)).toEqual([]);
   });
 });

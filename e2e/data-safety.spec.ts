@@ -55,7 +55,10 @@ test('双存储写失败时录组不报成功，输入保留并可重试', async
   await page.locator('.set:not(.set--warmup) .set__check').first().click();
   await expect(page.locator('.toast', { hasText: '已保存本组' })).toBeVisible();
   const stored = await idbState(page);
-  const sessions = stored?.sessions as { status: string; exercises: { sets: { status: string; loadGrams: number }[] }[] }[];
+  const sessions = stored?.sessions as {
+    status: string;
+    exercises: { sets: { kind: string; status: string; loadGrams: number }[] }[];
+  }[];
   // sets[0] 现在是热身组，取第一个工作组来断言用户输入被保留
   const work = sessions
     .find((s) => s.status === 'active')

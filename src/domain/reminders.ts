@@ -50,6 +50,45 @@ export function toHhmm(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+export interface DueReminder {
+  kind: 'water' | 'workout';
+  time: string;
+  title: string;
+  body: string;
+}
+
+/**
+ * 判断"现在这一分钟"该触发哪些提醒（纯函数）。
+ *
+ * 网页端没有可靠的系统级定时器，只能前台轮询；把"该不该响"抽成纯函数，
+ * 避免把时间判断散落在适配层里无法测试。
+ */
+export function dueReminders(
+  now: Date,
+  settings: ReminderSettings,
+  waterTotal = 0,
+): DueReminder[] {
+  const hhmm = toHhmm(now.getHours() * 60 + now.getMinutes());
+  const out: DueReminder[] = [];
+  if (settings.waterEnabled && waterTimes(settings).includes(hhmm)) {
+    out.push({
+      kind: 'water',
+      time: hhmm,
+      title: '该喝水了',
+      body: waterTotal > 0 ? `今天已喝 ${waterTotal} ml，再补一杯` : '补一杯水，别等渴了才喝',
+    });
+  }
+  if (settings.workoutEnabled && settings.workoutTime === hhmm) {
+    out.push({
+      kind: 'workout',
+      time: hhmm,
+      title: '该训练了',
+      body: '打开练迹，看一眼今天练什么',
+    });
+  }
+  return out;
+}
+
 /** [start, end] 内每 interval 分钟一次的时刻（含 start，不超过 end）。 */
 export function waterTimes(settings: ReminderSettings): string[] {
   const start = minutesOf(settings.waterStart);

@@ -4,13 +4,14 @@
 > （自重、器械、计时、距离类都支持），不再局限于铁馆这一个场景。
 > 内部标识（包名 app.lianji.fit、存储键 lianji.*）已同步更新，旧数据会自动迁移。
 
-**当前状态（2026-10-27）**
+**当前状态（2026-10-28）**
 
 - 前端已完成 **Vue 3 + Vite + TypeScript** 重写，`src/` 为唯一实现；PWA 可直接部署，Capacitor Android 壳已适配新构建（`webDir: 'dist'`，`applicationId app.lianji.fit`，`versionCode 3` / `versionName 1.2`）。
 - 旧版 demo（`js/`、`css/`、`server.js`、`sw.js`、`android/www`）已在重写中**删除**；根目录 `index.html` 是 Vite 入口，不是旧 demo。
 - 数据安全六项修复已落地（详见 [QA 数据安全](docs/qa/2026-10-26-data-safety-fixes.md)）：落盘前脱离 Vue Proxy 的固定快照、IndexedDB 与 localStorage 双副本带设备保存序号、损坏数据进入恢复阻塞界面、同步以共同基线哈希保护本地修改。
-- 新增**每日饮水**与**本地提醒**：饮水按条记录，今日页显示总量/目标进度与快捷添加；训练与喝水提醒在原生端用 `@capacitor/local-notifications`（App 关闭也能响），网页端在页面打开时生效。详见 [变更日志](CHANGELOG.md)。
-- 测试：**1059 个单元用例（56 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `build`）。
+- 新增**每日饮水**与**本地提醒**：饮水按条记录，今日页显示总量/目标进度与快捷添加；训练与喝水提醒在原生端用 `@capacitor/local-notifications`（App 关闭也能响），网页端在页面打开时前台轮询生效。详见 [变更日志](CHANGELOG.md)。
+- **PWA 可离线冷启动**：`public/sw.js` 预缓存应用外壳与入口资源，断网刷新仍能打开；仅网页生产环境注册，Android 端不注册（assets 已在 APK 内）。旧品牌数据只在**新库为空**时迁移，不会覆盖新记录。
+- 测试：**1140 个单元用例（65 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `build`）。
 - 已知缺口：① **自适应 TDEE 未实现**——仅有静态 `BMR × 活动系数` 估算，按 [00 · v1 基线](docs/00-v1-baseline.md) D06 后置；② **AI 教练 BYOK 在浏览器/PWA 受 CORS 拦截**（[24 · 待研究问题](docs/24-open-questions.md) Q-001，用户明确"后面再研究"）；③ v1 验收（[12 · 验收](docs/12-v1-acceptance.md)）尚未全部点亮。
 
 ## 快速开始
@@ -48,6 +49,7 @@ npm run preview      # 预览 dist/（需先 build）
 | [23 · AI 教练](docs/23-ai-coach.md) | BYOK 方案、密钥边界、草稿校验、采纳流程 |
 | [24 · 待研究问题](docs/24-open-questions.md) | BYOK CORS 等未决项（按时间倒序） |
 | [同步契约](docs/sync-contract.md) | 快照·条件写·幂等，已冻结（G0 阻塞关闭） |
+| [28 · 商业版最小后端设计](docs/28-commercial-backend-mvp.md) | 可选账号、云备份、多设备同步、安全与验收；设计稿，尚未实现 |
 | [内容授权](docs/content/licensing.md) | 开源动作库评估、Unlicense 采用理由、ODbL 为何不采用 |
 | [QA 验收](docs/qa/2026-10-24-acceptance.md) | 逐提交验收、实测数据、发现的问题与放行建议 |
 | [阶段审核](docs/qa/2026-10-25-stage-review.md) | 计划 vs 实际、门禁状态、P0/P1 问题清单 |

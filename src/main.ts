@@ -26,3 +26,19 @@ migrateLegacyStorage();
 initTheme();
 
 createApp(App).mount('#app');
+
+/*
+ * PWA 离线：只在网页生产环境注册 Service Worker。
+ * - 原生端不注册：assets 已在 APK 内，缓存反而可能让版本落后；
+ * - 开发环境不注册：会与 HMR 抢资源。
+ * 离线是增强项，注册失败不影响在线使用。
+ */
+if (
+  import.meta.env.PROD &&
+  'serviceWorker' in navigator &&
+  !(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

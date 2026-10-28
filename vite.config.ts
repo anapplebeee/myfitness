@@ -20,5 +20,13 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    /*
+     * 串行执行测试文件。
+     *
+     * 并行 worker 会同时写同一个 SSR 转换缓存文件（.tmp/<id>/ssr/<hash>），
+     * Windows 上偶发 EPERM 共享冲突，表现为"全部用例通过但 Errors 1"，
+     * 卡住发布门禁。用例量不大，串行的代价远小于门禁不稳。
+     */
+    fileParallelism: false,
   },
 });
