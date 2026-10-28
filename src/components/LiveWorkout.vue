@@ -5,6 +5,7 @@ import { exerciseName, EXERCISES, MUSCLES } from '../content/exercises';
 import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { completionSummary, shouldDefaultCredit } from '../domain/completion';
+import { suggestNextLoad } from '../domain/next-load';
 import { useRestTimer } from '../composables/useRestTimer';
 import { useToast } from '../composables/useToast';
 import ExerciseDemo from './ExerciseDemo.vue';
@@ -52,6 +53,7 @@ const activeExIndex = ref(0);
 const showPicker = ref(false);
 const finishing = ref(false);
 const confirmDiscard = ref(false);
+const moreOpen = ref(false);
 const creditChoice = ref<string>('');
 const creditConfirmed = ref(false);
 const elapsed = ref(0);
@@ -62,6 +64,7 @@ const saving = ref(false);
 // 总结面板与动作面板也要能被返回键关掉，而不是直接退出录制
 useSheetBack(finishing, () => { finishing.value = false; });
 useSheetBack(confirmDiscard, () => { confirmDiscard.value = false; });
+useSheetBack(moreOpen, () => { moreOpen.value = false; });
 useSheetBack(showPicker, () => { showPicker.value = false; });
 /*
  * 训练计时：每秒刷新已用时长。
@@ -77,6 +80,120 @@ elapsedTimer = window.setInterval(() => {
 }, 1000);
 
 const activeExercise = computed(() => session.value?.exercises[activeExIndex.value] ?? null);
+
+/* ---------- 训练现场的即时反馈 ---------- */
+
+/**
+ * 保存状态必须一直可见。
+ *
+ * 健身房里最怕"记了半天没存上"：出错时不能只在控制台里，
+ * 用户需要立刻知道并去导出备份。
+ */
+const saveState = computed(() => {
+  if (store.saveError.value) return { text: '保存失败', cls: 'chip--clay' };
+  if (!store.savedAt.value) return { text: '未保存', cls: '' };
+  const t = new Date(store.savedAt.value);
+  const hh = String(t.getHours()).padStart(2, '0');
+  const mm = String(t.getMinutes()).padStart(2, '0');
+  return { text: `已保存 ${hh}:${mm}`, cls: 'chip--lime' };
+});
+
+/** 已完成 / 跳过 / 未记录：只数工作组，热身组单独用行标记，不混进完成度。 */
+const setCounts = computed(() => {
+  const sets = (activeExercise.value?.sets ?? []).filter((s) => s.kind === 'work');
+  return {
+    done: sets.filter((s) => s.status === 'completed').length,
+    skipped: sets.filter((s) => s.status === 'skipped').length,
+    pending: sets.filter((s) => s.status === 'planned').length,
+  };
+});
+
+/** 上次同动作的工作组（按顺序），逐组提示与建议都用它。 */
+const lastWorkSets = computed(() =>
+  activeExercise.value
+    ? lastExerciseSets([...store.state.sessions], activeExercise.value.exerciseId, props.sessionId)
+    : [],
+);
+
+/** 下次重量建议；样本不足返回 null，只展示记录、不硬给结论。 */
+const loadSuggestion = computed(() => {
+  const ex = activeExercise.value;
+  if (!ex) return null;
+  return suggestNextLoad({
+    sets: lastWorkSets.value,
+    repMin: ex.repMin,
+    repMax: ex.repMax,
+    incrementGrams: ex.incrementGrams,
+  });
+});
+
+/** 首组工作重量：优先用用户刚输入的草稿，其次用已保存值。 */
+const firstWorkLoad = computed(() => {
+  const ex = activeExercise.value;
+  if (!ex) return 0;
+  const first = ex.sets.find((s) => s.kind === 'work');
+  if (!first) return 0;
+  const raw = draftFor(ex.exerciseId, first).load;
+  const n = Number.parseFloat(raw.replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return first.loadGrams ?? 0;
+  return Math.round((unit.value === 'kg' ? n : n / 2.20462) * 1000);
+});
+
+const warmupSets = computed(() => (activeExercise.value?.sets ?? []).filter((s) => s.kind === 'warmup'));
+const warmupEditable = computed(() => warmupSets.value.every((s) => s.status === 'planned'));
+
+/** 工作组列表与"正在做的组"：视觉焦点跟着第一个未完成的工作组走。 */
+const workRows = computed(() => (activeExercise.value?.sets ?? []).filter((s) => s.kind === 'work'));
+const firstWorkIdx = computed(() => (activeExercise.value?.sets ?? []).findIndex((s) => s.kind === 'work'));
+const currentSetId = computed(
+  () => (activeExercise.value?.sets ?? []).find((s) => s.kind === 'work' && s.status === 'planned')?.id ?? null,
+);
+
+/** 工作重量改过、且热身还没开始 → 提示可以按新重量更新。 */
+const workLoadEdited = computed(() => {
+  const ex = activeExercise.value;
+  if (!ex || !warmupSets.value.length) return false;
+  const first = ex.sets.find((s) => s.kind === 'work');
+  if (!first || first.loadGrams === null) return false;
+  return Math.abs(firstWorkLoad.value - first.loadGrams) > 1;
+});
+
+function applySuggestion(): void {
+  const ex = activeExercise.value;
+  const s = loadSuggestion.value;
+  if (!ex || !s) return;
+  const load = unit.value === 'kg' ? String(s.grams / 1000) : String(Math.round((s.grams / 1000) * 2.20462 * 10) / 10);
+  for (const set of ex.sets) {
+    if (set.kind === 'work' && set.status === 'planned') {
+      updateDraft(ex.exerciseId, set.id, { load });
+    }
+  }
+  push(`已填入建议重量 ${formatLoad(s.grams, unit.value)}`, 'success');
+}
+
+function refreshWarmups(): void {
+  const ex = activeExercise.value;
+  if (!ex) return;
+  const grams = firstWorkLoad.value;
+  if (grams <= 0) {
+    push('先填第一组的工作重量，再生成热身', 'error');
+    return;
+  }
+  const error = store.replaceWarmups(props.sessionId, ex.exerciseId, grams);
+  if (error) {
+    push(error, 'error');
+    return;
+  }
+  push('热身组已按当前工作重量更新', 'success');
+}
+
+/** RPE 选填：只在已完成的组上填，不打断记录流程。 */
+function setRpe(set: SetRecord, value: number | null): void {
+  const ex = activeExercise.value;
+  if (!ex) return;
+  const error = store.editSet(props.sessionId, ex.exerciseId, set.id, { rpe: value });
+  if (error) push(error, 'error');
+}
 
 interface DraftSet {
   load: string;
@@ -440,7 +557,10 @@ const progress = computed(() => {
         <p class="label">{{ session.status === 'paused' ? '已暂停' : '训练中' }}</p>
         <p class="h3">{{ session.title }}</p>
       </div>
-      <span class="chip chip--sm mono">{{ formatDuration(elapsed) }}</span>
+      <div class="live__head-right">
+        <span class="chip chip--sm" :class="saveState.cls">{{ saveState.text }}</span>
+        <span class="chip chip--sm mono">{{ formatDuration(elapsed) }}</span>
+      </div>
     </header>
 
     <div class="bar live__progress"><div class="bar__fill" :style="{ width: `${progress}%` }" /></div>
@@ -482,6 +602,9 @@ const progress = computed(() => {
           <p class="label">{{ MUSCLES.find((m) => m.id === EXERCISES.find((e) => e.id === activeExercise!.exerciseId)?.group)?.label }}</p>
           <h2 class="h2">{{ exerciseName(activeExercise.exerciseId) }}</h2>
           <p class="tiny">{{ lastHint(activeExercise.exerciseId) }} · {{ targetHint(activeExercise) }}</p>
+          <p class="tiny live__counts">
+            已完成 {{ setCounts.done }} · 跳过 {{ setCounts.skipped }} · 未记录 {{ setCounts.pending }}
+          </p>
         </div>
         <div class="live__panel-actions">
           <!--
@@ -498,17 +621,45 @@ const progress = computed(() => {
         </div>
       </div>
 
+      <!-- 下次怎么练：可解释的建议 + 热身入口（都可拒绝/跳过） -->
+      <div class="live__assist">
+        <template v-if="loadSuggestion">
+          <span class="tiny">
+            建议 <strong>{{ formatLoad(loadSuggestion.grams, unit) }}</strong> · {{ loadSuggestion.reason }}
+          </span>
+          <button class="btn btn--ghost btn--sm" @click="applySuggestion">采用</button>
+        </template>
+        <span v-else class="tiny">这个动作历史不足，先按自己的重量练</span>
+        <button
+          v-if="warmupEditable && firstWorkLoad > 0"
+          class="btn btn--ghost btn--sm"
+          @click="refreshWarmups"
+        >
+          {{ warmupSets.length ? '更新热身' : '加热身' }}
+        </button>
+      </div>
+      <p v-if="workLoadEdited && warmupEditable" class="tiny live__warm-hint">
+        工作重量已改，建议按新重量更新热身组
+      </p>
+
       <div class="sets">
         <!--
-          热身组与工作组视觉上必须能分开：
-          否则用户看到 9 行会以为这个动作要练 9 组。
+          热身与工作组分成两个区块：热身压缩高度、工作组编号更清楚；
+          正在做的组（第一个未完成工作组）用荧光条标出。
         -->
-        <div
-          v-for="(set, idx) in activeExercise.sets"
-          :key="set.id"
-          class="set"
-          :class="[`set--${set.status}`, { 'set--warmup': set.kind === 'warmup' }]"
-        >
+        <div v-if="warmupSets.length" class="sets__head">
+          <span class="label">热身</span>
+          <span class="tiny">{{ warmupSets.length }} 组 · 不计入训练量</span>
+        </div>
+        <template v-for="(set, idx) in activeExercise.sets" :key="set.id">
+          <div v-if="idx === firstWorkIdx" class="sets__head">
+            <span class="label">工作组</span>
+            <span class="tiny">共 {{ workRows.length }} 组</span>
+          </div>
+          <div
+            class="set"
+            :class="[`set--${set.status}`, { 'set--warmup': set.kind === 'warmup', 'is-current': set.id === currentSetId }]"
+          >
           <span class="set__idx">
             <template v-if="set.kind === 'warmup'">热身</template>
             <template v-else>{{ workIndex(activeExercise.sets, idx) }}</template>
@@ -516,7 +667,15 @@ const progress = computed(() => {
           <template v-if="set.status === 'completed'">
             <span class="set__done">
               <strong>{{ completedSummary(activeExercise.exerciseId, set) }}</strong>
-              <span v-if="set.rpe" class="set__rpe">RPE {{ set.rpe }}</span>
+              <select
+                class="set__rpe-select"
+                :aria-label="`第 ${idx + 1} 组主观强度`"
+                :value="set.rpe ?? ''"
+                @change="setRpe(set, ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+              >
+                <option value="">RPE</option>
+                <option v-for="n in [6, 7, 8, 9, 10]" :key="n" :value="n">{{ n }}</option>
+              </select>
             </span>
           </template>
           <template v-else-if="set.status === 'skipped'">
@@ -605,7 +764,8 @@ const progress = computed(() => {
               </svg>
             </button>
           </template>
-        </div>
+          </div>
+        </template>
 
         <button class="addset" @click="addSet">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -620,9 +780,30 @@ const progress = computed(() => {
 
     <!-- actions -->
     <div class="live__actions">
-      <button class="btn btn--ghost btn--lg" @click="askDiscard">放弃</button>
+      <button class="btn btn--ghost btn--lg live__more" aria-label="更多操作" @click="moreOpen = true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
       <button class="btn btn--primary btn--lg live__finish" @click="finish">结束训练</button>
     </div>
+
+    <!-- 更多操作：放弃低频且危险，收进来别和逐组确认抢位置 -->
+    <Transition name="sheet">
+      <div v-if="moreOpen" class="sheet" @click.self="moreOpen = false">
+        <div class="sheet__panel">
+          <div class="sheet__head">
+            <div>
+              <p class="label">更多</p>
+              <h2 class="h2">本场操作</h2>
+            </div>
+            <button class="icon-btn" aria-label="关闭" @click="moreOpen = false">✕</button>
+          </div>
+          <button class="btn btn--danger btn--block" @click="moreOpen = false; askDiscard()">放弃这场训练</button>
+          <p class="tiny" style="margin-top: 8px">放弃会丢弃已记录内容，还需二次确认。</p>
+        </div>
+      </div>
+    </Transition>
 
     <!-- 放弃确认：整场丢弃不可撤销，不能单击就走 -->
     <Transition name="sheet">
@@ -909,6 +1090,31 @@ const progress = computed(() => {
   background: rgba(201, 245, 63, 0.14);
 }
 
+/* 热身与工作组分成两个区块 */
+.sets__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+
+/* 热身行压缩：更弱的存在感，别和工作组抢 */
+.set--warmup {
+  padding-block: 6px;
+  background: rgba(var(--ink-rgb), 0.014);
+  border-left: 2px solid var(--line);
+}
+
+.set--warmup .set__input {
+  height: 40px;
+  font-size: 14px;
+}
+
+/* 正在做的组：荧光条描边，一眼找到下一步 */
+.set.is-current {
+  box-shadow: inset 0 0 0 1.5px var(--lime), inset 4px 0 0 var(--lime);
+}
+
 .set--skipped {
   opacity: 0.5;
 }
@@ -1068,6 +1274,50 @@ const progress = computed(() => {
 .set__rpe {
   font-size: 11px;
   color: var(--text-3);
+}
+
+/* RPE 选填：已完成组上用下拉，不打断记录流程 */
+.set__rpe-select {
+  height: 30px;
+  padding: 0 4px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.live__head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live__counts {
+  margin-top: 3px;
+}
+
+/* 建议 + 热身入口：一行、可换行，不抢组行的注意力 */
+.live__assist {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-card);
+}
+
+.live__assist .tiny {
+  flex: 1;
+  min-width: 0;
+}
+
+.live__warm-hint {
+  margin: -2px 0 8px;
+  color: var(--clay);
 }
 
 .set--completed .set__prev {

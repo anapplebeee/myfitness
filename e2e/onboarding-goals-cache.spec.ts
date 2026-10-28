@@ -123,7 +123,7 @@ test.describe('引导 · 可选目标', () => {
     // 勾选框在第二步（示例说明 → 每周几次），先走一步再取消
     await page.getByRole('button', { name: /知道了/ }).click();
     await page.waitForTimeout(400);
-    await page.locator('.onb__check').uncheck();
+    await page.locator('.onb__choice', { hasText: '从空白开始' }).click();
     await page.getByRole('button', { name: '下一步' }).click();
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '开始使用' }).click();
@@ -175,9 +175,11 @@ test.describe('清理缓存', () => {
 
     const after = await readState(page);
     expect(((after?.sessions as unknown[]) ?? []).length).toBe(beforeCount);
-    // 缓存应被清空
-    const names = await page.evaluate(async () => (await caches.keys()).length);
-    expect(names).toBe(0);
+    // 外来缓存应被清空；应用自己的 SW 外壳缓存（lianji-shell-*）会在重载后重建，属预期
+    const names = await page.evaluate(async () =>
+      (await caches.keys()).filter((k) => !k.startsWith('lianji-shell-')),
+    );
+    expect(names).toHaveLength(0);
   });
 
   test('重新加载后带时间戳参数（绕过 HTTP 缓存）', async ({ page }) => {

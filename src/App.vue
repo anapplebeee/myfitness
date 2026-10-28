@@ -340,6 +340,18 @@ useTabSwipe({
           </span>
         </button>
         <div class="topbar__right">
+          <!-- 示例数据常驻标记：避免示例记录被当成真实数据 -->
+          <span
+            v-if="store.state.demoMode"
+            class="chip chip--sm demo-chip"
+            role="button"
+            tabindex="0"
+            aria-label="当前是示例数据，点开数据与备份"
+            @click="go('data')"
+            @keydown.enter.prevent="go('data')"
+          >
+            示例数据
+          </span>
           <!-- 本地存储：点开数据页，导出 / 备份 / 导入都在那里 -->
           <button class="chip chip--lime chip--sm chip--tap" type="button" aria-label="打开数据与备份" @click="go('data')">
             <span class="dot" />
@@ -422,6 +434,14 @@ useTabSwipe({
 </template>
 
 <style scoped>
+/* 示例数据常驻标记：虚线框表示"这不是真实数据" */
+.demo-chip {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
 .boot {
   min-height: 60vh;
   display: grid;

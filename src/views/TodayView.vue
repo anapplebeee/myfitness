@@ -101,6 +101,11 @@ const todayPlan = computed(() => {
   return tpl.days[idx] ?? tpl.days[0] ?? null;
 });
 
+/** 今天预计的组数：给首屏一句话说明，替代整列动作清单。 */
+const todayPlanSets = computed(() =>
+  todayPlan.value?.exercises.reduce((sum, ex) => sum + ex.sets, 0) ?? 0,
+);
+
 const recent = computed(() =>
   [...sessions.value]
     .filter(isValidCompleted)
@@ -316,25 +321,14 @@ function goFood(): void {
           @keydown.enter.prevent="tapHeroHead"
           @keydown.space.prevent="tapHeroHead"
         >
-          <p class="hero__eyebrow">{{ greetingName }}，今天练什么</p>
+          <p class="hero__eyebrow">
+            今天 · {{ todayPlan?.title ?? '休息日' }}<template v-if="store.state.demoMode"> · 示例数据</template>
+          </p>
           <h1 class="hero__title">
             {{ heroTitle }}
             <span class="hero__go" aria-hidden="true">›</span>
           </h1>
         </div>
-        <!-- 圆环是周目标进度，点了要能进周目标，而不是只能看 -->
-        <button
-          type="button"
-          class="ring ring--tap"
-          :style="{ '--pct': weekPct }"
-          :aria-label="`本周完成 ${doneThisWeek} 次，目标 ${weekGoal} 次，打开周目标`"
-          @click="emit('navigate', { to: 'plan', from: 'today' })"
-        >
-          <span class="ring__inner">
-            <span class="ring__num">{{ doneThisWeek }}<span>/{{ weekGoal }}</span></span>
-            <span class="ring__cap">本周</span>
-          </span>
-        </button>
       </div>
 
       <div v-if="todayInfo.state === 'live' && todayInfo.session" class="hero__live">
@@ -373,11 +367,21 @@ function goFood(): void {
         <p class="tiny hero__plan-note">今天不用补，按新日期练即可；想加练可以开始一场空白训练。</p>
       </div>
 
+      <!-- 休息日：换状态而不是沿用同一块大卡片 -->
+      <div v-else-if="todayInfo.state === 'rest'" class="hero__plan">
+        <div class="hero__plan-head">
+          <span class="label">休息日</span>
+          <span class="chip chip--sm hero__chip">本周 {{ doneThisWeek }}/{{ weekGoal }}</span>
+        </div>
+        <p class="hero__plan-title">休息也是训练的一部分</p>
+        <p class="tiny hero__plan-note">想动的话，下面开一场自由训练；不计入周目标，也不会打乱计划。</p>
+      </div>
+
       <div v-else-if="todayPlan" class="hero__plan">
         <div class="hero__plan-head">
           <!-- 没有真实计划项时不能说"今日计划"，否则与"今天没有安排"自相矛盾 -->
           <span class="label">{{ todayInfo.occurrence ? '今日计划' : '按模板今天该练' }}</span>
-          <span class="chip chip--sm hero__chip">{{ todayPlan.exercises.length }} 个动作</span>
+          <span class="chip chip--sm hero__chip">{{ todayPlan.exercises.length }} 个动作 · {{ todayPlanSets }} 组</span>
         </div>
         <p class="hero__plan-title">{{ todayPlan.title }}</p>
         <div class="hero__exercises">
@@ -416,7 +420,7 @@ function goFood(): void {
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" />
           </svg>
-          {{ todayInfo.state === 'live' ? '继续训练' : '开始训练' }}
+          {{ todayInfo.state === 'live' ? '继续训练' : todayInfo.state === 'rest' ? '自由训练' : '开始训练' }}
         </button>
         <button class="btn btn--ghost btn--lg hero__ghost" @click="emit('navigate', { to: 'train', from: 'today' })">
           {{ todayInfo.state === 'done' || todayInfo.state === 'partial' ? '再练一场' : '空白训练' }}

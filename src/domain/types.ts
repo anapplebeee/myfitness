@@ -222,6 +222,11 @@ export interface AppState {
   waterGoalMl?: number;
   /** 本地提醒设置（训练 / 喝水）。旧数据没有，读取时回落到默认值。 */
   reminders?: ReminderSettings;
+  /**
+   * 示例数据标识。引导时选择"保留示例数据"为 true，"从空白开始"为 false。
+   * 顶栏据此常驻"示例数据"标记，避免示例记录被当成真实数据。
+   */
+  demoMode?: boolean;
   weeklyGoal: number;
   onboarded: boolean;
   /** 周计划发生项与周目标（09 号模型）。 */

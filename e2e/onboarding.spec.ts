@@ -56,9 +56,8 @@ test.describe('首次引导', () => {
     await page.getByRole('button', { name: '知道了，下一步' }).click();
     await page.waitForTimeout(300);
 
-    // 保留示例数据的开关在第二步（频率页），不在最后一步
-    const cb = page.locator('.onb__check');
-    if (await cb.isChecked()) await cb.uncheck();
+    // 示例数据的两条路径在第二步（频率页）：体验示例 / 从空白开始
+    await page.locator('.onb__choice', { hasText: '从空白开始' }).click();
     await page.getByRole('button', { name: '下一步' }).click();
     await page.waitForTimeout(300);
 

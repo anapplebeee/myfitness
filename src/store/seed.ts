@@ -199,6 +199,8 @@ export function seedState(): AppState {
     water: [],
     waterGoalMl: DEFAULT_WATER_GOAL_ML,
     reminders: DEFAULT_REMINDERS,
+    /** 种子自带示例数据：首次引导选择"从空白开始"时会清掉并置 false。 */
+    demoMode: true,
     weeklyGoal: 4,
     occurrences,
     weekGoals: weekGoals.sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1)),

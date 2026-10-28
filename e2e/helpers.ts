@@ -77,8 +77,8 @@ export async function completeOnboardingViaUi(
     await page.locator('.onb__goal', { hasText: new RegExp(`^${opts.weeklyGoal}\\s*次/周$`) }).first().click();
   }
   if (opts.keepDemo === false) {
-    const cb = page.locator('.onb__check');
-    if (await cb.isChecked()) await cb.uncheck();
+    // 示例数据是两张选择卡：点"从空白开始"即清空
+    await page.locator('.onb__choice', { hasText: '从空白开始' }).click();
   }
 
   await page.getByRole('button', { name: '下一步' }).click();

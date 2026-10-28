@@ -140,13 +140,22 @@ function finish(): void {
           <p class="tiny">{{ planHint }}</p>
         </div>
 
-        <label class="onb__keep">
-          <input v-model="keepDemo" type="checkbox" class="onb__check" />
+        <!--
+          示例数据是两条明确的路径，而不是一个容易被忽略的勾选框：
+          选"体验示例"会一直带着"示例数据"标记；选"从空白开始"才清空。
+        -->
+        <div class="onb__choice" :class="{ 'is-on': keepDemo }" role="button" tabindex="0" @click="keepDemo = true" @keydown.enter.prevent="keepDemo = true">
           <span>
-            <span class="h3">保留示例数据</span>
-            <span class="tiny">取消勾选会清空示例记录，从零开始（不可撤销）</span>
+            <span class="h3">体验示例数据</span>
+            <span class="tiny">预置 12 周记录，先看界面怎么用；顶栏会标"示例数据"</span>
           </span>
-        </label>
+        </div>
+        <div class="onb__choice" :class="{ 'is-on': !keepDemo }" role="button" tabindex="0" @click="keepDemo = false" @keydown.enter.prevent="keepDemo = false">
+          <span>
+            <span class="h3">从空白开始</span>
+            <span class="tiny">清空示例记录，直接记自己的（不可撤销）</span>
+          </span>
+        </div>
 
         <div class="row gap-10" style="margin-top: 16px">
           <button class="btn btn--ghost btn--block" @click="step = 0">上一步</button>
@@ -316,20 +325,35 @@ function finish(): void {
   margin-top: 4px;
   color: var(--text-3);
 }
-.onb__keep {
+.onb__keep,
+.onb__choice {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 16px;
+  border: 1.5px solid transparent;
   background: rgba(var(--ink-rgb), 0.03);
   cursor: pointer;
+  text-align: left;
+  width: 100%;
 }
 
-.onb__keep > span {
+/* 选中的路径用描边标出，两条路一眼可分 */
+.onb__choice.is-on {
+  border-color: var(--text);
+}
+
+.onb__keep > span,
+.onb__choice > span {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.onb__choice + .onb__choice {
+  margin-top: 10px;
 }
 
 .onb__check {

@@ -243,6 +243,8 @@ export const store = {
       state.weekGoals = [];
       state.bodyGoalGrams = null;
     }
+    // 示例数据标识跟着用户的选择走：顶栏会一直显示"示例数据"
+    state.demoMode = input.keepDemoData;
     state.activeTemplateId = input.templateId;
     state.activeTemplateSince = businessDate();
     state.weeklyGoal = input.weeklyGoal;
@@ -412,17 +414,27 @@ export const store = {
             rpe: null,
             completedAt: null,
           })),
-          ...Array.from({ length: pe.sets }, () => ({
-            id: nextId('set'),
-            kind: 'work' as const,
-            status: 'planned' as const,
-            loadGrams: top > 0 ? top : null,
-            reps: top > 0 ? Math.min(pe.repMax, Math.max(pe.repMin, topReps)) : null,
-            durationSeconds: null,
-            distanceMeters: null,
-            rpe: null,
-            completedAt: null,
-          })),
+          ...Array.from({ length: pe.sets }, (_, i) => {
+            /*
+             * 按"上次对应组"预填，而不是把上次最高重量铺满所有组。
+             * 递增组 / 递减组 / 顶组+回退组时，铺满会让后面几组从一开始就错。
+             * 上次组数不足时沿用最后一组；完全没有历史才留空。
+             */
+            const prev = last[i] ?? last[last.length - 1];
+            const load = prev?.loadGrams ?? (top > 0 ? top : null);
+            const reps = prev?.reps ?? (top > 0 ? Math.min(pe.repMax, Math.max(pe.repMin, topReps)) : null);
+            return {
+              id: nextId('set'),
+              kind: 'work' as const,
+              status: 'planned' as const,
+              loadGrams: load,
+              reps,
+              durationSeconds: null,
+              distanceMeters: null,
+              rpe: null,
+              completedAt: null,
+            };
+          }),
           ],
         };
       }),
@@ -965,6 +977,43 @@ export const store = {
     if (result.session) {
       state.sessions = state.sessions.map((x) => (x.id === sessionId ? result.session! : x));
     }
+    schedulePersist();
+    return null;
+  },
+
+  /**
+   * 按本次工作重量重新生成热身组。
+   *
+   * 自动热身只在"有历史重量 + 杠铃动作"时生成；首次训练、临时改重量、
+   * 哑铃/器械动作都没有热身。这里给用户一个显式入口：用当前第一组工作重量
+   * 生成/更新尚未开始的热身组，已开始的热身组不允许覆盖。
+   */
+  replaceWarmups(sessionId: string, exerciseId: string, workingGrams: number): string | null {
+    const s = state.sessions.find((x) => x.id === sessionId);
+    if (!s) return '找不到这场训练';
+    const ex = s.exercises.find((e) => e.exerciseId === exerciseId);
+    if (!ex) return '找不到这个动作';
+    if (ex.sets.some((st) => st.kind === 'warmup' && st.status === 'completed')) {
+      return '已有完成的热身组，不能重新生成';
+    }
+    const meta = EXERCISE_BY_ID.get(exerciseId);
+    const warm = buildWarmup({ workingGrams, isBarbell: meta?.equipment === '杠铃' });
+    if (!warm.length) return '这个重量还不需要热身组';
+    const work = ex.sets.filter((st) => st.kind === 'work');
+    ex.sets = [
+      ...warm.map((w) => ({
+        id: nextId('set'),
+        kind: 'warmup' as const,
+        status: 'planned' as const,
+        loadGrams: w.loadGrams,
+        reps: w.reps,
+        durationSeconds: null,
+        distanceMeters: null,
+        rpe: null,
+        completedAt: null,
+      })),
+      ...work,
+    ];
     schedulePersist();
     return null;
   },
