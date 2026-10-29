@@ -232,9 +232,19 @@ try {
 
 // 编译
 console.log('\n--- gradle assembleDebug ---');
-const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+/*
+ * POSIX 上用 `sh gradlew` 而不是 `./gradlew`：
+ * 仓库里的 gradlew 是以 100644 提交的（Windows 上创建的仓库没有执行位），
+ * Linux CI 检出后直接执行会 EACCES，整个出包任务就红。
+ * 同时已在 git 索引里补了 +x，两层保险。
+ */
+const gradlewCommand = process.platform === 'win32' ? 'gradlew.bat' : 'sh';
+const gradlewArgs =
+  process.platform === 'win32'
+    ? ['assembleDebug', '--no-daemon']
+    : ['gradlew', 'assembleDebug', '--no-daemon'];
 try {
-  execFileSync(gradlew, ['assembleDebug', '--no-daemon'], {
+  execFileSync(gradlewCommand, gradlewArgs, {
     cwd: join(root, 'android'),
     env,
     stdio: 'inherit',
@@ -293,7 +303,9 @@ if (existsSync(aapt)) {
      * 如果未来要做品牌证书迁移，必须走 Play App Signing 的密钥轮换，
      * 不能直接换 keystore。
      */
-    const apksigner = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], 'apksigner.bat');
+    // Windows 是 apksigner.bat，POSIX 是无后缀的 apksigner
+    const apksignerName = process.platform === 'win32' ? 'apksigner.bat' : 'apksigner';
+    const apksigner = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], apksignerName);
     if (existsSync(apksigner)) {
       try {
         const certs = execFileSync(apksigner, ['verify', '--print-certs', apkPath], {
