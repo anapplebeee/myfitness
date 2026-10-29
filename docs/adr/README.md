@@ -17,7 +17,7 @@
 | [ADR-0001](ADR-0001-build-and-typescript.md) | 构建工具、TypeScript、模块边界与 lint 规则 | 提议 | G1 |
 | [ADR-0002](ADR-0002-test-and-ci.md) | 测试栈、覆盖率、CI 与依赖锁定 | 提议 | G1 |
 | [ADR-0003](ADR-0003-indexeddb-schema-and-migration.md) | IndexedDB schema、索引、迁移、配额与多标签页 | 提议 | G1 |
-| [ADR-0004](ADR-0004-sync-wire-protocol.md) | 同步线协议：canonical JSON、条件写、幂等、datasetId、墓碑、CORS | 提议 | G5 |
+| [ADR-0004](ADR-0004-sync-wire-protocol.md) | 自托管同步 v2：版本化、实例与代次、删除防复活 | 提议（已形成设计决议，待实施验收） | G5 |
 | [ADR-0005](ADR-0005-android-toolchain-and-platform.md) | Android 工具链、androidScheme、备份、网络安全配置、安全存储 | 提议 | G5 |
 | [ADR-0006](ADR-0006-secret-and-logging.md) | 密钥存储、token 生命周期、日志脱敏与诊断导出 | 提议 | G1 |
 

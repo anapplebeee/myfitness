@@ -2,7 +2,7 @@
 
 版本：1.0；2026-10-23；状态：重构设计，未实现。范围见[00](00-v1-baseline.md)，数据模型[11](11-data-model.md)，周规则[09](09-checkin-model.md)，门禁[12](12-v1-acceptance.md)。现有demo整体可替换，本文不代表实现已符合要求。
 
-> 同步的具体契约（快照物化、条件写顺序、幂等、容量上限、错误码）已冻结在 [同步契约 v1](sync-contract.md)；本文只描述分层与职责。
+> 自托管同步的目标线协议以 [同步契约 v2](sync-contract.md) 为准；v2 尚未实现或验收。商业云单独遵循 [28](28-commercial-backend-mvp.md)，不改变单机和自托管边界。
 
 ## 1. 技术边界
 
@@ -48,7 +48,7 @@ outbox持久化待上传最新快照的意图，允许合并中间变更，不�
 
 连接失败保留配对和pending，本地继续使用；不静默改成新数据源。主动解除配对只断同步，保留本地事实。
 
-## 5. 同步协议 apiVersion=1
+## 5. 自托管同步目标 apiVersion=2
 
 业务快照使用11号的事实实体和必要内容快照，排除设备私有数据、密钥、草稿、投影和outbox。服务端验证schema、引用、数据集ID与大小，不再只检查是否JSON对象。API响应no-store，不经Service Worker缓存。
 
@@ -57,11 +57,12 @@ outbox持久化待上传最新快照的意图，允许合并中间变更，不�
 | 方法 | 路径 | 结果 |
 |---|---|---|
 | GET | /api/health | ok/apiVersion；无需认证，不泄露数据集是否存在 |
-| GET | /api/dataset | 认证后200快照+ETag；空为404且code=DATASET_EMPTY |
+| GET | /api/dataset | 认证后返回实例、代次与状态；有效时200+快照和ETag，从未初始化404，已删除410 |
 | PUT | /api/dataset | 认证、条件写、幂等键；成功200 revision+ETag |
-| DELETE | /api/dataset | 认证、If-Match、幂等键；清远端主数据及服务内备份，成功204 |
+| DELETE | /api/dataset | 认证、If-Match、实例/代次、幂等键；清远端数据及服务内备份、持久化删除状态，成功204 |
+| POST | /api/dataset/reinitialize | 用户明确确认后以删除状态令牌创建新代次 |
 
-首次PUT带If-None-Match:*，后续带If-Match:"revision"。缺条件428、条件失败412、非法JSON400、schema/引用错误422、超限413、认证失败401、无授权403、存储失败500/503。仅验证apiVersion并收到DATASET_EMPTY时才视为空，不将所有404当作可初始化。
+首次PUT带If-None-Match:*，后续带If-Match强ETag，写入必须携带服务实例及数据集代次。缺条件428、条件失败412、非法JSON400、schema/引用错误422、超限413、认证失败401、无授权403、存储失败500/503。仅验证apiVersion=2并收到DATASET_EMPTY时才视为从未初始化；deleted不是空数据集。
 
 Idempotency-Key为UUID。服务端同一事务校验条件、保存旧版备份、写新快照/revision/幂等结果。同键同请求重试返回原结果，同键异内容409。幂等记录保留7天；超期先读远端并核对快照哈希或进入冲突，不盲重试旧请求。revision是服务端不透明版本，与实体revision、本地generation不同。
 
@@ -81,7 +82,7 @@ Idempotency-Key为UUID。服务端同一事务校验条件、保存旧版备份�
 
 单请求超时、指数退避、网络恢复/用户重试触发，保持pending。响应丢失用相同幂等键重试；若本地已写新generation，不能将新pending清掉。
 
-已配对远端突然为空：提示远端已清空，禁止自动上传复活；重新初始化需明确选择。DELETE清主快照、历史备份及旧幂等结果，但保留本次删除幂等凭据7天；旧revision条件写必须失败。
+已配对远端已删除或实例/代次变化：禁止自动上传；重新初始化须明确选择。DELETE清主快照、历史备份及旧写入回执，持久化删除状态并保留本次删除幂等回执7天；旧代次条件写必须失败，细节见同步契约。
 
 ## 6. 安全与备份
 
