@@ -11,12 +11,24 @@
  * 用法：node scripts/build-android.mjs
  */
 
-import { execFile, execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  renameSync,
+  statSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
 const root = process.cwd();
+/** Windows 上可执行文件带 .exe，POSIX 没有——原来写死 java.exe 导致 Linux CI 永远找不到 JDK。 */
+const JAVA_BIN = process.platform === 'win32' ? 'java.exe' : 'java';
 
 /*
  * 让 capacitor.config.ts 在本次同步时打开 WebView 调试（debug 包专用）。
@@ -37,19 +49,31 @@ function findJdkIn(base) {
   if (!existsSync(base)) return null;
   for (const dir of readdirSync(base)) {
     const home = join(base, dir);
-    if (existsSync(join(home, 'bin', 'java.exe'))) return home;
+    if (existsSync(join(home, 'bin', JAVA_BIN))) return home;
   }
   return null;
 }
 
-/** 找 JDK。 */
+/**
+ * 找 JDK。
+ *
+ * 判定标准必须是「JAVA_HOME/bin/java 存在」，不能写死 java.exe——Linux CI 上
+ * 就是这一条把整条出包任务卡死的（setup-java 装好了 JDK，脚本却报"未找到"）。
+ * 找不到时再从 PATH 上的 java 反推 JAVA_HOME，覆盖 CI 只把 java 放进 PATH 的情况。
+ */
 function findJavaHome() {
-  if (process.env.JAVA_HOME && existsSync(join(process.env.JAVA_HOME, 'bin', 'java.exe'))) {
-    return process.env.JAVA_HOME;
-  }
+  const envHome = process.env.JAVA_HOME;
+  if (envHome && existsSync(join(envHome, 'bin', JAVA_BIN))) return envHome;
+
   const candidates = [
     // 本项目自带的 Android 工具链（check-android 脚本安装的位置）
     join(homedir(), '.android-toolchain', 'jdk'),
+    // POSIX：apt / actions/setup-java / 常见发行版布局
+    '/usr/lib/jvm',
+    '/usr/local/lib/jvm',
+    '/opt/java',
+    '/opt/jdk',
+    // Windows
     'C:\\Program Files\\Eclipse Adoptium',
     'C:\\Program Files\\Java',
     'C:\\Program Files\\Microsoft\\jdk',
@@ -58,9 +82,27 @@ function findJavaHome() {
     const found = findJdkIn(base);
     if (found) return found;
   }
+
   // Android Studio 自带的 JBR 本身就是 JDK 根目录，不再往下扫一层
   const jbr = 'C:\\Program Files\\Android\\Android Studio\\jbr';
-  if (existsSync(join(jbr, 'bin', 'java.exe'))) return jbr;
+  if (existsSync(join(jbr, 'bin', JAVA_BIN))) return jbr;
+
+  // 最后一条：PATH 上的 java，realpath 后取 <home>/bin/java 的上一级
+  try {
+    const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['java'], {
+      encoding: 'utf8',
+    });
+    const found = (probe.stdout ?? '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line && existsSync(line));
+    if (found) {
+      const home = dirname(dirname(realpathSync(found)));
+      if (existsSync(join(home, 'bin', JAVA_BIN))) return home;
+    }
+  } catch {
+    // 没有 java 就按未找到处理，下面会给平台对应的安装提示
+  }
   return null;
 }
 
@@ -73,6 +115,15 @@ function findSdkHome() {
   // 本项目自带的工具链
   const toolchain = join(homedir(), '.android-toolchain', 'sdk');
   if (existsSync(toolchain)) return toolchain;
+  // 常见系统位置（Linux CI / 手动安装）
+  for (const base of [
+    '/usr/local/lib/android/sdk',
+    '/opt/android-sdk',
+    '/usr/lib/android-sdk',
+    join(homedir(), 'Android', 'Sdk'),
+  ]) {
+    if (existsSync(base)) return base;
+  }
   const guess = join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
   if (existsSync(guess)) return guess;
   // 最后读 android/local.properties 的 sdk.dir（Windows 里冒号是转义的）
@@ -96,7 +147,11 @@ function findSdkHome() {
 const javaHome = findJavaHome();
 record('JDK 可用', Boolean(javaHome), javaHome ?? '未找到');
 if (!javaHome) {
-  console.log('\n缺少 JDK，无法编译。安装：winget install EclipseAdoptium.Temurin.21.JDK');
+  console.error(
+    process.platform === 'win32'
+      ? '\n缺少 JDK，无法编译。安装：winget install EclipseAdoptium.Temurin.21.JDK'
+      : '\n缺少 JDK，无法编译。Ubuntu：sudo apt install -y openjdk-21-jdk；CI 用 actions/setup-java 并确认 JAVA_HOME 已导出',
+  );
   process.exit(1);
 }
 
