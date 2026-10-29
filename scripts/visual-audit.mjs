@@ -70,10 +70,52 @@ console.log(`静态服务: http://127.0.0.1:${PORT}`);
 
 // ---------- 浏览器 ----------
 
-const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+/**
+ * 解析浏览器可执行文件。
+ *
+ * 原来这里写死了 Windows Edge 的路径，CI（Ubuntu）上必然「浏览器未就绪」直接失败——
+ * 一个只能在作者机器上跑的门禁，等于没有门禁。
+ *
+ * 查找顺序：
+ *   1. AUDIT_BROWSER_PATH 显式指定（排查问题时最省事）
+ *   2. Playwright 自带的 Chromium（CI 里 playwright install 已装好）
+ *   3. 常见系统路径（Windows Edge/Chrome、Linux chrome/chromium）
+ */
+async function resolveBrowser() {
+  const explicit = process.env.AUDIT_BROWSER_PATH;
+  if (explicit && existsSync(explicit)) return explicit;
+
+  try {
+    const { chromium } = await import('@playwright/test');
+    const bundled = chromium.executablePath();
+    if (bundled && existsSync(bundled)) return bundled;
+  } catch {
+    // 没装 Playwright 就继续找系统浏览器
+  }
+
+  const candidates = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+const browserPath = await resolveBrowser();
+if (!browserPath) {
+  console.error('找不到可用的 Chromium/Chrome。装 Playwright 浏览器或设 AUDIT_BROWSER_PATH。');
+  process.exit(1);
+}
+console.log(`浏览器: ${browserPath}`);
+
 const profileDir = join(root, '.edge-audit');
 const browser = spawn(
-  edge,
+  browserPath,
   [
     '--headless=new',
     '--disable-gpu',
