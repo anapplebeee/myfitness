@@ -359,8 +359,7 @@ async function complete(exId: string, set: SetRecord): Promise<void> {
   }
   if (ex) {
     rest.start(ex.restSeconds);
-rest.start(ex.restSeconds);
-  void armRestNotification(rest.endsAtMs());
+    void armRestNotification(rest.endsAtMs());
     syncRestPersist();
   }
   push('已保存本组', 'success');

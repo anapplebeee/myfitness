@@ -80,7 +80,16 @@ export async function armRestNotification(endAtMs: number | null): Promise<void>
             id: NOTIFY_ID,
             title: '休息结束',
             body: '可以开始下一组了',
-            schedule: { at: new Date(endAtMs) },
+            /*
+             * allowWhileIdle 不能省。
+             * 不设它，插件排的是 RTC（非唤醒）闹钟且不带 ALLOW_WHILE_IDLE：
+             * 真机实测「按 Home 切后台后到点完全收不到」——而这正是这个功能
+             * 唯一的目标场景（锁屏休息）。提醒类通知一直是这么传的，这里漏了。
+             *
+             * 代价：Doze 下系统限制每个应用 9 分钟最多一次。休息间隔通常 1–3
+             * 分钟，最坏情况是连续两组之间少响一次，但不会像原来那样一次都不响。
+             */
+            schedule: { at: new Date(endAtMs), allowWhileIdle: true },
           },
         ],
       });
