@@ -6,10 +6,11 @@
  * 新手不知道该怎么做。这里把要领和示意图放到训练现场，
  * 不用退出去翻动作库。
  */
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { store } from '../store/appStore';
 import { EXERCISES, MUSCLES, exerciseName } from '../content/exercises';
 import { DEMO_ATTRIBUTION, demoImage } from '../content/demo';
+import { demoFrames } from '../content/demo';
 import { lastExerciseSets } from '../domain/metrics';
 import { formatLoad } from '../domain/units';
 import { useBackLayer } from '../composables/useBackLayer';
@@ -20,7 +21,38 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 useBackLayer(() => emit('close'));
 
 const def = computed(() => EXERCISES.find((e) => e.id === props.exerciseId) ?? null);
+const frames = computed(() => demoFrames(props.exerciseId));
 const image = computed(() => demoImage(props.exerciseId));
+
+/*
+ * 两帧交替，做出"动作轨迹"的效果。
+ *
+ * 只在两帧都齐、且用户没有开启"减少动态效果"时启动：
+ * 前庭功能敏感的人会被自动播放的闪动影响，系统偏好优先。
+ */
+const frameIdx = ref(0);
+let frameTimer: number | null = null;
+
+onMounted(() => {
+  if (!frames.value) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  if (reduce) return;
+  frameTimer = window.setInterval(() => {
+    frameIdx.value = frameIdx.value === 0 ? 1 : 0;
+  }, 900);
+});
+
+onBeforeUnmount(() => {
+  if (frameTimer !== null) window.clearInterval(frameTimer);
+});
+
+/** 当前显示的那一帧；没有第二帧时永远用第一帧。 */
+const shownImage = computed<string>(() => {
+  const f = frames.value;
+  // 外层已有 v-if="image"，这里的空串只为满足类型
+  if (!f) return image.value ?? '';
+  return frameIdx.value === 0 ? f[0] : f[1];
+});
 const muscle = computed(() => MUSCLES.find((m) => m.id === def.value?.group)?.label ?? '');
 const cues = computed(() => def.value?.cues ?? []);
 
@@ -63,7 +95,9 @@ const best = computed(() => {
       </div>
 
       <div v-if="image" class="demo__figure">
-        <img :src="image" :alt="`${exerciseName(exerciseId)} 示意`" loading="lazy" />
+          <img :src="shownImage" :alt="`${exerciseName(exerciseId)} 示意`" loading="lazy" />
+          <!-- 两帧都在时标一下，让用户知道这是动作轨迹不是错了 -->
+          <span v-if="frames" class="demo__frames">起 / 止</span>
       </div>
       <div v-else class="demo__figure demo__figure--empty">
         <span class="tiny">这个动作暂无示意图，先看下面的要领</span>
@@ -157,6 +191,22 @@ const best = computed(() => {
   margin-top: 14px;
   color: var(--text-3);
 }
+/* 两帧切换的角标：说明这是"起止姿势"，不是加载错图 */
+.demo__frames {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  background: rgba(var(--ink-rgb), 0.06);
+}
 </style>
+
+
+
+
 
 
