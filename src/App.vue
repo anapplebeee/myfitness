@@ -66,6 +66,13 @@ onMounted(async () => {
     });
   }
 
+  /*
+   * 跨天检查：回到前台时立刻对一次，前台停留时每分钟对一次。
+   * 只在真正跨天时换 key，平时不影响缓存命中。
+   */
+  document.addEventListener('visibilitychange', syncDayStamp);
+  window.setInterval(syncDayStamp, 60_000);
+
   await store.init();
   booted.value = true;
 });
@@ -104,9 +111,33 @@ const view = computed(() => viewFor(route.value));
  */
 const TAB_ORDER: Route[] = ['today', 'train', 'plan', 'food', 'coach', 'me'];
 
+/** 邻页占位的标题（拖拽时只显示这个，不挂载整页）。 */
+const TAB_LABELS: Record<string, string> = {
+  today: '今日',
+  train: '训练',
+  plan: '周目标',
+  food: '饮食',
+  coach: '教练',
+  me: '我的',
+};
+
+function tabLabel(target: Route): string {
+  return TAB_LABELS[target] ?? '';
+}
+
 /** 切页动画方向；非标签路由（数据页等）用 none，保留原来的上浮淡入。 */
 const slideDir = ref<'next' | 'prev' | 'none'>('none');
-const transitionName = computed(() => (slideDir.value === 'none' ? 'rise' : `slide-${slideDir.value}`));
+/**
+ * 拖拽提交时抑制切页动画。
+ *
+ * 松手时页面已经整屏推出去了，再叠一次 slide 进场会先闪回原位再滑一次。
+ * 抑制后由"推出"这一下独自承担动效。
+ */
+const suppressSlide = ref(false);
+const transitionName = computed(() => {
+  if (suppressSlide.value) return 'none';
+  return slideDir.value === 'none' ? 'rise' : `slide-${slideDir.value}`;
+});
 
 /*
  * 跟手拖拽：拖动时当前页与邻页并排跟手指走，
@@ -122,15 +153,34 @@ const drag = reactive({
   commit: false,
 });
 
-const neighborView = computed(() => (drag.neighbor ? viewFor(drag.neighbor) : null));
+/*
+ * 跨天兜底。
+ *
+ * KeepAlive 让页面常驻，setup 里算的"今天"就不会再更新了：
+ * 过了午夜还开着 App，今日页会一直显示昨天的计划。
+ * 这里盯业务日期，一变就换组件 key，让缓存自然失效。
+ */
+const dayStamp = ref(businessDate());
+function syncDayStamp(): void {
+  const today = businessDate();
+  if (today !== dayStamp.value) dayStamp.value = today;
+}
 
-function neighborOf(dir: 'next' | 'prev'): Route | null {
+const neighborOf = (dir: 'next' | 'prev'): Route | null => {
   const i = TAB_ORDER.indexOf(route.value);
   const j = dir === 'next' ? i + 1 : i - 1;
   return j >= 0 && j < TAB_ORDER.length ? TAB_ORDER[j]! : null;
-}
+};
 
 const paneStyleCurrent = computed(() => {
+  /*
+   * 空闲时**不给** transform。
+   *
+   * 只要元素带了 transform（甚至只有 will-change: transform），
+   * 它就会成为 position: fixed 后代的包含块——所有底部弹层会以它为准定位，
+   * 结果就是超出屏幕、被底部导航盖住。实测踩过：月历面板高 1081px、视口 844px。
+   */
+  if (drag.phase === 'idle') return {};
   const x =
     drag.phase === 'animating' && drag.commit ? (drag.dir === 'next' ? -drag.paneW : drag.paneW) : drag.dx;
   return { transform: `translateX(${x}px)` };
@@ -286,9 +336,15 @@ useTabSwipe({
         const target = drag.neighbor;
         // 与点标签一致：这次跳转没有"来处"
         forgetArrival(target);
+        // 页面已经整屏推出去了，别再叠一次入场动画
+        suppressSlide.value = true;
         route.value = target;
         if (window.location.hash.replace('#', '') !== target) window.location.hash = target;
         window.scrollTo({ top: 0, behavior: 'auto' });
+        // 一帧后恢复：此时新页已经在位，Transition 不会再补动画
+        setTimeout(() => {
+          suppressSlide.value = false;
+        }, 60);
       }
       drag.phase = 'idle';
       drag.neighbor = null;
@@ -393,32 +449,47 @@ useTabSwipe({
           v-else
           ref="stageEl"
           class="stage"
-          :class="{ 'stage--anim': drag.phase === 'animating' }"
+          :class="{ 'stage--anim': drag.phase === 'animating', 'stage--drag': drag.phase === 'dragging' }"
         >
-          <template v-if="drag.phase !== 'idle'">
-            <div class="stage__pane" :style="paneStyleCurrent">
-              <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
-            </div>
-            <div
-              v-if="drag.neighbor && neighborView"
-              class="stage__pane stage__pane--neighbor"
-              :style="paneStyleNeighbor"
+          <!--
+            当前页永远是同一棵子树：拖拽起手不再重建页面。
+
+            原来拖拽走另一个分支（v-if phase!=='idle'），一按下去就把当前页
+            卸载再重挂；加上邻页整页挂载，一次滑动的起手要付两遍整页渲染成本
+            （实测单页 150–300ms @4× 降频，这就是"滑一下就卡住"的来源）。
+
+            KeepAlive 缓存标签页：来回切换不必重新挂载，
+            代价是 5 个页面的 DOM 常驻内存，用 :max 兜住上限。
+          -->
+          <div class="stage__pane" :style="paneStyleCurrent">
+            <Transition
+              :name="transitionName"
+              :mode="slideDir === 'none' || suppressSlide ? 'out-in' : 'default'"
             >
-              <component
-                :is="neighborView"
-                :key="drag.neighbor"
-                :greeting-name="greeting"
-                @navigate="go"
-              />
-            </div>
-          </template>
-          <Transition
-            v-else
-            :name="transitionName"
-            :mode="slideDir === 'none' ? 'out-in' : 'default'"
+              <KeepAlive :max="6">
+                <component
+                  :is="view"
+                  :key="`${route}@${dayStamp}`"
+                  :greeting-name="greeting"
+                  @navigate="go"
+                />
+              </KeepAlive>
+            </Transition>
+          </div>
+          <!--
+            邻页只放轻量占位，不挂载整页：
+            真正的邻页在松手提交后才挂载（那时才需要它的真实内容）。
+          -->
+          <div
+            v-if="drag.phase !== 'idle' && drag.neighbor"
+            class="stage__pane stage__pane--neighbor"
+            :style="paneStyleNeighbor"
+            aria-hidden="true"
           >
-            <component :is="view" :key="route" :greeting-name="greeting" @navigate="go" />
-          </Transition>
+            <div class="pane-ghost">
+              <span class="pane-ghost__label">{{ tabLabel(drag.neighbor) }}</span>
+            </div>
+          </div>
         </div>
       </main>
 

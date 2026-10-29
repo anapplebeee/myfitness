@@ -147,9 +147,19 @@ a {
   opacity: 0;
 }
 
-.rise-enter-active,
+/*
+ * 非标签路由（数据页、设置等）的上浮淡入。
+ *
+ * 离场刻意不做动画：Transition 是 out-in 模式，离场 0.32s + 入场 0.32s
+ * 意味着点一下要等 640ms 才看到新内容——体感就是"页面卡住了"。
+ * 把预算全给入场，用户点击后 200ms 内就能读到新页。
+ */
 .rise-leave-active {
-  transition: transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out);
+  transition: none;
+}
+
+.rise-enter-active {
+  transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out);
 }
 
 .rise-enter-from,
@@ -166,13 +176,43 @@ a {
   position: relative;
 }
 
-.stage__pane {
+/*
+ * 只有真正在跟手/收尾时才提层。
+ * will-change: transform 也会让元素成为 position: fixed 的包含块，
+ * 常驻会让页面内所有底部弹层定位到这一层而不是视口。
+ */
+.stage--drag .stage__pane,
+.stage--anim .stage__pane {
   will-change: transform;
 }
 
 .stage__pane--neighbor {
   position: absolute;
   inset: 0;
+}
+
+/*
+ * 邻页占位。
+ *
+ * 跟手阶段只画这么一层，不挂载邻页整棵组件树：
+ * 一次整页挂载在 4× 降频下要 150–300ms，正好卡在手指刚动的那一下。
+ * 视觉上给出"下一页在这儿"的暗示就够了，松手提交后才是真实页面。
+ */
+.pane-ghost {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 96px;
+  background: var(--paper);
+  border-left: 1px solid rgba(var(--ink-rgb), 0.06);
+}
+
+.pane-ghost__label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
 }
 
 .stage--anim .stage__pane {

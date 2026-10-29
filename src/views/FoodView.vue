@@ -17,6 +17,7 @@ import { ALLERGEN_CODES, FOOD_ALLERGENS } from '../content/allergens';
 import type { DietRestriction, FoodEntry } from '../domain/types';
 import type { Slot } from '../domain/types';
 import { buildMealPlan, planForSlot, type MealPlanItem } from '../domain/meal-plan';
+import { monthLabel, monthRange, shiftMonth } from '../domain/calendar';
 
 
 const { push } = useToast();
@@ -39,6 +40,69 @@ function shiftDate(days: number): void {
 function goToday(): void {
   selectedDate.value = businessDate();
 }
+
+/*
+ * 饮食日历。
+ *
+ * 只有"前一天/后一天"两个按钮时，补记三天前的早饭要点六下，
+ * 而且完全看不出哪几天漏记了。月历直接回答"这个月我记了哪几天"。
+ * 复用 domain/calendar 的 monthRange，避免自己算月份边界和首格偏移。
+ */
+const showCalendar = ref(false);
+const calAnchor = ref(selectedDate.value);
+const calRange = computed(() => monthRange(calAnchor.value));
+const loggedDates = computed(() => new Set(store.state.foods.map((f) => f.date)));
+
+interface FoodCalCell {
+  date: string;
+  inMonth: boolean;
+  hasLog: boolean;
+  isToday: boolean;
+  selected: boolean;
+  future: boolean;
+}
+
+const calCells = computed<FoodCalCell[]>(() => {
+  const range = calRange.value;
+  const today = businessDate();
+  const cells: FoodCalCell[] = [];
+  /*
+   * 按格数迭代，不用 while(日期 <= 结束)。
+   *
+   * 日期一旦算坏（比如 NaN-NaN-01），`d <= to` 永远成立、addDays 又不前进，
+   * 主线程会直接锁死——这条路径已经踩过一次（shiftMonth 传错参数格式）。
+   * 用 rows*7 当上限，坏数据最多是"格子渲染不对"，不会把页面挂住。
+   */
+  for (let i = 0; i < range.rows * 7; i += 1) {
+    const d = addDays(range.from, i);
+    cells.push({
+      date: d,
+      inMonth: d.slice(0, 7) === range.month,
+      hasLog: loggedDates.value.has(d),
+      isToday: d === today,
+      selected: d === selectedDate.value,
+      future: d > today,
+    });
+  }
+  return cells;
+});
+
+const monthLoggedCount = computed(() => calCells.value.filter((c) => c.inMonth && c.hasLog).length);
+
+function openCalendar(): void {
+  calAnchor.value = selectedDate.value;
+  showCalendar.value = true;
+}
+
+function pickDate(cell: FoodCalCell): void {
+  if (cell.future) return;
+  selectedDate.value = cell.date;
+  showCalendar.value = false;
+}
+
+useSheetBack(showCalendar, () => {
+  showCalendar.value = false;
+});
 
 const slots: Array<{ id: Slot; label: string; time: string }> = [
   { id: 'breakfast', label: '早餐', time: '08:00' },
@@ -295,6 +359,13 @@ function removeEntry(id: string): void {
         <span v-if="!isToday" class="tiny">回到今天</span>
       </button>
       <button class="icon-btn" aria-label="后一天" :disabled="isToday" @click="shiftDate(1)">›</button>
+      <!-- 月历入口：看整月哪天记过、直接跳过去补记 -->
+      <button class="icon-btn date-nav__cal" aria-label="打开饮食日历" @click="openCalendar">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+          <path d="M3.5 10h17M8 3.5v3M16 3.5v3" />
+        </svg>
+      </button>
     </div>
 
     <!-- nutrition card -->
@@ -417,6 +488,58 @@ function removeEntry(id: string): void {
     <p class="tiny me__note">
       未记录的餐次按 0 展示，不代表实际为 0；部分记录不等于全天完整。
     </p>
+
+    <!-- 饮食月历：只负责选日期，不复制记录逻辑 -->
+    <Transition name="sheet">
+      <div v-if="showCalendar" class="sheet" @click.self="showCalendar = false">
+          <div class="sheet__panel">
+            <div class="sheet__head">
+              <div>
+                <p class="label">饮食日历</p>
+                <h2 class="h2">{{ monthLabel(calAnchor) }}</h2>
+              </div>
+              <button class="icon-btn" aria-label="关闭" @click="showCalendar = false">✕</button>
+            </div>
+
+            <div class="fcal__nav">
+              <button class="icon-btn" aria-label="上个月" @click="calAnchor = shiftMonth(calAnchor.slice(0, 7), -1)">‹</button>
+              <button class="btn btn--ghost btn--sm" @click="calAnchor = businessDate()">本月</button>
+              <button class="icon-btn" aria-label="下个月" @click="calAnchor = shiftMonth(calAnchor.slice(0, 7), 1)">›</button>
+            </div>
+
+            <div class="fcal">
+              <div class="fcal__week">
+                <span v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w">{{ w }}</span>
+              </div>
+              <div class="fcal__grid">
+                <button
+                  v-for="cell in calCells"
+                  :key="cell.date"
+                  class="fcal__cell"
+                  :class="{
+                    'is-out': !cell.inMonth,
+                    'is-today': cell.isToday,
+                    'is-on': cell.selected,
+                    'is-logged': cell.hasLog,
+                    'is-future': cell.future,
+                  }"
+                  :disabled="cell.future"
+                  :aria-label="`${cell.date}${cell.hasLog ? ' 有记录' : ' 无记录'}`"
+                  @click="pickDate(cell)"
+                >
+                  <span class="fcal__num">{{ Number(cell.date.slice(8)) }}</span>
+                  <span class="fcal__dot" />
+                </button>
+              </div>
+            </div>
+
+            <p class="tiny fcal__hint">
+              本月已记 {{ monthLoggedCount }} 天。有圆点的日子记过饮食，点一天就能补记。
+            </p>
+            <button class="btn btn--ghost btn--block" @click="showCalendar = false">关闭</button>
+          </div>
+        </div>
+    </Transition>
 
     <!-- add food sheet -->
     <Transition name="sheet">
@@ -840,6 +963,101 @@ function removeEntry(id: string): void {
   color: var(--warn-ink);
   font-size: 12.5px;
   line-height: 1.45;
+}
+/* ---------- 饮食月历 ---------- */
+
+.date-nav__cal {
+  flex: 0 0 auto;
+}
+
+.fcal__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.fcal__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.fcal__week span {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 560;
+  color: var(--text-3);
+}
+
+.fcal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.fcal__cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  padding: 4px 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fcal__num {
+  line-height: 1;
+}
+
+/* 有记录：下方一个实心点，不靠颜色单独传达 */
+.fcal__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fcal__cell.is-logged .fcal__dot {
+  background: var(--brand);
+}
+
+.fcal__cell.is-out {
+  color: var(--text-3);
+  opacity: 0.45;
+}
+
+.fcal__cell.is-today {
+  border-color: var(--line);
+}
+
+.fcal__cell.is-on {
+  background: var(--ink);
+  color: var(--lime, #c9f24d);
+}
+
+.fcal__cell.is-on .fcal__dot {
+  background: var(--lime, #c9f24d);
+}
+
+.fcal__cell.is-future {
+  color: var(--text-3);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.fcal__hint {
+  margin: 10px 0 8px;
 }
 </style>
 
