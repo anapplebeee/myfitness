@@ -11,7 +11,7 @@
  * 用法：node scripts/build-android.mjs
  */
 
-import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
   copyFileSync,
   cpSync,
@@ -42,6 +42,46 @@ const results = [];
 function record(name, ok, detail = '') {
   results.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+}
+
+/**
+ * 在 GitHub Actions 里额外发一条 error 注解。
+ *
+ * 为什么需要：CI 失败时日志要登录才能看，而注解可以通过公开的 check-runs API 读到
+ * （`/repos/{owner}/{repo}/check-runs/{id}/annotations`）。没有这条通道，
+ * "在 Linux 上到底哪一步炸了"只能靠人肉贴日志。
+ */
+function emitError(title, detail = '') {
+  const text = String(detail).replace(/\r/g, '').slice(0, 1500);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    const escaped = text.replace(/%/g, '%25').replace(/\n/g, '%0A').replace(/\r/g, '%0D');
+    console.log(`::error title=${title}::${escaped}`);
+  }
+  console.error(`\n[${title}] ${text}`);
+}
+
+/**
+ * 跑命令并把输出实时打到控制台，同时留最后 200 行。
+ * 失败时用尾部内容发注解——只 inherit 的话，杀掉进程的那句真实报错就丢了。
+ */
+function runStreaming(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+    const tail = [];
+    const push = (chunk) => {
+      const text = chunk.toString();
+      process.stdout.write(text);
+      for (const line of text.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        tail.push(line);
+        if (tail.length > 200) tail.shift();
+      }
+    };
+    child.stdout.on('data', push);
+    child.stderr.on('data', push);
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, tail }));
+  });
 }
 
 /** 在一个"装着多个 JDK 的目录"里找第一个可用的。 */
@@ -298,17 +338,18 @@ const gradlewArgs =
   process.platform === 'win32'
     ? ['assembleDebug', '--no-daemon']
     : ['gradlew', 'assembleDebug', '--no-daemon'];
-try {
-  execFileSync(gradlewCommand, gradlewArgs, {
+{
+  const { code, tail } = await runStreaming(gradlewCommand, gradlewArgs, {
     cwd: join(root, 'android'),
     env,
-    stdio: 'inherit',
     shell: process.platform === 'win32',
   });
+  if (code !== 0) {
+    record('gradle assembleDebug 成功', false, tail.slice(-4).join(' | ').slice(0, 200));
+    emitError(`gradle assembleDebug 失败（exit ${code}）`, tail.slice(-40).join('\n'));
+    process.exit(1);
+  }
   record('gradle assembleDebug 成功', true);
-} catch (e) {
-  record('gradle assembleDebug 成功', false, String(e).slice(0, 120));
-  process.exit(1);
 }
 
 // 产物校验
@@ -322,7 +363,9 @@ const sizeMb = statSync(apkPath).size / 1024 / 1024;
 record('APK 大小合理', sizeMb > 1 && sizeMb < 50, `${sizeMb.toFixed(2)} MB`);
 
 // 用 aapt 校验 APK 内容
-const aapt = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], 'aapt.exe');
+// build-tools 里 Windows 是 aapt.exe，POSIX 无后缀
+const aaptName = process.platform === 'win32' ? 'aapt.exe' : 'aapt';
+const aapt = join(sdkHome, 'build-tools', buildTools[buildTools.length - 1], aaptName);
 if (existsSync(aapt)) {
   try {
     const listing = execFileSync(aapt, ['list', apkPath], { encoding: 'utf8' });
@@ -383,7 +426,7 @@ if (existsSync(aapt)) {
     record('aapt 校验', false, String(e).slice(0, 100));
   }
 } else {
-  record('aapt 可用', false, '未找到 build-tools/aapt.exe');
+  record('aapt 可用', false, `未找到 build-tools/${aaptName}`);
 }
 
 // 复制到 dist-apk/：文件名带日期与版本，便于发给测试同事（该目录的 apk 已 gitignore）
