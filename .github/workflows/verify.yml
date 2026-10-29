@@ -51,6 +51,10 @@ jobs:
       - name: 单元测试
         run: npm run test
 
+      # 商业云后端契约测试（零依赖，走真实 HTTP + 临时文件存储）
+      - name: 后端契约测试
+        run: npm run test:server
+
       - name: 构建
         run: npx vite build
 

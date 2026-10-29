@@ -18,13 +18,15 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
-    "verify": "npm run typecheck && npm run typecheck:e2e && npm run test && npm run build",
+    "verify": "npm run typecheck && npm run typecheck:e2e && npm run test && npm run test:server && npm run build",
     "android:check": "node scripts/check-android.mjs",
     "android:sync": "npm run build && npx cap sync android",
     "android:build": "node scripts/build-android.mjs",
     "android:smoke": "node scripts/android-smoke.mjs",
     "audit:visual": "node scripts/visual-audit.mjs",
-    "android:e2e": "node scripts/android-cdp.mjs"
+    "android:e2e": "node scripts/android-cdp.mjs",
+    "server": "node server/index.mjs",
+    "test:server": "node --test \"server/test/*.test.mjs\""
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

@@ -4,7 +4,7 @@
 > （自重、器械、计时、距离类都支持），不再局限于铁馆这一个场景。
 > 内部标识（包名 app.lianji.fit、存储键 lianji.*）已同步更新，旧数据会自动迁移。
 
-**当前状态（2026-10-28）**
+**当前状态（2026-10-29）**
 
 - 前端已完成 **Vue 3 + Vite + TypeScript** 重写，`src/` 为唯一实现；PWA 可直接部署，Capacitor Android 壳已适配新构建（`webDir: 'dist'`，`applicationId app.lianji.fit`，`versionCode 3` / `versionName 1.2`）。
 - 旧版 demo（`js/`、`css/`、`server.js`、`sw.js`、`android/www`）已在重写中**删除**；根目录 `index.html` 是 Vite 入口，不是旧 demo。
@@ -12,7 +12,8 @@
 - 新增**每日饮水**与**本地提醒**：饮水按条记录，今日页显示总量/目标进度与快捷添加；训练与喝水提醒在原生端用 `@capacitor/local-notifications`（App 关闭也能响），网页端在页面打开时前台轮询生效。详见 [变更日志](CHANGELOG.md)。
 - **训练现场顺手**：逐组按"上次对应组"预填、下次重量建议（可解释、可拒绝）、热身可按当前重量生成/更新、RPE 选填、保存状态常驻；热身与工作组分区显示
 - **PWA 可离线冷启动**：`public/sw.js` 预缓存应用外壳与入口资源，断网刷新仍能打开；仅网页生产环境注册，Android 端不注册（assets 已在 APK 内）。旧品牌数据只在**新库为空**时迁移，不会覆盖新记录。
-- 测试：**1140 个单元用例（65 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `build`）。
+- **商业云端后端（内测，未上线）**：`server/` 实现 `/api/cloud/v1`——邮箱验证码账号、设备会话、条件写与幂等、历史版本、清空与注销。54 项契约测试走真实 HTTP。**客户端尚未接入**，且灾备/台账复制未实现，不满足对外发布门禁，详见 [29 · 实施说明](docs/29-cloud-backend-implementation.md)。
+- 测试：**1140 个单元用例（65 个测试文件）全部通过**，Playwright E2E **88 项（16 个文件）**，后端契约 **54 项**；CI 门禁 `verify.yml`（`typecheck` + `typecheck:e2e` + `test` + `test:server` + `build`）。
 - 已知缺口：① **自适应 TDEE 未实现**——仅有静态 `BMR × 活动系数` 估算，按 [00 · v1 基线](docs/00-v1-baseline.md) D06 后置；② **AI 教练 BYOK 在浏览器/PWA 受 CORS 拦截**（[24 · 待研究问题](docs/24-open-questions.md) Q-001，用户明确"后面再研究"）；③ v1 验收（[12 · 验收](docs/12-v1-acceptance.md)）尚未全部点亮。
 
 ## 快速开始
@@ -21,9 +22,11 @@
 npm install          # 首次安装依赖（Node >= 20）
 npm run dev          # 开发服务器
 npm run build        # 类型检查 + 生产构建到 dist/
-npm test             # 领域层单元测试（47 文件 / 962 用例）
+npm test             # 领域层单元测试
+npm run test:server  # 商业云后端契约测试（54 项，真实 HTTP）
 npm run test:e2e     # Playwright 端到端（16 文件 / 88 项）
-npm run verify       # CI 同款门禁：typecheck + typecheck:e2e + test + build
+npm run server       # 起商业云后端（默认 127.0.0.1:8787，数据在 var/cloud）
+npm run verify       # CI 同款门禁：typecheck + typecheck:e2e + test + test:server + build
 npm run preview      # 预览 dist/（需先 build）
 ```
 
@@ -125,9 +128,9 @@ src/
 | 方向 | 当前状态 |
 | --- | --- |
 | 付费模式 | 待定（买断 / 订阅 / 高级功能解锁都在评估） |
-| 账号体系 | 商业版已形成可选邮箱账号设计；未实现 |
+| 账号体系 | 可选邮箱验证码账号：**后端内测已实现，客户端未接入**；本地无账号使用不受影响 |
 | 社交与分享 | 已开始做**分享训练卡片**；不做公开排行榜 |
-| 云端托管 | 已形成最小后端设计，未上线；计划与自托管并存 |
+| 云端托管 | 最小后端 `/api/cloud/v1` 已实现（条件写、幂等、版本、删除），未上线；与自托管并存 |
 
 ### 明确不做的
 
