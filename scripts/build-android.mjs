@@ -42,6 +42,15 @@ const results = [];
 function record(name, ok, detail = '') {
   results.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+  /*
+   * 失败即发注解：脚本里有七八个 process.exit(1) 的分支，
+   * 只给 gradle 加注解的话，卡在更早的检查点（JDK/SDK/cap sync）时 CI 上
+   * 只会看到 "Process completed with exit code 1"，等于没有信息。
+   */
+  if (!ok && process.env.GITHUB_ACTIONS === 'true') {
+    const text = String(detail).replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
+    console.log(`::error title=${name}::${text.slice(0, 900)}`);
+  }
 }
 
 /**
@@ -250,7 +259,7 @@ try {
   });
   record('前端构建成功', true, webOut);
 } catch (e) {
-  record('前端构建成功', false, String(e).slice(0, 120));
+  record('前端构建成功', false, String(e).slice(0, 400));
   process.exit(1);
 }
 
@@ -305,7 +314,7 @@ try {
   }
   record('cap sync 成功', true);
 } catch (e) {
-  record('cap sync 成功', false, String(e).slice(0, 120));
+  record('cap sync 成功', false, String(e).slice(0, 400));
   process.exit(1);
 }
 
@@ -322,7 +331,7 @@ try {
     `${webOut}=${distHash || '?'} / android=${appHash || '?'}`,
   );
 } catch (e) {
-  record('前端资源已同步到 Android（哈希一致）', false, String(e).slice(0, 100));
+  record('前端资源已同步到 Android（哈希一致）', false, String(e).slice(0, 400));
 }
 
 // 编译
@@ -419,11 +428,11 @@ if (existsSync(aapt)) {
           dn || '未读取到证书',
         );
       } catch (e) {
-        record('使用固定签名（可覆盖升级）', false, String(e).slice(0, 100));
+        record('使用固定签名（可覆盖升级）', false, String(e).slice(0, 400));
       }
     }
   } catch (e) {
-    record('aapt 校验', false, String(e).slice(0, 100));
+    record('aapt 校验', false, String(e).slice(0, 400));
   }
 } else {
   record('aapt 可用', false, `未找到 build-tools/${aaptName}`);
@@ -440,7 +449,7 @@ try {
   copyFileSync(apkPath, join(distDir, outName));
   record('APK 已复制到 dist-apk', true, outName);
 } catch (e) {
-  record('APK 已复制到 dist-apk', false, String(e).slice(0, 100));
+  record('APK 已复制到 dist-apk', false, String(e).slice(0, 400));
 }
 
 const failed = results.filter((r) => !r.ok);
