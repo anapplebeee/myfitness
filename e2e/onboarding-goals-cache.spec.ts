@@ -134,10 +134,16 @@ test.describe('引导 · 可选目标', () => {
     expect(((state?.occurrences as unknown[]) ?? []).length).toBeGreaterThan(0);
     expect(((state?.weekGoals as unknown[]) ?? []).length).toBeGreaterThan(0);
 
-    await goTab(page, '周目标');
-    await expect(page.locator('.goalcard__value')).toBeVisible();
-    const text = (await page.locator('.goalcard__value').innerText()).replace(/\s/g, '');
-    expect(Number(text.split('/')[1])).toBeGreaterThan(0);
+    /*
+     * 断言"计划已生成"，不绑死当前周。
+     *
+     * 原来断言本周目标的分母 > 0。这在周末必挂：
+     * 模板的训练日都在周一二四五，周六引导时本周剩下的日期是 0，
+     * 本周目标自然是 0/0——这是事实，不是缺陷。
+     * 用例要验的是"不用刷新就有计划"，所以看任意一周有计划即可。
+     */
+    const goals = (state?.weekGoals as Array<{ originalPlannedCount?: number }>) ?? [];
+    expect(goals.some((g) => (g.originalPlannedCount ?? 0) > 0)).toBe(true);
   });
 });
 
@@ -211,5 +217,6 @@ test.describe('清理缓存', () => {
     expect(key).toBe('sk-keep');
   });
 });
+
 
 
