@@ -134,9 +134,36 @@ export function seedState(): AppState {
     s.goalCreditConfirmed = true;
   }
 
-  // 给最近一周加一个豁免示例，让界面能展示"原始 N → 调整后 A"
   const currentWeek = mondayOf(today);
   const currentWeekOcc = occurrences.filter((o) => o.weekStart === currentWeek);
+
+  /*
+   * 保证"今天"有安排。
+   *
+   * 模板把训练日固定在周一二四五，遇上周六周日，示例数据一装好
+   * 今日页就是"休息日"——对第一次打开的人不是好印象，
+   * 也没法演示"今天练什么 → 开始训练"这条主路径。
+   *
+   * 把本周一个还没到的项目挪到今天：数量不变，只挪日期，
+   * 不影响 N/A 口径（按项目数算）。只改示例数据。
+   */
+  const todayHasPlan = currentWeekOcc.some(
+    (o) => o.scheduledDate === today && o.disposition === 'scheduled',
+  );
+  if (!todayHasPlan) {
+    // 有没练过的项目就挪一个到today：优先未来的，没有就挪最近一个过去的。
+    // 被练过的项目不能挪——那是已发生的事实。
+    const usedIds = new Set(sessions.map((s) => s.occurrenceId).filter(Boolean));
+    const cand = currentWeekOcc.filter(
+      (o) => o.scheduledDate !== today && o.disposition === 'scheduled' && !usedIds.has(o.id),
+    );
+    const future = cand.find((o) => o.scheduledDate > today);
+    const past = [...cand].reverse().find((o) => o.scheduledDate < today);
+    const target = future ?? past;
+    if (target) target.scheduledDate = today;
+  }
+
+  // 给最近一周加一个豁免示例，让界面能展示"原始 N → 调整后 A"
   const lastFuture = [...currentWeekOcc].reverse().find((o) => o.scheduledDate > today);
   if (lastFuture) {
     lastFuture.disposition = 'excused';
