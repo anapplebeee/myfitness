@@ -289,6 +289,15 @@ export const store = {
      */
     ensurePlanAheadImpl(state);
 
+    /*
+     * 立即落盘，不走 120ms 防抖。
+     *
+     * 引导是一生只写一次的关键状态（模板、周目标、计划）。
+     * 防抖期间用户若立刻杀进程，计划和目标就丢了，
+     * 下次打开会看到"没有设定计划"，而用户什么也没做错。
+     */
+    void persist();
+
     schedulePersist();
   },
 
