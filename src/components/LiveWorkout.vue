@@ -4,7 +4,7 @@ import { store } from '../store/appStore';
 import { exerciseName, EXERCISES, MUSCLES } from '../content/exercises';
 import { formatLoad, formatRest, formatDuration, formatVolume, shortDate } from '../domain/units';
 import { formatPlates, solvePlates } from '../domain/plates';
-import { completedSetCount, completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
+import { completedWorkingSets, lastExerciseSets, plannedSetCount } from '../domain/metrics';
 import { completionSummary, shouldDefaultCredit } from '../domain/completion';
 import { suggestNextLoad } from '../domain/next-load';
 import { useRestTimer } from '../composables/useRestTimer';
@@ -231,6 +231,22 @@ function draftFor(exId: string, set: SetRecord): DraftSet {
   return drafts.value[key]!;
 }
 
+/*
+ * 切换单位时必须换算已填的草稿。
+ *
+ * 草稿里存的是"按当时单位格式化过的字符串"，而 parseDraft 会按**当前**单位
+ * 再换算一次。不换算就会出现：预填 100（kg）→ 点 lb → 直接保存 →
+ * 100 被当成 100 lb 存成 45.36 kg，重量凭空少一半。
+ */
+function switchUnit(next: 'kg' | 'lb'): void {
+  if (next === unit.value) return;
+  const factor = next === 'lb' ? 2.20462 : 1 / 2.20462;
+  for (const d of Object.values(drafts.value)) {
+    const n = Number.parseFloat(d.load.replace(',', '.'));
+    if (Number.isFinite(n)) d.load = String(Math.round(n * factor * 10) / 10);
+  }
+  unit.value = next;
+}
 function updateDraft(exId: string, setId: string, patch: Partial<DraftSet>): void {
   const key = draftKey(exId, setId);
   const current: DraftSet = drafts.value[key] ?? { load: '', reps: '', duration: '', distance: '', rpe: '' };
@@ -567,7 +583,8 @@ const progress = computed(() => {
   const s = session.value;
   if (!s) return 0;
   const planned = plannedSetCount(s);
-  return planned ? Math.min(100, Math.round((completedSetCount(s) / planned) * 100)) : 0;
+  // 分子只数工作组：热身组不是计划的一部分，算进去会出现 16/12 这种超过 100% 的完成度
+  return planned ? Math.min(100, Math.round((completedWorkingSets(s) / planned) * 100)) : 0;
 });
 </script>
 
@@ -600,7 +617,7 @@ const progress = computed(() => {
           <p class="rest__time mono">{{ formatRest(rest.remaining.value) }}</p>
         </div>
         <div class="row gap-6">
-          <button class="btn btn--ghost btn--sm rest__btn" @click="rest.add(30); syncRestPersist()">+30s</button>
+          <button class="btn btn--ghost btn--sm rest__btn" @click="rest.add(30); syncRestPersist(); armRestNotification(rest.endsAtMs())">+30s</button>
 <button class="btn btn--lime btn--sm" @click="rest.stop(); syncRestPersist(); disarmRestNotification()">跳过</button>
         </div>
       </div>
@@ -646,8 +663,8 @@ const progress = computed(() => {
             收到动作名右侧，和「要领」并排。
           -->
           <div v-if="modeOf(activeExercise.exerciseId) === 'load_reps'" class="seg seg--mini">
-            <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="unit = 'kg'">kg</button>
-            <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="unit = 'lb'">lb</button>
+            <button class="seg__item" :class="{ 'is-on': unit === 'kg' }" @click="switchUnit('kg')">kg</button>
+            <button class="seg__item" :class="{ 'is-on': unit === 'lb' }" @click="switchUnit('lb')">lb</button>
           </div>
           <button class="btn btn--ghost btn--sm demo-btn" @click="demoId = activeExercise!.exerciseId">
             要领
@@ -875,7 +892,7 @@ const progress = computed(() => {
           </div>
           <div class="grid-2">
             <div class="stat"><span class="stat__value">{{ completedWorkingSets(session) }}</span><span class="stat__label">工作组</span></div>
-            <div class="stat"><span class="stat__value">{{ completedSetCount(session) }}/{{ plannedSetCount(session) }}</span><span class="stat__label">全场完成/计划</span></div>
+            <div class="stat"><span class="stat__value">{{ completedWorkingSets(session) }}/{{ plannedSetCount(session) }}</span><span class="stat__label">全场完成/计划</span></div>
           </div>
           <div class="divider" />
           <!-- 一个工作组都没完成时，这场连训练次数都算不上，必须说清楚 -->
@@ -888,7 +905,7 @@ const progress = computed(() => {
             默认不计入周目标。如果这次就是练到这儿，可以自己勾上。
           </p>
           <p v-else class="small">
-            {{ completedSetCount(session) < plannedSetCount(session) ? '有未录的计划组，未录组不会自动算完成。' : '全部计划组已完成。' }}
+            {{ completedWorkingSets(session) < plannedSetCount(session) ? '有未录的计划组，未录组不会自动算完成。' : '全部计划组已完成。' }}
           </p>
 
           <!--
@@ -1589,4 +1606,7 @@ const progress = computed(() => {
   font-size: 10px;
   letter-spacing: 0;
 }
+
+
+
 

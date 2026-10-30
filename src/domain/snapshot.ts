@@ -7,6 +7,7 @@
  */
 
 import type { AppState, Session } from './types';
+import type { Goal } from './goals';
 import { canonicalJson } from './transfer';
 
 /** 快照 schema 版本；破坏性变更才递增。 */
@@ -35,6 +36,12 @@ export interface Snapshot {
     weekGoals: AppState['weekGoals'];
     customTemplates: AppState['customTemplates'];
     bodyGoalGrams: number | null;
+    /*
+     * 目标列表也要走同步。之前只有 bodyGoalGrams 过来，
+     * 于是换机后体重卡显示"目标 74.0"，目标面板却说"还没设目标"。
+     * 旧快照没有这个字段时保留本地，不要清空。
+     */
+    goals?: Goal[];
     targetKcal: number | null;
     targetProtein: number | null;
     weeklyGoal: number;
@@ -83,6 +90,7 @@ export function buildSnapshot(
       weekGoals: byId(state.weekGoals),
       customTemplates: byId(state.customTemplates),
       bodyGoalGrams: state.bodyGoalGrams,
+      goals: state.goals,
       targetKcal: state.targetKcal,
       targetProtein: state.targetProtein,
       weeklyGoal: state.weeklyGoal,
@@ -203,3 +211,4 @@ export function checkSnapshotSize(snapshot: Snapshot, limitBytes: number): SizeC
       '历史不会被裁剪；请先导出备份，或联系管理员调整上限。',
   };
 }
+

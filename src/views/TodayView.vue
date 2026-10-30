@@ -95,10 +95,14 @@ const todayPlan = computed(() => {
     const bySlot = tpl.days.find((d) => `${tpl.id}-${d.id}` === occ.slotId);
     if (bySlot) return bySlot;
   }
-  // 没有计划项时按星期几取（休息日也允许手动开一场）
+  /*
+   * 按模板 slot（0=周一…6=周日）反查，不要把星期几当数组下标。
+   * 4 天模板只有 4 个 day，周六取 days[5] 会 undefined 并回退 days[0]，
+   * 休息日就显示成了"今天 · 上肢 A"。找不到不猜。
+   */
   const dayIndex = new Date(`${today}T12:00:00`).getDay();
-  const idx = dayIndex === 0 ? tpl.days.length - 1 : dayIndex - 1;
-  return tpl.days[idx] ?? tpl.days[0] ?? null;
+  const slot = dayIndex === 0 ? 6 : dayIndex - 1;
+  return tpl.days.find((d) => d.slot === slot) ?? null;
 });
 
 /** 今天预计的组数：给首屏一句话说明，替代整列动作清单。 */

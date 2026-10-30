@@ -143,7 +143,7 @@ function dayNum(date: string): number {
 .mcal__cell.is-live {
   background: var(--lime);
   border-color: transparent;
-  color: var(--lime-ink);
+  color: var(--on-lime);
 }
 
 .mcal__cell.is-live .mcal__dot {
@@ -244,6 +244,7 @@ function dayNum(date: string): number {
   background: var(--sky-ink);
 }
 </style>
+
 
 
 

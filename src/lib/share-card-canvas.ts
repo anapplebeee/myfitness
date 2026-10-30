@@ -105,7 +105,11 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData): v
   // 三个核心数字
   y += 120;
   const stats: Array<{ label: string; value: string; unit: string }> = [
-    { label: '总容量', value: data.volumeValue, unit: 'kg' },
+    /*
+     * volumeValue 里已经带了单位（formatVolume 返回「12,340 kg」）。
+     * 再追加一次会变成「kg kg」；lb 用户则是「lb kg」。
+     */
+    { label: '总容量', value: data.volumeValue, unit: '' },
     { label: '完成组数', value: data.setsValue, unit: '组' },
 ];
   if (data.durationValue) stats.push({ label: '训练时长', value: data.durationValue, unit: '' });

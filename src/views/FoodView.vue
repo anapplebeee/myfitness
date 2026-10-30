@@ -287,6 +287,9 @@ function addFromFood(): void {
 function addManual(): void {
   const kcal = Number.parseInt(manualKcal.value, 10);
   const protein = Number.parseFloat(manualProtein.value);
+  // 碳水/脂肪是可选：空串表示"没填"，存 undefined 而不是 0
+  const carb = Number.parseFloat(manualCarb.value);
+  const fat = Number.parseFloat(manualFat.value);
   if (!Number.isFinite(kcal) || kcal <= 0 || !sheet.value) {
     push('请填写热量', 'error');
     return;
@@ -297,9 +300,13 @@ function addManual(): void {
     label: '手工记录',
     kcal,
     protein: Number.isFinite(protein) ? protein : 0,
+    carb: Number.isFinite(carb) && carb >= 0 ? carb : undefined,
+    fat: Number.isFinite(fat) && fat >= 0 ? fat : undefined,
   });
   manualKcal.value = '';
   manualProtein.value = '';
+  manualCarb.value = '';
+  manualFat.value = '';
   push('已记录', 'success');
   sheet.value = null;
 }

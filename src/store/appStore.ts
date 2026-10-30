@@ -239,9 +239,26 @@ export const store = {
       state.sessions = [];
       state.weights = [];
       state.foods = [];
+      state.water = [];
       state.occurrences = [];
       state.weekGoals = [];
       state.bodyGoalGrams = null;
+      /*
+       * 身体档案也要清。
+       *
+       * seedState() 给了一套假数据（176cm / 男 / 1994 年 / 活动系数 1.5），
+       * 而引导从头到尾只问每周练几次。不清的话，选了"从空白开始"的人
+       * 会看到一个按陌生人身体算出来的 BMI 和热量目标——
+       * 而这恰恰是本产品最不该做的事：编数据。
+       */
+      state.profile = {
+        ...state.profile,
+        name: '',
+        heightCm: null,
+        sex: null,
+        birthYear: null,
+        activity: null,
+      };
     }
     // 示例数据标识跟着用户的选择走：顶栏会一直显示"示例数据"
     state.demoMode = input.keepDemoData;
@@ -1157,6 +1174,8 @@ export const store = {
     assign('weekGoals', r.weekGoals);
     assign('customTemplates', r.customTemplates);
     assign('bodyGoalGrams', r.bodyGoalGrams);
+    // 目标列表此前没进快照：换机后体重卡有目标、目标面板却说没设。旧快照缺字段时保留本地。
+    assign('goals', r.goals);
     assign('targetKcal', r.targetKcal);
     assign('targetProtein', r.targetProtein);
     /*
@@ -1194,11 +1213,28 @@ export const store = {
     return null;
   },
 
-  /** 清空本机：删除数据但保留数据集 ID 以外的一切重置为种子。 */
+  /**
+   * 清空本机业务数据。
+   *
+   * 之前这里直接套 seedState()，于是"清空"之后又冒回 42 场示例训练、
+   * 14 条体重、3 条饮食，还把 onboarded 打回 false —— 用户点的是
+   * "清空本机数据"，看到的是"数据变多了"。
+   *
+   * 现在只清业务记录：
+   * - 保留：profile（身高体重性别等是设置不是记录）、提醒、饮水目标、
+   *   营养目标、目标列表、数据集 ID、当前模板
+   * - 清掉：训练、体重、饮食、饮水记录、计划项、周目标、示例标记
+   */
   wipeLocal(): void {
-    const datasetId = state.datasetId;
-    const fresh = seedState();
-    Object.assign(state, fresh, { datasetId });
+    state.sessions = [];
+    state.weights = [];
+    state.foods = [];
+    state.water = [];
+    state.occurrences = [];
+    state.weekGoals = [];
+    state.bodyGoalGrams = null;
+    state.demoMode = false;
+    state.onboarded = true;
     schedulePersist();
   },
 };

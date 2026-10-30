@@ -27,6 +27,9 @@ const KCAL_PER_KG = 7700;
 const MIN_SPAN_DAYS = 14;
 /** 至少要有这么多天记了饮食，否则平均摄入不可信。 */
 const MIN_LOGGED_DAYS = 10;
+
+/** 跨度内至少要有这么高比例的饮食记录，否则平均摄入不可信。 */
+const MIN_COVERAGE = 0.7;
 /** 体重净变化小于这个值视为噪声（水分波动级）。 */
 const MIN_WEIGHT_DELTA_KG = 0.3;
 /*
@@ -110,21 +113,34 @@ export function estimateAdaptiveTdee(input: AdaptiveTdeeInput): AdaptiveTdeeResu
   const spanDays = Math.max(1, daysBetween(first.date, last.date));
   const weightDeltaKg = (last.grams - first.grams) / 1000;
 
+  /*
+   * 摄入只能取"两次体重记录之间"的天数。
+   *
+   * 原实现按窗口取，再除以 intake.length，于是窗口边缘 10 天的记录
+   * 会被当成整段 27 天都这么吃 —— 后 17 天完全没记，照样给出一个
+   * 精确到 kcal 的结论。先把区间对齐到体重跨度，再要求覆盖率。
+   */
+  const intakeInSpan = intake.filter((d) => d.date >= first.date && d.date <= last.date);
+  const coverage = intakeInSpan.length / spanDays;
+
   const avgIntakeKcal =
-    intake.length > 0 ? Math.round(intake.reduce((s, d) => s + d.kcal, 0) / intake.length) : 0;
+    intakeInSpan.length > 0
+      ? Math.round(intakeInSpan.reduce((s, d) => s + d.kcal, 0) / intakeInSpan.length)
+      : 0;
 
   const filled: Omit<AdaptiveTdeeResult, 'blocked'> = {
     ...base,
     weightDeltaKg: round1(weightDeltaKg),
     weeklyChangeKg: round1((weightDeltaKg / spanDays) * 7),
     avgIntakeKcal,
+    loggedDays: intakeInSpan.length,
     spanDays,
   };
 
   if (spanDays < MIN_SPAN_DAYS) {
     return { ...filled, blocked: 'span-too-short' };
   }
-  if (intake.length < MIN_LOGGED_DAYS) {
+  if (intakeInSpan.length < MIN_LOGGED_DAYS || coverage < MIN_COVERAGE) {
     return { ...filled, blocked: 'too-few-logged-days' };
   }
   /*
@@ -205,3 +221,4 @@ export function adaptiveTdeeFromState(
 
   return estimateAdaptiveTdee({ weights, intakeByDate, endDate, windowDays });
 }
+

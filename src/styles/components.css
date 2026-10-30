@@ -556,7 +556,8 @@
 .bar__fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--surface-ink);
+  /* 用 --ink 而不是 --surface-ink：后者在深色下与卡片同色，进度条会看不见 */
+  background: var(--ink);
   transition: width 0.6s var(--ease-out);
 }
 

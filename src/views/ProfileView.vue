@@ -312,18 +312,24 @@ function saveHeight(raw: string): void {
 
 function saveGoalWeight(raw: string): void {
   const kg = Number.parseFloat(raw.replace(',', '.'));
-  if (!Number.isFinite(kg) || kg <= 0 || kg > 400) {
-    push('目标体重请填 1–400 kg', 'error');
+  // 与 domain 的 validateGoal 对齐（35–250 kg），否则会被拒却提示"已更新"
+  if (!Number.isFinite(kg) || kg < 35 || kg > 250) {
+    push('目标体重请填 35–250 kg', 'error');
     return;
   }
   const existing = store.state.goals.find((g) => g.kind === 'bodyweight');
-  store.setGoal({
+  // 之前丢弃了 setGoal 的返回值：校验失败（如与当前体重差 < 0.5kg）也会提示成功
+  const error = store.setGoal({
     kind: 'bodyweight',
     targetGrams: Math.round(kg * 1000),
     startGrams: existing?.kind === 'bodyweight' ? existing.startGrams : (latest.value?.grams ?? null),
     targetDate: existing?.kind === 'bodyweight' ? existing.targetDate : null,
     createdAt: new Date().toISOString(),
   });
+  if (error) {
+    push(error, 'error');
+    return;
+  }
   push('目标体重已更新', 'success');
 }
 

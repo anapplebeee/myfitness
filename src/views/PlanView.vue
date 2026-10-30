@@ -409,7 +409,8 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
         >
           <span class="item__date">
             <strong>{{ parseBusinessDate(o.scheduledDate).getDate() }}</strong>
-            <span>{{ weekdayOfWeek(Number(o.scheduledDate.slice(8, 10)) - Number(activeWeek.slice(8, 10))) }}</span>
+            <!-- 直接用日期算星期：跨月时"日号相减"会得到负数，显示错误的星期 -->
+            <span>{{ weekdayLabel(o.scheduledDate).replace('周', '') }}</span>
           </span>
           <span class="item__body">
             <span class="h3">{{ o.title }}</span>
@@ -797,7 +798,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
 
 .day.is-live .day__label,
 .day.is-live .day__badge {
-  color: var(--lime-ink);
+  color: var(--on-lime);
 }
 
 .day.is-live .day__badge {
@@ -902,7 +903,7 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   padding: 12px 14px;
   border-radius: 14px;
   background: rgba(201, 245, 63, 0.16);
-  color: var(--lime-ink);
+  color: var(--on-lime);
 }
 
 .acts {
@@ -934,6 +935,8 @@ useSheetBack(computed(() => dayDetail.value !== null), () => { dayDetail.value =
   margin-top: 8px;
 }
 </style>
+
+
 
 
 
