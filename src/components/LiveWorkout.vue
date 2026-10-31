@@ -294,9 +294,20 @@ const pickerKeyword = ref('');
  * 原实现只列前 24 个，导致平板支撑、坡度快走等排在后面的动作根本选不到。
  */
 const pickerResults = computed(() => {
+  /*
+   * 本场已有的动作不再出现在选择器里。
+   *
+   * 选中本场已有的动作会生成一条 exerciseId 重复的新条目，
+   * 而 completeSet/addSet 都按 exerciseId 找条目 —— 总会命中旧的那条，
+   * 新条目里的组永远保存不了，用户只会看到"本组尚未保存，请重试"。
+   */
+  const inSession = new Set(
+    (store.findSession(props.sessionId)?.exercises ?? []).map((x) => x.exerciseId),
+  );
+  const available = EXERCISES.filter((e) => !inSession.has(e.id));
   const q = pickerKeyword.value.trim().toLowerCase();
-  if (!q) return EXERCISES;
-  return EXERCISES.filter(
+  if (!q) return available;
+  return available.filter(
     (e) => e.name.toLowerCase().includes(q) || (e.alias ?? []).some((a) => a.includes(q)),
   );
 });

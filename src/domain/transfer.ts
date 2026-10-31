@@ -484,9 +484,10 @@ export function applyImport(
         reminders: rec.reminders ?? current.reminders,
         activeTemplateId: rec.activeTemplateId ?? null,
         activeTemplateSince: rec.activeTemplateSince ?? null,
-        bodyGoalGrams: rec.bodyGoalGrams ?? null,
-        targetKcal: rec.targetKcal ?? null,
-        targetProtein: rec.targetProtein ?? null,
+        // 合并模式不覆盖本地已有内容：文件里没有的字段保留本机值
+        bodyGoalGrams: rec.bodyGoalGrams ?? current.bodyGoalGrams,
+        targetKcal: rec.targetKcal ?? current.targetKcal,
+        targetProtein: rec.targetProtein ?? current.targetProtein,
         weeklyGoal: weekGoal,
         /* 设备标识与引导状态保留本地：它们描述"这台设备"，不是业务数据 */
         datasetId: current.datasetId,
@@ -650,6 +651,7 @@ export function exportFileName(datasetId: string, at = new Date()): string {
   const mm = String(at.getMinutes()).padStart(2, '0');
   return `lianji-${datasetId}-${y}${m}${d}-${hh}${mm}.json`;
 }
+
 
 
 
