@@ -93,14 +93,38 @@ const BUILTIN_EXERCISES: Exercise[] = [
   e('rower', '划船机', 'cardio', '器械', ['腿-核心-手', '节奏稳定'], [], { mode: 'distance_duration' }),
 ];
 
-/** 内置动作 + 内容包动作；ID 冲突时内置优先。 */
+/*
+ * 内置动作 + 内容包动作。
+ *
+ * 去重规则：
+ * - ID 相同 → 内置优先
+ * - **名称相同 → 内置优先**（扩展包里有 24 个与内置同名的动作，
+ *   其中 20 个连器械/肌群/模式都一致。不去重的话动作库会出现两个
+ *   "杠铃深蹲"，而训练记录按 id 存储，历史最佳和肌群统计会被拆成两半。）
+ *
+ * 被去重掉的动作**仍然保留在查找表里**：老记录可能用了 ext- 前缀的 id，
+ * 直接删掉会让那些历史动作名显示成"自定义动作"。
+ */
+const builtinNames = new Set(BUILTIN_EXERCISES.map((e) => e.name));
+const shadowed: Exercise[] = [];
+
 export const EXERCISES: Exercise[] = (() => {
   const builtinIds = new Set(BUILTIN_EXERCISES.map((e) => e.id));
-  const fromPacks = packExercisesToLibrary(EXERCISE_PACKS).filter((e) => !builtinIds.has(e.id));
+  const fromPacks = packExercisesToLibrary(EXERCISE_PACKS).filter((e) => {
+    if (builtinIds.has(e.id)) return false;
+    if (builtinNames.has(e.name)) {
+      shadowed.push(e);
+      return false;
+    }
+    return true;
+  });
   return [...BUILTIN_EXERCISES, ...fromPacks];
 })();
 
-export const EXERCISE_BY_ID = new Map(EXERCISES.map((x) => [x.id, x]));
+/** 查表要包含被去重的影子条目，否则老记录的动作名会退化成"自定义动作"。 */
+export const EXERCISE_BY_ID = new Map(
+  [...EXERCISES, ...shadowed].map((x) => [x.id, x] as const),
+);
 
 export function exerciseName(id: string): string {
   return EXERCISE_BY_ID.get(id)?.name ?? '自定义动作';

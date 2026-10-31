@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { store } from '../store/appStore';
 import { EXERCISES, exerciseName, exerciseGroup, MUSCLES } from '../content/exercises';
 import { businessDate, formatDuration, formatVolume, shortDate } from '../domain/units';
@@ -29,12 +29,26 @@ void emit;
  * 落到计划页再让他自己点一次，等于跳转没完成。
  */
 const mode = ref<'plan' | 'history' | 'library'>('plan');
-onMounted(() => {
+
+/*
+ * 消费导航意图。
+ *
+ * 必须挂在 onActivated 上，不能只在 onMounted：
+ * App 用 <KeepAlive> 缓存标签页，第二次从今日点「最近训练 · 全部」时，
+ * TrainView 只是被重新激活，不会再 mount —— 意图留在全局，
+ * 页面仍停在上次的段落。
+ *
+ * takeIntent 取走即清空，两个钩子都注册也不会重复应用。
+ */
+function consumeIntent(): void {
   const it = takeIntent();
-  if (it?.focus?.kind === 'history') mode.value = 'history';
-  else if (it?.focus?.kind === 'library') mode.value = 'library';
-  if (it?.focus?.kind === 'session') openSession(it.focus.id);
-});
+  if (!it) return;
+  if (it.focus?.kind === 'history') mode.value = 'history';
+  else if (it.focus?.kind === 'library') mode.value = 'library';
+  if (it.focus?.kind === 'session') openSession(it.focus.id);
+}
+onMounted(consumeIntent);
+onActivated(consumeIntent);
 // 录制开关统一由 useOverlay 管理，避免本页与全局各持一套状态
 const search = ref('');
 const group = ref<string>('all');
@@ -1026,6 +1040,7 @@ function sessionDuration(startedAt: string): string {
   overflow: auto;
 }
 </style>
+
 
 
 

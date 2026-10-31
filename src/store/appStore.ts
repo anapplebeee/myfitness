@@ -1,4 +1,4 @@
-import { backupKey as makeBackupKey, syncBackupKey as makeSyncBackupKey } from './storageKeys';
+import { BACKUP_PREFIX, SYNC_BACKUP_PREFIX, backupKey as makeBackupKey, pruneBackups, syncBackupKey as makeSyncBackupKey } from './storageKeys';
 import { computed, reactive, readonly, ref, toRaw } from 'vue';
 import type { AppState, FoodEntry, Profile, ReminderSettings, Session, SessionExercise, SetRecord, WaterEntry, WeightEntry } from '../domain/types';
 import { buildWarmup } from '../domain/warmup';
@@ -1118,6 +1118,8 @@ export const store = {
     let backupKey: string | null = null;
     if (result.backup) {
       // 替换模式：先把旧状态另存为备份，失败可回滚
+    // 写新备份前先清旧的：只写不删会把 localStorage 配额撑满
+    pruneBackups(BACKUP_PREFIX, 2);
       backupKey = makeBackupKey(Date.now());
       try {
         localStorage.setItem(backupKey, JSON.stringify(result.backup));
@@ -1153,6 +1155,7 @@ export const store = {
     records: Record<string, unknown>;
   }): string | null {
     const r = snapshot.records as Record<string, unknown>;
+    pruneBackups(SYNC_BACKUP_PREFIX, 2);
     const backupKey = makeSyncBackupKey(Date.now());
     try {
       localStorage.setItem(backupKey, JSON.stringify(state));
@@ -1248,6 +1251,7 @@ const latestWeight = computed<WeightEntry | null>(
 );
 
 export const derived = { weightSeries, latestWeight };
+
 
 
 

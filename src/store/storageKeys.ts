@@ -37,6 +37,34 @@ export function syncBackupKey(ts: number): string {
 export const BACKUP_PREFIX = `${STORAGE_PREFIX}.backup.`;
 export const SYNC_BACKUP_PREFIX = `${STORAGE_PREFIX}.syncbackup.`;
 
+/**
+ * 清理旧备份，只保留最近 N 份。
+ *
+ * 每份备份是整份 state（几十 KB 到几 MB）。只写不删的话，
+ * 每次替换/应用远端都会多一份，localStorage 配额（约 5MB）
+ * 迟早被撑满 —— 之后替换与"保留远端"会永久失败。
+ *
+ * key 里带时间戳，按数值倒序即可判断新旧。
+ */
+export function pruneBackups(prefix: string, keep = 2): void {
+  if (typeof localStorage === 'undefined') return;
+  const stamps: number[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(prefix)) continue;
+    const n = Number(k.slice(prefix.length));
+    if (Number.isFinite(n)) stamps.push(n);
+  }
+  stamps.sort((a, b) => b - a);
+  for (const n of stamps.slice(keep)) {
+    try {
+      localStorage.removeItem(`${prefix}${n}`);
+    } catch {
+      /* 删不掉就算了，不影响主流程 */
+    }
+  }
+}
+
 interface KeyPair {
   from: string;
   to: string;
