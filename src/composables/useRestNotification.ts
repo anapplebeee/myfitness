@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 /**
  * 组间休息通知。
  *
@@ -15,13 +16,17 @@
  */
 
 const NOTIFY_ID = 9101;
+
+/** 最近一次排程/权限问题，设置页与真机验收可读；null 表示正常。 */
+export const lastRestNotifyError = ref<string | null>(null);
 const PREF_KEY = 'lianji.restNotify';
+
 
 /** 用户是否开启组间提醒。默认开：这是"该开始下一组了"的提示，不是营销推送。 */
 export function restNotifyEnabled(): boolean {
   try {
     return localStorage.getItem(PREF_KEY) !== 'off';
-  } catch {
+    } catch (err) {
     return true;
   }
 }
@@ -29,7 +34,7 @@ export function restNotifyEnabled(): boolean {
 export function setRestNotifyEnabled(on: boolean): void {
   try {
     localStorage.setItem(PREF_KEY, on ? 'on' : 'off');
-  } catch {
+    } catch (err) {
     /* 存不进去就按默认值走，不影响训练 */
   }
 }
@@ -67,6 +72,23 @@ export async function armRestNotification(endAtMs: number | null): Promise<void>
   if (delay <= 0) return;
 
   if (isNative()) {
+    /*
+     * 精确闹钟权限单独检查。
+     *
+     * Android 12+ 把 SCHEDULE_EXACT_ALARM 做成了特殊权限，
+     * 清单里声明了也**不等于**已授予；HyperOS 上默认就没有。
+     * 没有它时 schedule() 会失败（或被降级成非精确闹钟），
+     * 而下面原来是空 catch —— 真机上表现为"什么都没发生"。
+     */
+    let exactAllowed = true;
+    try {
+      const { LocalNotifications: LN } = await loadPlugin();
+      const st = await LN.checkExactNotificationSetting();
+      exactAllowed = st.exact_alarm === 'granted';
+      lastRestNotifyError.value = exactAllowed ? null : '缺少「闹钟和提醒」权限，休息通知可能不准时';
+    } catch {
+      // 老系统没有这个 API，按可用处理
+    }
     try {
       const { LocalNotifications } = await loadPlugin();
       const perm = await LocalNotifications.checkPermissions();
@@ -93,8 +115,14 @@ export async function armRestNotification(endAtMs: number | null): Promise<void>
           },
         ],
       });
-    } catch {
-      /* 排程失败不该影响训练流程 */
+    } catch (err) {
+      /*
+       * 失败不阻断训练，但**不能静默**：
+       * 之前这里是空 catch，真机上通知没排进去也没有任何痕迹，
+       * 只能靠 dumpsys 才看得出系统里根本没有 alarm。
+       */
+      lastRestNotifyError.value = err instanceof Error ? err.message : String(err);
+      console.warn('[rest-notify] 排程失败', err);
     }
     return;
   }
@@ -110,7 +138,7 @@ export async function armRestNotification(endAtMs: number | null): Promise<void>
     try {
       // eslint-disable-next-line no-new
       new Notification('休息结束', { body: '可以开始下一组了' });
-    } catch {
+    } catch (err) {
       /* 某些浏览器在非 SW 上下文禁用构造器，静默失败 */
     }
   }, delay);
@@ -123,7 +151,7 @@ export async function disarmRestNotification(): Promise<void> {
   try {
     const { LocalNotifications } = await loadPlugin();
     await LocalNotifications.cancel({ notifications: [{ id: NOTIFY_ID }] });
-  } catch {
+    } catch (err) {
     /* 没有待取消的通知时取消会抛错，忽略 */
   }
 }
@@ -135,8 +163,10 @@ export async function ensureRestNotifyPermission(): Promise<void> {
   if (Notification.permission !== 'default') return;
   try {
     await Notification.requestPermission();
-  } catch {
+    } catch (err) {
     /* 用户拒绝就静默，不弹二次请求 */
   }
 }
+
+
 
