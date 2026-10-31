@@ -27,9 +27,32 @@ export function isEmptySession(session: Session): boolean {
  * tombstone（deletedAt 非空）一律不算——删除是显式事实，不参与任何统计
  * （amend.ts:140、types.ts:88）。
  */
+/**
+ * 这场训练算不算"练过"。
+ *
+ * 全项目唯一口径。之前有两套：
+ * - metrics 这套只认"至少完成一个工作组"；
+ * - week 那套额外认"自报补录"（用户只勾了"练过"，没有逐组数据）。
+ * 于是同一条补录：周统计算 1 场、周报算 0 次、历史列表里根本看不到。
+ *
+ * 自报补录确实"练过"，必须计入次数与天数；
+ * 它没有工作组，所以容量与 PR 天然为 0（不需要另开分支）。
+ */
 export function isValidCompleted(session: Session): boolean {
   if (session.deletedAt) return false;
-  return session.status === 'completed' && completedWorkingSets(session) > 0;
+  if (session.status !== 'completed') return false;
+  if (session.completionBasis === 'selfReported' || session.completionBasis === 'legacyReported') {
+    return true;
+  }
+  return completedWorkingSets(session) > 0;
+}
+
+/**
+ * 有逐组数据、可以参与容量与 PR 计算的场次。
+ * 自报补录没有组，所以这里为 false —— 分享卡、PR、容量都该用它。
+ */
+export function hasWorkingSets(session: Session): boolean {
+  return isValidCompleted(session) && completedWorkingSets(session) > 0;
 }
 
 /**

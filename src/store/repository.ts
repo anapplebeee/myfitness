@@ -155,7 +155,21 @@ export async function loadState(): Promise<AppState | null> {
   const idbUnavailable = typeof indexedDB === 'undefined' && lsResult.status === 'fulfilled';
 
   if (fresh.length) {
-    // 新库已有数据：直接返回最新的一份，不读旧库、更不写旧库
+    /*
+     * 升级场景：新 IDB 还是空的，但新 localStorage 可能已经被
+     * migrateLegacyStorage 用**旧 localStorage 副本**填过了。
+     *
+     * 旧版本的 saveState 对 IDB 与 localStorage 是分别写入的，
+     * localStorage 配额满时 IDB 仍会更新 —— 那份旧 IDB 才是最新的。
+     * 只信新 LS 会把升级前最后一段训练记录丢掉。
+     *
+     * 所以新 IDB 为空时，把旧 IDB 也作为一个候选，按 __persistedAt 取最新。
+     */
+    const newIdbEmpty = !(idbResult.status === 'fulfilled' && idbResult.value);
+    if (newIdbEmpty) {
+      const legacy = await idbGetLegacy().catch(() => null);
+      if (legacy) fresh.push(legacy);
+    }
     return newestOf(fresh);
   }
 

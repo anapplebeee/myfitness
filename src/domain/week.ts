@@ -10,6 +10,7 @@
 
 import type { Session } from './types';
 import { addDays, businessDate } from './units';
+import { isValidCompleted } from './metrics';
 
 export type Disposition = 'scheduled' | 'excused' | 'cancelled';
 
@@ -56,14 +57,12 @@ export interface WeekGoal {
 
 export const RULE_VERSION = 1;
 
-/** 有效完成会话：completed 且至少一个完成工作组；或显式确认的补录。 */
+/**
+ * 委托给 metrics 的唯一口径，避免两套判定继续分叉。
+ * 保留这个导出名，是因为 week 的调用方语义是"算不算一次训练"。
+ */
 export function isValidCompletedSession(session: Session): boolean {
-  if (session.deletedAt) return false;
-  if (session.status !== 'completed') return false;
-  if (session.completionBasis === 'selfReported' || session.completionBasis === 'legacyReported') {
-    return true;
-  }
-  return session.exercises.some((ex) => ex.sets.some((s) => s.kind === 'work' && s.status === 'completed'));
+  return isValidCompleted(session);
 }
 
 export function weekRange(weekStart: string): { from: string; to: string } {
@@ -478,4 +477,5 @@ export function currentWeekStart(now: Date = new Date()): string {
   const offset = (d.getDay() + 6) % 7;
   return addDays(date, -offset);
 }
+
 

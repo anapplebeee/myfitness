@@ -127,12 +127,16 @@ describe('applyTheme 写 DOM', () => {
     expect(meta._content).toBe('#f2f0ea');
   });
 
-  it('system 模式移除 data-theme，交给媒体查询兜底', () => {
+  /*
+   * system 模式也要写入解析后的主题。
+   * 深色 token 只定义在 [data-theme='dark'] 下，移除属性会让系统深色
+   * 时页面仍是浅色，而 theme-color 却已变深。
+   */
+  it('system 模式写入解析后的主题（浅色环境 → light）', () => {
     const { doc, root } = fakeDoc();
     Object.defineProperty(globalThis, 'document', { value: doc, configurable: true, writable: true });
-    // 没有 matchMedia 时按浅色处理
     applyTheme('system');
-    expect(root._attrs.has('data-theme')).toBe(false);
+    expect(root._attrs.get('data-theme')).toBe('light');
   });
 });
 

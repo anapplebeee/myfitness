@@ -18,6 +18,7 @@ import {
   createSet,
   e1rm,
   isEmptySession,
+  hasWorkingSets,
   isValidCompleted,
   lastExerciseSets,
   plannedSetCount,
@@ -315,11 +316,16 @@ describe('补充 · streakWeeks 与 isValidCompleted 的 completionBasis', () =>
     expect(streakWeeks([])).toBe(0);
   });
 
-  it('metrics.isValidCompleted 只看组数据，不看 completionBasis', () => {
-    // metrics 的口径：completed + 至少一个完成工作组
+  /*
+   * 口径已统一：自报补录算"练过"，必须计入次数与天数；
+   * 它没有工作组，所以容量与 PR 天然为 0（由 hasWorkingSets 区分）。
+   */
+  it('自报补录算练过，但没有工作组', () => {
     const s = session({ id: 'a', businessDate: '2026-10-01',
       completionBasis: 'selfReported',
       exercises: [exercise({ id: 'e1', exerciseId: 'bb-squat', sets: [] })] });
-    expect(isValidCompleted(s)).toBe(false);
+    expect(isValidCompleted(s)).toBe(true);
+    expect(hasWorkingSets(s)).toBe(false);
   });
 });
+

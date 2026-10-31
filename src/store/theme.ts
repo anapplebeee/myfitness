@@ -71,8 +71,14 @@ export function applyTheme(pref: ThemePref): ResolvedTheme {
   const resolved = resolveTheme(pref, systemPrefersDark());
   const root = typeof document !== 'undefined' ? document.documentElement : null;
   if (root) {
-    if (pref === 'system') root.removeAttribute('data-theme');
-    else root.setAttribute('data-theme', pref);
+    /*
+     * 始终写入解析后的主题。
+     *
+     * 原来 system 模式是 removeAttribute，而深色 token 只定义在
+     * [data-theme='dark'] 下 —— 系统深色 + 默认设置时，页面仍是浅色，
+     * 但 theme-color 已经被设成深色，形成浅色页面配深色状态栏。
+     */
+    root.setAttribute('data-theme', resolved);
     root.style.colorScheme = resolved;
   }
   const meta = typeof document !== 'undefined' ? document.querySelector('meta[name="theme-color"]') : null;
